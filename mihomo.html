@@ -276,7 +276,7 @@
                         <div class="flex justify-between items-center mb-4">
                             <div>
                                 <div class="stitle mb-0 !border-l-0 !pl-0 text-fuchsia-700">Tproxy 透明代理 (Linux 专属)</div>
-                                <p class="text-xs text-slate-500 mt-1">开启后可通过 nftables 将本机或局域网流量劫持至内核进行代理。</p>
+                                <p class="text-xs text-slate-500 mt-1">开启后可通过 nftables/iptables 将本机或局域网流量劫持至内核进行代理。</p>
                             </div>
                             <label class="toggle-switch">
                                 <input type="checkbox" v-model="uiState.tproxyEnable" @change="handleTproxyToggle">
@@ -337,7 +337,7 @@
                                             <label class="text-xs font-bold text-fuchsia-700">本地 DNS 劫持</label>
                                             <label class="toggle-switch transform scale-75 origin-right"><input type="checkbox" v-model="uiState.nftablesConfig.hijackDns"><span class="toggle-slider"></span></label>
                                         </div>
-                                        <p class="text-[10px] text-slate-500">将53端口请求劫持至全局 DNS 监听端口 ({{ config.dns.listen || ':53' }})，建议全局DNS 设置为非 53 端口！</p>
+                                        <p class="text-[10px] text-slate-500">将53端口请求劫持至全局 DNS 监听端口 ({{ config.dns.listen || ':53' }})</p>
                                     </div>
                                     
                                     <div class="bg-white p-3 border border-fuchsia-200 rounded-lg shadow-sm">
@@ -1140,13 +1140,13 @@ createApp({
                 : { geoip: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geoip.dat', geosite: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geosite.dat', mmdb: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/country.mmdb' };
         }, { immediate: true });
 
-       watch(() => uiState.value.nftablesConfig.tproxyIpv6, (val) => {
-          if (val && uiState.value.nftablesConfig.listen === '0.0.0.0') {
-          uiState.value.nftablesConfig.listen = '::';
-          } else if (!val && uiState.value.nftablesConfig.listen === '::') {
-         uiState.value.nftablesConfig.listen = '0.0.0.0';
-      }
-  });
+        watch(() => uiState.value.nftablesConfig.tproxyIpv6, (val) => {
+            if (val && uiState.value.nftablesConfig.listen === '0.0.0.0') {
+                uiState.value.nftablesConfig.listen = '::';
+            } else if (!val && uiState.value.nftablesConfig.listen === '::') {
+                uiState.value.nftablesConfig.listen = '0.0.0.0';
+            }
+        });
 
         const handleTproxyToggle = (e) => {
             if (uiState.value.tproxyEnable) {
@@ -1222,7 +1222,7 @@ createApp({
             const dnsPort = (config.value.dns.listen || ':53').replace(/[^0-9]/g, '') || '53';
             
             let script = `#!/usr/sbin/nft -f\n\n`;
-            script += `# 安全隔离：仅创建并清空专属 table\n`;
+            script += `# 安全隔离：仅创建并清空专属 table，绝对不使用 flush ruleset\n`;
             script += `add table inet mihomo\nflush table inet mihomo\n\n`;
             script += `table inet mihomo {\n`;
             
@@ -1359,28 +1359,43 @@ createApp({
         const copyNftables = async () => { try { await navigator.clipboard.writeText(getCleanNftables()); alert('nftables 规则已复制 (已自动去除注释)'); } catch{} };
         const downloadNftables = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([getCleanNftables()])); a.download = 'tproxy.nft'; a.click(); };
 
+        // 解析单个节点，补充 UI 需要的默认字段，防止 v-model 报错
+        const parseSingleProxyNode = (px) => {
+            if (!px) return null;
+            const base = {
+                name: px.name || `Node-${Math.floor(Math.random()*1000)}`, type: px.type || 'vless', server: px.server || '', port: px.port || '443', udp: px.udp !== false, tfo: px.tfo || false, ip: px.ip || '', 'packet-encoding': px['packet-encoding'] || '',
+                uuid: px.uuid || '', flow: px.flow || '', alterId: px.alterId || 0, password: px['auth-str'] || px.psk || px.password || '', username: px.username || '', cipher: px.cipher || 'auto',
+                plugin: px.plugin || '', 'plugin-opts': { mode: 'websocket', host: '', path: '/', tls: false, mux: false, password: '', ...(px['plugin-opts'] || {}) }, 'kcptun-opts': { crypt: 'aes-128-gcm', ...(px['kcptun-opts'] || {}) },
+                protocol: px.protocol || '', 'protocol-param': px['protocol-param'] || '', obfs: px.obfs || '', 'obfs-param': px['obfs-param'] || '', version: px.version || '4',
+                'public-key': px['public-key'] || '', 'private-key': px['private-key'] || '', 'pre-shared-key': px['pre-shared-key'] || '', reserved: px.reserved ? (typeof px.reserved === 'object' ? JSON.stringify(px.reserved) : px.reserved) : '', workers: px.workers || 2, mtu: px.mtu || 1420, 'wg-dns': px.dns ? (Array.isArray(px.dns) ? px.dns.join(',') : px.dns) : '',
+                up: px.up || '100 Mbps', down: px.down || '100 Mbps', 'obfs-password': px['obfs-password'] || '', ports: px.ports || '',
+                'congestion-controller': px['congestion-controller'] || 'bbr', 'udp-relay-mode': px['udp-relay-mode'] || 'native', 'reduce-rtt': px['reduce-rtt'] || false, heartbeat: px.heartbeat || '10s', 'request-timeout': px['request-timeout'] || '15s',
+                'udp-over-tcp': px['udp-over-tcp'] || false, passphrase: px.passphrase || '', 'obfs-host': px['obfs-host'] || '',
+                network: px.network || 'tcp', tls: px.tls || false, 'skip-cert-verify': px['skip-cert-verify'] || false, servername: px.servername || '', 'client-fingerprint': px['client-fingerprint'] || '', alpn: px.alpn ? (Array.isArray(px.alpn) ? px.alpn.join(',') : px.alpn) : '',
+                reality: !!px['reality-opts'], 'reality-opts': { 'public-key': '', 'short-id': '', ...(px['reality-opts'] || {}) },
+                smux: { enabled: !!px.smux, protocol: 'h2mux', 'max-connections': 4, padding: false, ...(px.smux || {}) },
+                'ws-opts': { path: '/', headers: { Host: '' }, 'max-early-data': 0, 'early-data-header-name': 'Sec-WebSocket-Protocol', ...(px['ws-opts'] || {}) },
+                'grpc-opts': { 'grpc-service-name': '', ...(px['grpc-opts'] || {}) },
+                'httpupgrade-opts': { host: '', path: '/', ...(px['httpupgrade-opts'] || {}) },
+                'h2-opts': { host: '', path: '/', ...(px['h2-opts'] || {}) },
+                'http-opts': { path: '/', host: '', ...(px['http-opts'] || {}) },
+                'xhttp-opts': { path: '/', host: '', mode: 'auto', ...(px['xhttp-opts'] || {}) },
+                'idle-session-check-interval': px['idle-session-check-interval'] || '30s', 'idle-session-timeout': px['idle-session-timeout'] || '30s', 'min-idle-session': px['min-idle-session'] || 0,
+                transport: px.transport || 'TCP', multiplexing: px.multiplexing || 'MULTIPLEXING_OFF'
+            };
+            
+            // 特殊格式回填转换
+            if (base['h2-opts'] && Array.isArray(base['h2-opts'].host)) base['h2-opts'].host = base['h2-opts'].host.join(',');
+            if (base['http-opts']) {
+                if (Array.isArray(base['http-opts'].path)) base['http-opts'].path = base['http-opts'].path.join(',');
+                if (base['http-opts'].headers && base['http-opts'].headers.Host) base['http-opts'].host = Array.isArray(base['http-opts'].headers.Host) ? base['http-opts'].headers.Host[0] : base['http-opts'].headers.Host;
+            }
+            if (px.type === 'tuic' && !base.uuid) base.uuid = px.uuid || '';
+            return base;
+        };
+
         const addManualProxy = () => {
-            config.value.proxies.push({
-                name: `Node-${Math.floor(Math.random()*1000)}`, type: 'vless', server: '', port: '443', udp: true, tfo: false, ip: '', 'packet-encoding': '',
-                uuid: '', flow: '', alterId: 0, password: '', username: '', cipher: 'auto',
-                plugin: '', 'plugin-opts': { mode: 'websocket', host: '', path: '/', tls: false, mux: false, password: '' }, 'kcptun-opts': { crypt: 'aes-128-gcm' },
-                protocol: '', 'protocol-param': '', obfs: '', 'obfs-param': '', version: '4',
-                'public-key': '', 'private-key': '', 'pre-shared-key': '', reserved: '', workers: 2, mtu: 1420, 'wg-dns': '',
-                up: '100 Mbps', down: '100 Mbps', 'obfs-password': '', ports: '',
-                'congestion-controller': 'bbr', 'udp-relay-mode': 'native', 'reduce-rtt': false, heartbeat: '10s', 'request-timeout': '15s',
-                'udp-over-tcp': false, passphrase: '', 'obfs-host': '',
-                network: 'tcp', tls: false, 'skip-cert-verify': false, servername: '', 'client-fingerprint': '', alpn: '',
-                reality: false, 'reality-opts': { 'public-key': '', 'short-id': '' },
-                smux: { enabled: false, protocol: 'h2mux', 'max-connections': 4, padding: false },
-                'ws-opts': { path: '/', headers: { Host: '' }, 'max-early-data': 0, 'early-data-header-name': 'Sec-WebSocket-Protocol' },
-                'grpc-opts': { 'grpc-service-name': '' },
-                'httpupgrade-opts': { host: '', path: '/' },
-                'h2-opts': { host: '', path: '/' },
-                'http-opts': { path: '/', host: '' },
-                'xhttp-opts': { path: '/', host: '', mode: 'auto' },
-                'idle-session-check-interval': '30s', 'idle-session-timeout': '30s', 'min-idle-session': 0,
-                transport: 'TCP', multiplexing: 'MULTIPLEXING_OFF'
-            });
+            config.value.proxies.push(parseSingleProxyNode({ type: 'vless' }));
         };
 
         const addGroup = () => config.value['proxy-groups'].push({ name: `Group-${config.value['proxy-groups'].length + 1}`, type: 'select', proxies: [], use: [], filter: '', 'exclude-filter': '', url: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50, lazy: false, 'dialer-proxy': '' });
@@ -2001,6 +2016,22 @@ createApp({
             return null;
         };
 
+        const resolveYamlMergeKeys = (obj) => {
+            if (!obj || typeof obj !== 'object') return obj;
+            if (Array.isArray(obj)) return obj.map(resolveYamlMergeKeys);
+            
+            const result = {};
+            for (const key in obj) {
+                if (key === '<<' && typeof obj[key] === 'object') {
+                    const merged = resolveYamlMergeKeys(obj[key]);
+                    Object.assign(result, merged);
+                } else {
+                    result[key] = resolveYamlMergeKeys(obj[key]);
+                }
+            }
+            return result;
+        };
+
         const triggerYamlImport = () => { fileInput.value.click(); };
         const handleYamlImport = (e) => {
             const file = e.target.files[0];
@@ -2008,10 +2039,12 @@ createApp({
             const reader = new FileReader();
             reader.onload = (ev) => {
                 try {
-                    const parsed = jsyaml.load(ev.target.result);
+                    const cleanText = ev.target.result.replace(/\xA0/g, ' ');
+                    let parsed = jsyaml.load(cleanText);
+                    parsed = resolveYamlMergeKeys(parsed);
                     applyYamlImport(parsed);
-                    alert('YAML 导入成功！部分自定义数据可能需要手动微调。');
-                } catch(err) { alert('YAML 解析失败: ' + err.message); }
+                    alert('YAML 导入成功！\n注意：原配置中的高级锚点(anchor)已被展开为基础格式。部分高级自定义数据可能需要手动微调。');
+                } catch(err) { alert('YAML 解析失败: ' + err.message); console.error(err); }
                 e.target.value = '';
             };
             reader.readAsText(file);
@@ -2028,13 +2061,6 @@ createApp({
                 config.value['routing-mark'] = data['routing-mark'];
             }
 
-            if (data['tproxy-port'] !== undefined && data['tproxy-port'] > 0) {
-                uiState.value.tproxyEnable = true;
-                uiState.value.nftablesConfig.tproxyPort = data['tproxy-port'];
-                uiState.value.nftablesConfig.listen = '0.0.0.0';
-                uiState.value.nftablesConfig.udp = true;
-            }
-            
             if (data.listeners && Array.isArray(data.listeners)) {
                 const tp = data.listeners.find(l => l.type === 'tproxy');
                 if (tp) {
@@ -2043,6 +2069,11 @@ createApp({
                     uiState.value.nftablesConfig.listen = tp.listen || '0.0.0.0';
                     uiState.value.nftablesConfig.udp = tp.udp !== false;
                 }
+            } else if (data['tproxy-port'] !== undefined && data['tproxy-port'] > 0) {
+                uiState.value.tproxyEnable = true;
+                uiState.value.nftablesConfig.tproxyPort = data['tproxy-port'];
+                uiState.value.nftablesConfig.listen = '0.0.0.0';
+                uiState.value.nftablesConfig.udp = true;
             }
 
             if (data['allow-lan'] !== undefined) config.value['allow-lan'] = data['allow-lan'];
