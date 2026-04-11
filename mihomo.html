@@ -1327,7 +1327,7 @@ createApp({
             const dnsPort = (config.value.dns.listen || ':53').replace(/[^0-9]/g, '') || '53';
             
             let script = `#!/usr/sbin/nft -f\n\n`;
-            script += `# 安全隔离：仅创建并清空专属 table，绝对不使用 flush ruleset\n`;
+            script += `# 安全隔离：仅创建并清空专属 table\n`;
             script += `add table inet mihomo\nflush table inet mihomo\n\n`;
             script += `table inet mihomo {\n`;
             
