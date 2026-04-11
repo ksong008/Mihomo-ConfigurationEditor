@@ -68,26 +68,60 @@
                 <div v-show="currentTab==='general'" class="space-y-6">
                     <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                         <div class="stitle">基础入站与系统行为</div>
-                        <div class="grid grid-cols-3 gap-4 mb-4">
-                            <div data-yaml-target="mixed-port:"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Mixed 端口</label><input type="number" v-model.number="config['mixed-port']" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></div>
+                        <div class="grid grid-cols-4 gap-4 mb-4">
+                            <div data-yaml-target="mixed-port:"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Mixed 端口</label><input type="number" v-model.number="config['mixed-port']" placeholder="0为关闭" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></div>
+                            <div data-yaml-target="port:"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">HTTP 端口</label><input type="number" v-model.number="config.port" placeholder="0为关闭" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></div>
+                            <div data-yaml-target="socks-port:"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Socks 端口</label><input type="number" v-model.number="config['socks-port']" placeholder="0为关闭" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></div>
                             <div data-yaml-target="mode:"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">运行模式 (mode)</label>
                                 <select v-model="config.mode" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm font-bold text-sky-700 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400">
                                     <option value="rule">规则分流</option><option value="global">全局代理</option><option value="direct">全局直连</option>
                                 </select>
                             </div>
-                            <div data-yaml-target="log-level:"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">日志级别</label>
-                                <select v-model="config['log-level']" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"><option value="info">Info</option><option value="warning">Warning</option><option value="error">Error</option><option value="debug">Debug</option></select>
-                            </div>
                         </div>
-                        <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                            <div class="space-y-2" data-yaml-target="allow-lan:">
+                        <div class="grid grid-cols-12 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
+                            <div class="col-span-8 flex flex-wrap gap-x-5 gap-y-3">
                                 <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config['allow-lan']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-700">允许局域网 (allow-lan)</span></label>
                                 <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.ipv6" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-700">启用 IPv6 (ipv6)</span></label>
-                                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.profile['store-selected']" class="w-4 h-4 text-indigo-600 rounded"><span class="text-xs font-bold text-slate-700">记忆节点选择 (store-selected)</span></label>
+                                <label class="flex items-center gap-2 cursor-pointer" title="统一延迟测试标准"><input type="checkbox" v-model="config['unified-delay']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-700">统一延迟 (unified-delay)</span></label>
+                                <label class="flex items-center gap-2 cursor-pointer" title="TCP并发测试提升测速效率"><input type="checkbox" v-model="config['tcp-concurrent']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-700">TCP并发测速 (tcp-concurrent)</span></label>
+                                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.profile['store-selected']" class="w-4 h-4 text-indigo-600 rounded"><span class="text-xs font-bold text-slate-700">记忆节点选择</span></label>
                                 <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.profile['store-fake-ip']" class="w-4 h-4 text-indigo-600 rounded"><span class="text-xs font-bold text-slate-700">持久化 Fake-IP</span></label>
                             </div>
-                            <div data-yaml-target="find-process-mode:"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">进程匹配模式 (find-process-mode)</label>
-                                <select v-model="config['find-process-mode']" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"><option value="always">always (总是)</option><option value="strict">strict (仅匹配规则时推荐)</option><option value="off">off (关闭)</option></select>
+                            <div class="col-span-4 space-y-3">
+                                <div data-yaml-target="log-level:"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">日志级别</label>
+                                    <select v-model="config['log-level']" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"><option value="info">Info</option><option value="warning">Warning</option><option value="error">Error</option><option value="debug">Debug</option></select>
+                                </div>
+                                <div data-yaml-target="find-process-mode:"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">进程匹配模式</label>
+                                    <select v-model="config['find-process-mode']" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"><option value="always">always (总是)</option><option value="strict">strict (规则匹配)</option><option value="off">off (关闭)</option></select>
+                                </div>
+                                <div data-yaml-target="interface-name:"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">绑定出口网卡 (可选)</label>
+                                    <input type="text" v-model="config['interface-name']" placeholder="如: eth0" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100" data-yaml-target="listeners:">
+                            <div class="flex justify-between items-center mb-3">
+                                <div>
+                                    <span class="text-sm font-bold text-indigo-700">Listeners (多入站监听)</span>
+                                    <span class="text-[10px] text-indigo-500 ml-2">Mihomo 推荐的高级入站配置方式</span>
+                                </div>
+                                <button @click="addListener" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition"><i class="fas fa-plus mr-1"></i>添加 Listener</button>
+                            </div>
+                            <div class="space-y-3">
+                                <div v-for="(l, idx) in config.listeners" :key="idx" class="flex gap-2 items-center bg-white p-2 rounded-lg border border-indigo-200 shadow-sm relative group">
+                                    <div class="flex-1 grid grid-cols-12 gap-2">
+                                        <div class="col-span-3"><label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">名称</label><input type="text" v-model="l.name" class="w-full px-2 py-1 text-xs border-slate-200 rounded"></div>
+                                        <div class="col-span-3"><label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">类型</label>
+                                            <select v-model="l.type" class="w-full px-2 py-1 text-xs border-slate-200 rounded font-bold text-indigo-700"><option value="mixed">mixed</option><option value="http">http</option><option value="socks">socks</option><option value="redir">redir</option><option value="tproxy">tproxy</option><option value="tunnel">tunnel</option></select>
+                                        </div>
+                                        <div class="col-span-2"><label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">端口</label><input type="number" v-model.number="l.port" class="w-full px-2 py-1 text-xs border-slate-200 rounded"></div>
+                                        <div class="col-span-3"><label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">监听 IP</label><input type="text" v-model="l.listen" placeholder="::" class="w-full px-2 py-1 text-xs font-mono border-slate-200 rounded"></div>
+                                        <div class="col-span-1 flex items-end pb-1.5"><label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" v-model="l.udp" class="w-3 h-3 text-indigo-600 rounded"><span class="text-[10px] font-bold text-slate-600">UDP</span></label></div>
+                                    </div>
+                                    <button @click="removeListener(idx)" class="w-6 h-6 shrink-0 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition"><i class="fas fa-times text-xs"></i></button>
+                                </div>
+                                <div v-if="config.listeners.length === 0" class="text-center py-3 border-2 border-dashed border-indigo-200 rounded-lg text-indigo-400 text-xs font-bold">暂无多入站配置，可点击右侧添加</div>
                             </div>
                         </div>
                     </div>
@@ -123,7 +157,7 @@
                             <div class="grid grid-cols-3 gap-4">
                                 <div><label class="block text-[10px] font-bold text-purple-600 uppercase mb-1">TUN 栈 (stack)</label><select v-model="config.tun.stack" class="w-full px-2 py-1.5 bg-white border border-purple-200 rounded-md text-xs outline-none focus:ring-1 focus:ring-purple-400"><option value="system">system</option><option value="gvisor">gvisor</option><option value="mixed">mixed</option></select></div>
                                 <div><label class="block text-[10px] font-bold text-purple-600 uppercase mb-1" title="macOS必须留空或配置为utunX格式">网卡名称 (device)</label><input type="text" v-model="config.tun.device" placeholder="留空自动分配" class="w-full px-2 py-1.5 bg-white border border-purple-200 rounded-md text-xs font-mono outline-none focus:ring-1 focus:ring-purple-400"></div>
-                                <div><label class="block text-[10px] font-bold text-purple-600 uppercase mb-1">最大传输单元 (MTU)</label><input type="number" v-model.number="config.tun.mtu" class="w-full px-2 py-1.5 bg-white border border-purple-200 rounded-md text-xs font-mono outline-none focus:ring-1 focus:ring-purple-400"></div>
+                                <div><label class="block text-[10px] font-bold text-purple-600 uppercase mb-1" title="官方推荐标准以太网 1500，9000为巨型帧">最大传输单元 (MTU)</label><input type="number" v-model.number="config.tun.mtu" class="w-full px-2 py-1.5 bg-white border border-purple-200 rounded-md text-xs font-mono outline-none focus:ring-1 focus:ring-purple-400"></div>
                                 <div><label class="block text-[10px] font-bold text-purple-600 uppercase mb-1">GSO 最大尺寸</label><input type="number" v-model.number="config.tun['gso-max-size']" :disabled="!config.tun.gso" class="w-full px-2 py-1.5 bg-white border border-purple-200 rounded-md text-xs font-mono disabled:opacity-50 outline-none focus:ring-1 focus:ring-purple-400"></div>
                                 <div class="col-span-2"><label class="block text-[10px] font-bold text-purple-600 uppercase mb-1">DNS 劫持 (dns-hijack)</label><textarea v-model="uiState.tunDnsHijack" rows="2" class="w-full px-2 py-1.5 bg-white border border-purple-200 rounded-md text-xs font-mono outline-none resize-none focus:ring-1 focus:ring-purple-400"></textarea></div>
                             </div>
@@ -131,7 +165,7 @@
                                 <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="config.tun['auto-route']" class="w-4 h-4 text-purple-600 rounded"><span class="text-xs font-bold text-slate-700">自动接管路由</span></label>
                                 <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="config.tun['strict-route']" class="w-4 h-4 text-purple-600 rounded"><span class="text-xs font-bold text-slate-700">严格路由 (Strict)</span></label>
                                 <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="config.tun['auto-detect-interface']" class="w-4 h-4 text-purple-600 rounded"><span class="text-xs font-bold text-slate-700">自动检测出口网卡</span></label>
-                                <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="config.tun.gso" class="w-4 h-4 text-purple-600 rounded"><span class="text-xs font-bold text-slate-700">开启 GSO</span></label>
+                                <label class="flex items-center gap-1.5 cursor-pointer" title="非特定环境开启易崩溃"><input type="checkbox" v-model="config.tun.gso" class="w-4 h-4 text-purple-600 rounded"><span class="text-xs font-bold text-slate-700">开启 GSO</span></label>
                                 <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="config.tun['endpoint-independent-nat']" class="w-4 h-4 text-purple-600 rounded"><span class="text-xs font-bold text-slate-700">独立 NAT (P2P打洞)</span></label>
                             </div>
                         </div>
@@ -144,12 +178,19 @@
                                 <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.sniffer['force-dns-mapping']" class="w-4 h-4 text-pink-600 rounded"><span class="text-xs font-bold text-pink-800">强制覆盖 DNS 映射 (force-dns-mapping)</span></label>
                                 <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.sniffer['parse-pure-ip']" class="w-4 h-4 text-pink-600 rounded"><span class="text-xs font-bold text-pink-800">解析纯 IP 流量 (parse-pure-ip)</span></label>
                                 <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.sniffer['override-destination']" class="w-4 h-4 text-pink-600 rounded"><span class="text-xs font-bold text-pink-800">覆盖目标地址 (override-destination)</span></label>
-                                <div class="pt-2 border-t border-pink-200">
-                                    <label class="block text-[10px] font-bold text-pink-600 uppercase mb-2">启用的嗅探协议 (Sniff Protocols)</label>
-                                    <div class="flex gap-4">
-                                        <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" value="HTTP" v-model="uiState.snifferSniff" class="w-3.5 h-3.5 text-pink-500 rounded border-pink-300"><span class="text-xs font-bold text-slate-700">HTTP</span></label>
-                                        <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" value="TLS" v-model="uiState.snifferSniff" class="w-3.5 h-3.5 text-pink-500 rounded border-pink-300"><span class="text-xs font-bold text-slate-700">TLS</span></label>
-                                        <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" value="QUIC" v-model="uiState.snifferSniff" class="w-3.5 h-3.5 text-pink-500 rounded border-pink-300"><span class="text-xs font-bold text-slate-700">QUIC</span></label>
+                                <div class="pt-2 border-t border-pink-200 space-y-2">
+                                    <label class="block text-[10px] font-bold text-pink-600 uppercase mb-1">启用的嗅探协议及端口</label>
+                                    <div class="flex items-center gap-2">
+                                        <label class="flex items-center gap-1.5 cursor-pointer w-16"><input type="checkbox" value="HTTP" v-model="uiState.snifferSniff" class="w-3.5 h-3.5 text-pink-500 rounded"><span class="text-xs font-bold text-slate-700">HTTP</span></label>
+                                        <input v-if="uiState.snifferSniff.includes('HTTP')" type="text" v-model="uiState.snifferPorts.HTTP" class="flex-1 px-2 py-1 bg-white border border-pink-200 rounded text-[10px] font-mono outline-none">
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <label class="flex items-center gap-1.5 cursor-pointer w-16"><input type="checkbox" value="TLS" v-model="uiState.snifferSniff" class="w-3.5 h-3.5 text-pink-500 rounded"><span class="text-xs font-bold text-slate-700">TLS</span></label>
+                                        <input v-if="uiState.snifferSniff.includes('TLS')" type="text" v-model="uiState.snifferPorts.TLS" class="flex-1 px-2 py-1 bg-white border border-pink-200 rounded text-[10px] font-mono outline-none">
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <label class="flex items-center gap-1.5 cursor-pointer w-16"><input type="checkbox" value="QUIC" v-model="uiState.snifferSniff" class="w-3.5 h-3.5 text-pink-500 rounded"><span class="text-xs font-bold text-slate-700">QUIC</span></label>
+                                        <input v-if="uiState.snifferSniff.includes('QUIC')" type="text" v-model="uiState.snifferPorts.QUIC" class="flex-1 px-2 py-1 bg-white border border-pink-200 rounded text-[10px] font-mono outline-none">
                                     </div>
                                 </div>
                             </div>
@@ -183,18 +224,24 @@
                                 </div>
                             </div>
                             
-                            <div v-if="config.dns['enhanced-mode'] === 'fake-ip'" class="bg-orange-50 p-4 rounded-xl border border-orange-200" data-yaml-target="fake-ip-filter:">
-                                <div class="flex items-center gap-2 mb-3"><i class="fas fa-filter text-orange-500"></i><span class="text-sm font-bold text-orange-700 uppercase">Fake-IP 过滤设置</span></div>
-                                <div class="grid grid-cols-2 gap-4 mb-3">
-                                    <div><label class="block text-[10px] font-bold text-orange-600 uppercase mb-1">虚拟 IP 范围</label><input type="text" v-model="config.dns['fake-ip-range']" class="w-full px-3 py-2 bg-white border border-orange-200 rounded-md text-sm font-mono outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"></div>
-                                    <div><label class="block text-[10px] font-bold text-orange-600 uppercase mb-1">匹配模式</label>
-                                        <select v-model="config.dns['fake-ip-filter-mode']" class="w-full px-3 py-2 bg-white border border-orange-200 rounded-md text-sm outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"><option value="blacklist">黑名单 (返回真实IP)</option><option value="whitelist">白名单 (仅名单内返回假IP)</option></select>
-                                    </div>
-                                </div>
-                                <div><label class="block text-[10px] font-bold text-orange-600 uppercase mb-1">过滤列表 (fake-ip-filter)</label><textarea v-model="uiState.fakeIpFilter" rows="4" class="w-full px-3 py-2 bg-white border border-orange-300 rounded-md text-xs font-mono resize-none outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"></textarea></div>
-                            </div>
-                            
                             <div class="grid grid-cols-2 gap-4">
+                                <div v-if="config.dns['enhanced-mode'] === 'fake-ip'" class="col-span-2 bg-orange-50 p-4 rounded-xl border border-orange-200" data-yaml-target="fake-ip-filter:">
+                                    <div class="flex items-center gap-2 mb-3"><i class="fas fa-filter text-orange-500"></i><span class="text-sm font-bold text-orange-700 uppercase">Fake-IP 过滤设置</span></div>
+                                    <div class="grid grid-cols-2 gap-4 mb-3">
+                                        <div><label class="block text-[10px] font-bold text-orange-600 uppercase mb-1">虚拟 IP 范围</label><input type="text" v-model="config.dns['fake-ip-range']" class="w-full px-3 py-2 bg-white border border-orange-200 rounded-md text-sm font-mono outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"></div>
+                                        <div><label class="block text-[10px] font-bold text-orange-600 uppercase mb-1">匹配模式</label>
+                                            <select v-model="config.dns['fake-ip-filter-mode']" class="w-full px-3 py-2 bg-white border border-orange-200 rounded-md text-sm outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"><option value="blacklist">黑名单 (返回真实IP)</option><option value="whitelist">白名单 (仅名单内返回假IP)</option></select>
+                                        </div>
+                                    </div>
+                                    <div><label class="block text-[10px] font-bold text-orange-600 uppercase mb-1">过滤列表 (fake-ip-filter)</label><textarea v-model="uiState.fakeIpFilter" rows="3" class="w-full px-3 py-2 bg-white border border-orange-300 rounded-md text-xs font-mono resize-none outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"></textarea></div>
+                                </div>
+                                
+                                <div class="col-span-2 bg-sky-50 p-4 rounded-xl border border-sky-200" data-yaml-target="hosts:">
+                                    <div class="flex items-center gap-2 mb-2"><i class="fas fa-book text-sky-500"></i><span class="text-sm font-bold text-sky-700 uppercase">自定义 Hosts 映射</span></div>
+                                    <label class="block text-[10px] font-bold text-sky-600 uppercase mb-1">每行一条，格式: 域名 IP (例如: router.lan 192.168.1.1)</label>
+                                    <textarea v-model="uiState.hostsText" rows="3" placeholder="localhost 127.0.0.1&#10;router.lan 192.168.1.1" class="w-full px-3 py-2 bg-white border border-sky-300 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea>
+                                </div>
+                                
                                 <div class="col-span-2 md:col-span-1" data-yaml-target="default-nameserver:"><label class="block text-xs font-bold text-slate-700 mb-1.5"><i class="fas fa-flag mr-1.5 text-slate-500"></i>默认底层解析 (Default Nameserver)</label><textarea v-model="uiState.dnsDefaultNameservers" rows="3" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea></div>
                                 <div class="col-span-2 md:col-span-1" data-yaml-target="nameserver:"><label class="block text-xs font-bold text-slate-700 mb-1.5"><i class="fas fa-server mr-1.5 text-emerald-500"></i>国内主解析 (Nameserver)</label><textarea v-model="uiState.dnsNameservers" rows="3" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea></div>
                                 <div class="col-span-2 md:col-span-1" data-yaml-target="fallback:">
@@ -247,6 +294,10 @@
                                     <input type="checkbox" v-model="config.geo['auto-update']" class="w-4 h-4 text-blue-600 rounded">
                                     <span class="text-sm font-bold text-slate-700">启用字典自动更新</span>
                                 </label>
+                                <label class="flex items-center gap-2 cursor-pointer" title="启用以支持 .dat 格式的高效查询">
+                                    <input type="checkbox" v-model="config.geo['geodata-mode']" class="w-4 h-4 text-blue-600 rounded">
+                                    <span class="text-sm font-bold text-slate-700">启用 GeoData 模式 (geodata-mode)</span>
+                                </label>
                                 <div>
                                     <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">更新间隔 (小时)</label>
                                     <input type="number" v-model.number="config.geo.interval" class="w-32 px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:ring-1 focus:border-blue-400">
@@ -270,8 +321,7 @@
                         </div>
                     </div>
                 </div>
-
-                <div v-show="currentTab==='tproxy'" class="space-y-6">
+				<div v-show="currentTab==='tproxy'" class="space-y-6">
                     <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-fuchsia-500" data-yaml-target="listeners:">
                         <div class="flex justify-between items-center mb-4">
                             <div>
@@ -345,8 +395,9 @@
                                             <label class="text-xs font-bold text-fuchsia-700">常规端口过滤</label>
                                             <label class="toggle-switch transform scale-75 origin-right"><input type="checkbox" v-model="uiState.nftablesConfig.filterPorts"><span class="toggle-slider"></span></label>
                                         </div>
-                                        <p class="text-[10px] text-slate-500 mb-2">非 Fake-IP ({{ config.dns['fake-ip-range'] }}) 仅代理常用端口：</p>
+                                        <p class="text-[10px] text-slate-500 mb-2">仅代理 Fake-IP ({{ config.dns['fake-ip-range'] }}) 或以下常用端口：</p>
                                         <input type="text" v-model="uiState.nftablesConfig.commonPorts" :disabled="!uiState.nftablesConfig.filterPorts" class="w-full px-2 py-1 bg-slate-50 border border-fuchsia-100 rounded text-xs font-mono disabled:opacity-50 outline-none focus:border-fuchsia-400">
+                                        <p class="text-[9px] text-rose-500 mt-1 font-bold" v-show="uiState.nftablesConfig.filterPorts && config.dns['enhanced-mode'] !== 'fake-ip'">⚠️ 警告：当前并非 Fake-IP 模式，开启端口过滤将导致所有非标 UDP 通信(如语音/游戏)被拦截！</p>
                                     </div>
                         
                                     <div class="md:col-span-2 bg-white p-3 border border-fuchsia-200 rounded-lg shadow-sm">
@@ -370,7 +421,10 @@
 
                             <div class="mt-6">
                                 <div class="flex justify-between items-end mb-2">
-                                    <label class="block text-[10px] font-bold text-slate-400 uppercase">系统路由策略命令 (必须执行)</label>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-400 uppercase">系统路由策略命令 (必须执行)</label>
+                                        <p class="text-[9px] text-slate-500 mt-0.5">※ 重启后失效，建议写入 <code>/etc/rc.local</code> 或网络接口的 <code>post-up</code> 脚本中持久化。</p>
+                                    </div>
                                     <button @click="copyCommands" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-1.5 rounded text-xs font-bold transition"><i class="fas fa-copy mr-1"></i>复制命令</button>
                                 </div>
                                 <pre class="w-full px-4 py-3 bg-[#1e1e1e] text-emerald-400 border border-slate-800 rounded-xl text-xs font-mono overflow-x-auto whitespace-pre-wrap">{{ routingCommands }}</pre>
@@ -433,8 +487,26 @@
 
                                 <div class="grid grid-cols-12 gap-3 pr-6" v-if="p.type === 'http'">
                                     <div class="col-span-6"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">链接 (URL)</label><input type="text" v-model="p.url" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"></div>
-                                    <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">健康检测 (URL)</label><input type="text" v-model="p.healthUrl" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"></div>
-                                    <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">更新间隔 (秒)</label><input type="number" v-model.number="p.interval" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"></div>
+                                    
+                                    <div class="col-span-6 flex items-center justify-between mt-2 pt-2 border-t border-slate-200">
+                                        <label class="flex items-center gap-1.5 cursor-pointer">
+                                            <input type="checkbox" v-model="p.lazy" class="w-3.5 h-3.5 text-amber-500 rounded border-amber-200">
+                                            <span class="text-[10px] font-bold text-amber-700 uppercase tracking-wider">启用懒加载 (Lazy)</span>
+                                        </label>
+                                    </div>
+                                    <div class="col-span-12 mt-1">
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">健康检测 (Health-Check)</label>
+                                        <div class="grid grid-cols-3 gap-2 bg-white p-2 border border-slate-200 rounded">
+                                            <div><label class="block text-[9px] text-slate-400">URL</label><input type="text" v-model="p.healthUrl" class="w-full px-2 py-1 text-[10px] font-mono border-slate-200 rounded"></div>
+                                            <div><label class="block text-[9px] text-slate-400">间隔 (秒)</label><input type="number" v-model.number="p.interval" class="w-full px-2 py-1 text-[10px] border-slate-200 rounded"></div>
+                                            <div><label class="block text-[9px] text-slate-400">超时 (毫秒)</label><input type="number" v-model.number="p.healthTimeout" placeholder="5000" class="w-full px-2 py-1 text-[10px] border-slate-200 rounded"></div>
+                                            <div class="col-span-3 pt-1">
+                                                <label class="flex items-center gap-1.5 cursor-pointer">
+                                                    <input type="checkbox" v-model="p.healthLazy" class="w-3 h-3 text-amber-500 rounded"><span class="text-[9px] font-bold text-slate-600">懒惰检测 (Lazy Check)</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div class="grid grid-cols-12 gap-3 pr-6" v-if="p.type === 'inline'">
@@ -484,7 +556,11 @@
                                     <template v-if="['vless', 'vmess'].includes(px.type)">
                                         <div class="col-span-4"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">UUID</label><input type="text" v-model="px.uuid" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"></div>
                                         <div class="col-span-3" v-if="px.type==='vmess'"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">AlterId</label><input type="number" v-model.number="px.alterId" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"></div>
-                                        <div class="col-span-3" v-if="px.type==='vless'"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">流控 (Flow)</label><select v-model="px.flow" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"><option value="">(无)</option><option value="xtls-rprx-vision">xtls-rprx-vision</option></select></div>
+                                        <div class="col-span-3" v-if="px.type==='vless'"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">流控 (Flow)</label>
+                                            <select v-model="px.flow" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400">
+                                                <option value="">(无)</option><option value="xtls-rprx-vision">xtls-rprx-vision</option><option value="xtls-rprx-vision-udp443">xtls-rprx-vision-udp443</option>
+                                            </select>
+                                        </div>
                                         <div class="col-span-2" v-if="px.type==='vmess'"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">加密 (Cipher)</label>
                                             <select v-model="px.cipher" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400">
                                                 <option value="auto">auto</option><option value="aes-128-gcm">aes-128-gcm</option><option value="chacha20-poly1305">chacha20-poly1305</option><option value="none">none</option>
@@ -541,9 +617,10 @@
                                     <template v-if="['hysteria2', 'hysteria'].includes(px.type)">
                                         <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">上行 (up)</label><input type="text" v-model="px.up" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"></div>
                                         <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">下行 (down)</label><input type="text" v-model="px.down" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"></div>
-                                        <div class="col-span-3" v-if="px.type==='hysteria2'"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider" title="Hy2 支持的端口跳跃字符串">Ports (端口跳跃)</label><input type="text" v-model="px.ports" placeholder="如 10000-20000" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-emerald-400"></div>
-                                        <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">混淆 (obfs)</label><input type="text" v-model="px.obfs" placeholder="salamander" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"></div>
-                                        <div class="col-span-3" v-if="px.type==='hysteria2'"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">混淆密码</label><input type="text" v-model="px['obfs-password']" :disabled="!px.obfs" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 disabled:opacity-50"></div>
+                                        <div class="col-span-2" v-if="px.type==='hysteria2'"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider" title="Hy2 支持的端口跳跃字符串">Ports (端口跳跃)</label><input type="text" v-model="px.ports" placeholder="如 10000-20000" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-emerald-400"></div>
+                                        <div class="col-span-2" v-if="px.type==='hysteria2'"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider" title="跳跃间隔">Hop Interval</label><input type="text" v-model="px['hop-interval']" placeholder="120s" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-emerald-400"></div>
+                                        <div class="col-span-2"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">混淆 (obfs)</label><input type="text" v-model="px.obfs" placeholder="salamander" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"></div>
+                                        <div class="col-span-2" v-if="px.type==='hysteria2'"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">混淆密码</label><input type="text" v-model="px['obfs-password']" :disabled="!px.obfs" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 disabled:opacity-50"></div>
                                     </template>
                                     
                                     <template v-if="px.type === 'tuic'">
@@ -697,8 +774,8 @@
                                         <input type="text" v-model="rp.name" placeholder="如: apple-domain" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold text-rose-700 outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400">
                                     </div>
                                     <div class="col-span-3">
-                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider" title="MetaRules 库中的实际文件名">上游文件 (File)</label>
-                                        <input type="text" v-model="rp.file" placeholder="如: apple (用于生成链接)" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400">
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider" title="MetaRules 库中的实际文件名或本地路径">上游文件/路径</label>
+                                        <input type="text" v-model="rp.file" placeholder="如: apple (或本地相对路径)" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400">
                                     </div>
                                     <div class="col-span-2">
                                         <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">行为</label>
@@ -713,15 +790,20 @@
                                         <select v-model="rp.format" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold text-slate-700 outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400">
                                             <option value="yaml">YAML</option>
                                             <option value="mrs">MRS</option>
+                                            <option value="text">Text (Classical)</option>
                                         </select>
                                     </div>
                                     <div class="col-span-2">
-                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">间隔</label>
-                                        <input type="number" v-model.number="rp.interval" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400">
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">来源类型</label>
+                                        <select v-model="rp.type" @change="rp.autoUrl = false" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold text-slate-700 outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400">
+                                            <option value="http">HTTP (网络下载)</option>
+                                            <option value="file">File (本地文件)</option>
+                                            <option value="inline">Inline (内联)</option>
+                                        </select>
                                     </div>
                                 </div>
 
-                                <div class="grid grid-cols-12 gap-3">
+                                <div class="grid grid-cols-12 gap-3" v-if="rp.type === 'http'">
                                     <div class="col-span-12 flex flex-col">
                                         <div class="flex items-center justify-between mb-1">
                                             <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">下载链接 (URL)</label>
@@ -730,7 +812,16 @@
                                                 <span class="text-[10px] font-bold text-rose-600">智能补全 MetaRules</span>
                                             </label>
                                         </div>
-                                        <input type="text" :value="rp.autoUrl ? getRuleProviderUrl(rp) : rp.customUrl" @input="rp.autoUrl ? null : (rp.customUrl = $event.target.value)" :readonly="rp.autoUrl" :placeholder="rp.autoUrl ? '请先填写上方的「上游文件」以自动生成' : 'https://...'" :class="rp.autoUrl ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-700'" class="w-full px-2 py-1.5 border border-slate-200 rounded-md text-xs font-mono outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400">
+                                        <div class="flex gap-2">
+                                            <input type="text" :value="rp.autoUrl ? getRuleProviderUrl(rp) : rp.customUrl" @input="rp.autoUrl ? null : (rp.customUrl = $event.target.value)" :readonly="rp.autoUrl" :placeholder="rp.autoUrl ? '请先填写上方的「上游文件」以自动生成' : 'https://...'" :class="rp.autoUrl ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-700'" class="flex-1 px-2 py-1.5 border border-slate-200 rounded-md text-xs font-mono outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400">
+                                            <input type="number" v-model.number="rp.interval" placeholder="更新间隔" class="w-24 px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400" title="更新间隔(秒)">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-12 gap-3" v-if="rp.type === 'inline'">
+                                    <div class="col-span-12">
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">内联 Payload (每行一条规则)</label>
+                                        <textarea v-model="rp.payloadText" rows="4" placeholder="+.google.com&#10;+.github.com" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400"></textarea>
                                     </div>
                                 </div>
                             </div>
@@ -781,35 +872,38 @@
                                 </div>
                                 
                                 <div class="grid grid-cols-12 gap-3 bg-white p-3 rounded-lg border border-slate-200 mb-3" v-if="['url-test', 'fallback', 'load-balance'].includes(g.type)">
-                                    <div class="col-span-5"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">测速 URL (url)</label><input type="text" v-model="g.url" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-mono outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"></div>
+                                    <div class="col-span-4"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">测速 URL (url)</label><input type="text" v-model="g.url" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-mono outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"></div>
                                     <div class="col-span-2"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">间隔 (interval)</label><input type="number" v-model.number="g.interval" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"></div>
+                                    <div class="col-span-2"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">超时 (timeout/ms)</label><input type="number" v-model.number="g.timeout" placeholder="5000" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"></div>
+                                    
                                     <template v-if="g.type === 'url-test'">
                                         <div class="col-span-2"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">容差 (tolerance)</label><input type="number" v-model.number="g.tolerance" placeholder="50" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"></div>
-                                        <div class="col-span-3 flex items-center pt-5 pl-2"><label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="g.lazy" class="w-4 h-4 text-teal-600 rounded"><span class="text-xs font-bold text-slate-600">惰性测速 (lazy)</span></label></div>
+                                        <div class="col-span-2 flex items-center pt-5 pl-2"><label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="g.lazy" class="w-4 h-4 text-teal-600 rounded"><span class="text-xs font-bold text-slate-600">惰性测速 (lazy)</span></label></div>
+                                    </template>
+                                    
+                                    <template v-if="g.type === 'load-balance'">
+                                        <div class="col-span-4">
+                                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">负载策略 (strategy)</label>
+                                            <select v-model="g.strategy" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-bold text-slate-700 outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400">
+                                                <option value="consistent-hashing">consistent-hashing (固定IP防变化)</option>
+                                                <option value="round-robin">round-robin (轮询)</option>
+                                            </select>
+                                        </div>
                                     </template>
                                 </div>
 
                                 <div class="bg-white p-4 rounded-lg border border-slate-200 flex flex-col gap-4">
-                                    <div class="grid grid-cols-12 gap-3 mb-1">
-                                        <div class="col-span-6">
-                                            <label class="block text-[10px] font-bold text-indigo-500 uppercase mb-1 tracking-wider" title="整个策略组的出站流量都会强制经过这个前置节点">Dialer-Proxy(策略组链式前置)</label>
-                                            <select v-model="g['dialer-proxy']" class="w-full px-2 py-1.5 bg-indigo-50 border border-indigo-200 rounded-md text-xs font-bold text-indigo-700 outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400">
-                                                <option value="">(无前置节点)</option>
-                                                <option v-for="tag in getAvailableGroupMembers(g.name)" :value="tag">{{ tag }}</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div class="pt-3 border-t border-slate-100">
+                                    <div class="pt-1 border-t border-slate-100">
                                         <label class="flex items-center text-[10px] font-bold text-slate-400 uppercase mb-2">引用静态成员 (proxies)</label>
-                                        <div class="flex flex-wrap gap-2">
+                                        <div v-if="g.type !== 'relay'" class="flex flex-wrap gap-2">
                                             <label v-for="tag in getAvailableGroupMembers(g.name)" :key="tag" class="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:border-teal-300 transition-colors shadow-sm" :class="{'!bg-teal-50 !border-teal-400': g.proxies.includes(tag)}">
                                                 <input type="checkbox" :value="tag" v-model="g.proxies" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300"><span class="text-xs font-bold" :class="g.proxies.includes(tag) ? 'text-teal-700' : 'text-slate-600'">{{ tag }}</span>
                                             </label>
                                         </div>
+                                        <div v-else class="text-xs text-slate-400 italic">Relay 模式不支持静态代理节点</div>
                                     </div>
                                     
-                                    <div>
+                                    <div v-if="g.type !== 'relay'">
                                         <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">引用订阅集合 (use)</label>
                                         <div class="flex flex-wrap gap-2">
                                             <label v-for="prov in providersList" :key="prov.name" class="flex items-center gap-1.5 px-2.5 py-1.5 bg-sky-50 border border-sky-200 rounded-lg cursor-pointer hover:border-sky-300 transition-colors shadow-sm" :class="{'!bg-sky-100 !border-sky-400': g.use.includes(prov.name)}">
@@ -825,7 +919,7 @@
                 </div>
 
                 <div v-show="currentTab==='rules'" class="space-y-4">
-                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-indigo-500" data-yaml-target="rules:">
+				<div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-indigo-500" data-yaml-target="rules:">
                         <div class="flex justify-between items-center">
                             <div>
                                 <div class="stitle mb-0 !border-l-0 !pl-0 text-indigo-700">路由规则 (rules)</div>
@@ -1080,11 +1174,13 @@ createApp({
             tproxyEnable: false, showTproxyConflict: false, tproxyConflicts: [], pendingAction: '', 
             nftablesConfig: { 
                 tproxyPort: 7893, tproxyMark: 1, bypassUser: 'mihomo', listen: '0.0.0.0', udp: true, tproxyIpv6: false,
-                privateIps: "0.0.0.0/8\n10.0.0.0/8\n100.64.0.0/10\n127.0.0.0/8\n169.254.0.0/16\n172.16.0.0/12\n192.0.0.0/24\n192.0.2.0/24\n192.88.99.0/24\n192.168.0.0/16\n198.18.0.0/15\n198.51.100.0/24\n203.0.113.0/24\n224.0.0.0/3\n255.255.255.255/32",
-                privateIpsV6: "::1/128\nfc00::/7\nfe80::/10",
+                privateIps: "0.0.0.0/8\n10.0.0.0/8\n100.64.0.0/10\n127.0.0.0/8\n169.254.0.0/16\n172.16.0.0/12\n192.0.0.0/24\n192.0.2.0/24\n192.88.99.0/24\n192.168.0.0/16\n203.0.113.0/24\n224.0.0.0/3\n255.255.255.255/32",
+                privateIpsV6: "::/128\n::1/128\nfc00::/7\nfe80::/10\n2001:db8::/32\n100::/64",
                 hijackDns: false, bypassCnIp: false, cnIps: '', cnIpsV6: '', filterPorts: false, commonPorts: '22, 80, 443, 8080, 8443'
             },
+            hostsText: "",
             snifferSniff: ['HTTP', 'TLS', 'QUIC'],
+            snifferPorts: { HTTP: '80, 8080-8880', TLS: '443, 8443', QUIC: '443, 8443' },
             snifferSkipDomain: "Mijia Cloud\n*.apple.com", snifferForceDomain: "", snifferPortWhitelist: "",
             fakeIpFilter: "*.lan\n*.local\ntime.*.com\nntp.*.com\n*.msftconnecttest.com",
             dnsDefaultNameservers: "system\n223.6.6.6\n8.8.8.8", dnsNameservers: "223.5.5.5\n119.29.29.29\n180.76.76.76",
@@ -1107,24 +1203,26 @@ createApp({
 
         // 默认配置生成
         const getDefaultConfig = () => ({
-            port: 7890, 'socks-port': 7891, 'mixed-port': 7892, 'routing-mark': 255, 'allow-lan': true, mode: 'rule', 'log-level': 'info', ipv6: false,
+            port: 0, 'socks-port': 0, 'mixed-port': 7890, 'routing-mark': 255, 'allow-lan': true, mode: 'rule', 'log-level': 'info', ipv6: false,
+            'unified-delay': true, 'tcp-concurrent': true, 'interface-name': '',
             'find-process-mode': 'strict', profile: { 'store-selected': true, 'store-fake-ip': true },
             'external-controller': '127.0.0.1:9090', secret: '', 'external-ui': 'ui', 'external-ui-url': '',
-            tun: { enable: false, stack: 'system', device: '', mtu: 9000, gso: true, 'gso-max-size': 65536, 'auto-route': true, 'strict-route': true, 'auto-detect-interface': true, 'endpoint-independent-nat': false, 'dns-hijack': ['any:53', 'tcp://any:53'] },
+            listeners: [],
+            tun: { enable: false, stack: 'system', device: '', mtu: 1500, gso: false, 'gso-max-size': 65536, 'auto-route': true, 'strict-route': true, 'auto-detect-interface': true, 'endpoint-independent-nat': false, 'dns-hijack': ['any:53', 'tcp://any:53'] },
             sniffer: { enable: false, 'force-dns-mapping': true, 'parse-pure-ip': true, 'override-destination': false },
             dns: { enable: true, listen: ':53', ipv6: false, 'enhanced-mode': 'redir-host', 'fake-ip-range': '198.18.0.1/16', 'fake-ip-filter-mode': 'blacklist', 'prefer-h3': false, 'respect-rules': false, 'use-hosts': false, 'use-system-hosts': false, 'direct-nameserver-follow-policy': false, 'fallback-filter': { geoip: true, 'geoip-code': 'CN' } },
-            geo: { 'auto-update': true, interval: 24, url: { geoip: '', geosite: '', mmdb: '' } },
+            geo: { 'auto-update': true, 'geodata-mode': true, interval: 24, url: { geoip: '', geosite: '', mmdb: '' } },
             proxies: [], 
             'proxy-groups': [
                 { name: 'Proxy', type: 'select', proxies: ['自动选择', '香港节点', '台湾节点', '韩国节点', '日本节点', '新加坡节点', '美国节点', '其他国家', 'DIRECT'], use: [], filter: '', 'exclude-filter': '', url: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50, lazy: false, 'dialer-proxy': '' },
-                { name: '自动选择', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, proxies: [], use: ['MySub'], filter: '', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '' },
-                { name: '香港节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, proxies: [], use: ['MySub'], filter: '(?i)港|hk|hongkong|hong kong', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '' },
-                { name: '台湾节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, proxies: [], use: ['MySub'], filter: '(?i)台|tw|taiwan', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '' },
-                { name: '韩国节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, proxies: [], use: ['MySub'], filter: '(?i)韩|kr|korea|south korea', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '' },
-                { name: '日本节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, proxies: [], use: ['MySub'], filter: '(?i)日|jp|japan', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '' },
-                { name: '新加坡节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, proxies: [], use: ['MySub'], filter: '(?i)新|sg|singapore', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '' },
-                { name: '美国节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, proxies: [], use: ['MySub'], filter: '(?i)美|us|united states|america', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '' },
-                { name: '其他国家', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, proxies: [], use: ['MySub'], filter: '(?i)^(?!.*(?:港|hk|台|tw|韩|kr|日|jp|新|sg|美|us)).*$', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '' }
+                { name: '自动选择', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 5000, proxies: [], use: ['MySub'], filter: '', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '' },
+                { name: '香港节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 5000, proxies: [], use: ['MySub'], filter: '(?i)港|hk|hongkong|hong kong', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '' },
+                { name: '台湾节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 5000, proxies: [], use: ['MySub'], filter: '(?i)台|tw|taiwan', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '' },
+                { name: '韩国节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 5000, proxies: [], use: ['MySub'], filter: '(?i)韩|kr|korea|south korea', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '' },
+                { name: '日本节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 5000, proxies: [], use: ['MySub'], filter: '(?i)日|jp|japan', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '' },
+                { name: '新加坡节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 5000, proxies: [], use: ['MySub'], filter: '(?i)新|sg|singapore', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '' },
+                { name: '美国节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 5000, proxies: [], use: ['MySub'], filter: '(?i)美|us|united states|america', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '' },
+                { name: '其他国家', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 5000, proxies: [], use: ['MySub'], filter: '(?i)^(?!.*(?:港|hk|台|tw|韩|kr|日|jp|新|sg|美|us)).*$', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '' }
             ]
         });
 
@@ -1173,7 +1271,7 @@ createApp({
                     uiState.value.tproxyConflicts = conflicts;
                     uiState.value.pendingAction = 'tun';
                     uiState.value.showTproxyConflict = true;
-                    config.value.tun.enable = false; // 暂时关闭，等待用户确认修复
+                    config.value.tun.enable = false;
                 }
             }
         };
@@ -1196,6 +1294,13 @@ createApp({
                 config.value.tun.enable = true;
             }
             uiState.value.pendingAction = '';
+        };
+
+        const addListener = () => {
+            config.value.listeners.push({ name: `in-${config.value.listeners.length+1}`, type: 'mixed', port: 7890, listen: '::', udp: true });
+        };
+        const removeListener = (idx) => {
+            config.value.listeners.splice(idx, 1);
         };
 
         const routingCommands = computed(() => {
@@ -1226,7 +1331,6 @@ createApp({
             script += `add table inet mihomo\nflush table inet mihomo\n\n`;
             script += `table inet mihomo {\n`;
             
-            // 1. Sets
             script += `    # 保留地址集合\n`;
             script += `    set private_ip {\n        type ipv4_addr\n        flags interval\n        elements = { ${ipList} }\n    }\n`;
             
@@ -1250,7 +1354,6 @@ createApp({
                 }
             }
             
-            // 2. DNS Hijacking Chains
             if (hijackDns) {
                 script += `\n    # 局域网 DNS 劫持\n`;
                 script += `    chain prerouting_dns {\n        type nat hook prerouting priority dstnat; policy accept;\n`;
@@ -1267,14 +1370,14 @@ createApp({
                 script += `        udp dport 53 redirect to :${dnsPort}\n        tcp dport 53 redirect to :${dnsPort}\n    }\n`;
             }
             
-            // 3. Prerouting Chain (LAN Traffic)
             script += `\n    # 处理局域网及外部进入的流量\n`;
             script += `    chain prerouting {\n        type filter hook prerouting priority mangle; policy accept;\n`;
             
             if (hijackDns) {
-                script += `        tcp dport 53 return\n        udp dport 53 return\n`;
+                script += `        # 放行已被劫持的 DNS 包\n`;
+                script += `        ct status dnat return\n`;
             }
-            script += `        # 绝对防环路：放行 Mihomo 自己发出的直连包\n`;
+            script += `        # 绝对防环路：放行带有直连标记的外部包 (一般发生在复杂网关或级联环境)\n`;
             script += `        meta mark ${rMark} return\n`;
             
             if (filterPorts) {
@@ -1306,11 +1409,14 @@ createApp({
             }
             script += `    }\n`;
             
-            // 4. Output Chain (Local Traffic)
             script += `\n    # 处理本机发起的流量\n`;
             script += `    chain output {\n        type route hook output priority mangle; policy accept;\n`;
+            script += `        # 放行本地环回接口通信\n`;
+            script += `        oifname "lo" return\n`;
+            
             if (hijackDns) {
-                script += `        tcp dport 53 return\n        udp dport 53 return\n`;
+                script += `        # 放行已被劫持的 DNS 包\n`;
+                script += `        ct status dnat return\n`;
             }
             script += `        # 绝对防环路：放行 Mihomo 自己发出的直连包\n`;
             script += `        meta mark ${rMark} return\n        meta skuid "${u}" return\n`;
@@ -1348,18 +1454,13 @@ createApp({
             return script;
         });
 
-        // 清理注释函数：过滤掉以 # 开头的行和纯空行
         const getCleanNftables = () => {
-            return nftablesScript.value
-                .split('\n')
-                .filter(line => !line.trim().startsWith('#') && line.trim() !== '')
-                .join('\n');
+            return nftablesScript.value.split('\n').filter(line => !line.trim().startsWith('#') && line.trim() !== '').join('\n');
         };
 
         const copyNftables = async () => { try { await navigator.clipboard.writeText(getCleanNftables()); alert('nftables 规则已复制 (已自动去除注释)'); } catch{} };
         const downloadNftables = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([getCleanNftables()])); a.download = 'tproxy.nft'; a.click(); };
 
-        // 解析单个节点，补充 UI 需要的默认字段，防止 v-model 报错
         const parseSingleProxyNode = (px) => {
             if (!px) return null;
             const base = {
@@ -1368,7 +1469,7 @@ createApp({
                 plugin: px.plugin || '', 'plugin-opts': { mode: 'websocket', host: '', path: '/', tls: false, mux: false, password: '', ...(px['plugin-opts'] || {}) }, 'kcptun-opts': { crypt: 'aes-128-gcm', ...(px['kcptun-opts'] || {}) },
                 protocol: px.protocol || '', 'protocol-param': px['protocol-param'] || '', obfs: px.obfs || '', 'obfs-param': px['obfs-param'] || '', version: px.version || '4',
                 'public-key': px['public-key'] || '', 'private-key': px['private-key'] || '', 'pre-shared-key': px['pre-shared-key'] || '', reserved: px.reserved ? (typeof px.reserved === 'object' ? JSON.stringify(px.reserved) : px.reserved) : '', workers: px.workers || 2, mtu: px.mtu || 1420, 'wg-dns': px.dns ? (Array.isArray(px.dns) ? px.dns.join(',') : px.dns) : '',
-                up: px.up || '100 Mbps', down: px.down || '100 Mbps', 'obfs-password': px['obfs-password'] || '', ports: px.ports || '',
+                up: px.up || '100 Mbps', down: px.down || '100 Mbps', 'obfs-password': px['obfs-password'] || '', ports: px.ports || '', 'hop-interval': px['hop-interval'] || '',
                 'congestion-controller': px['congestion-controller'] || 'bbr', 'udp-relay-mode': px['udp-relay-mode'] || 'native', 'reduce-rtt': px['reduce-rtt'] || false, heartbeat: px.heartbeat || '10s', 'request-timeout': px['request-timeout'] || '15s',
                 'udp-over-tcp': px['udp-over-tcp'] || false, passphrase: px.passphrase || '', 'obfs-host': px['obfs-host'] || '',
                 network: px.network || 'tcp', tls: px.tls || false, 'skip-cert-verify': px['skip-cert-verify'] || false, servername: px.servername || '', 'client-fingerprint': px['client-fingerprint'] || '', alpn: px.alpn ? (Array.isArray(px.alpn) ? px.alpn.join(',') : px.alpn) : '',
@@ -1384,7 +1485,6 @@ createApp({
                 transport: px.transport || 'TCP', multiplexing: px.multiplexing || 'MULTIPLEXING_OFF'
             };
             
-            // 特殊格式回填转换
             if (base['h2-opts'] && Array.isArray(base['h2-opts'].host)) base['h2-opts'].host = base['h2-opts'].host.join(',');
             if (base['http-opts']) {
                 if (Array.isArray(base['http-opts'].path)) base['http-opts'].path = base['http-opts'].path.join(',');
@@ -1394,9 +1494,7 @@ createApp({
             return base;
         };
 
-        const addManualProxy = () => {
-            config.value.proxies.push(parseSingleProxyNode({ type: 'vless' }));
-        };
+        const addManualProxy = () => { config.value.proxies.push(parseSingleProxyNode({ type: 'vless' })); };
 
         const addGroup = () => config.value['proxy-groups'].push({ name: `Group-${config.value['proxy-groups'].length + 1}`, type: 'select', proxies: [], use: [], filter: '', 'exclude-filter': '', url: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50, lazy: false, 'dialer-proxy': '' });
         const removeGroup = (idx) => config.value['proxy-groups'].splice(idx, 1);
@@ -1426,14 +1524,14 @@ createApp({
 
             let autoGroup = config.value['proxy-groups'].find(g => g.name === '自动选择');
             if (!autoGroup) {
-                autoGroup = { name: '自动选择', type: 'url-test', proxies: [], use: providersList.value.map(p=>p.name), filter: '', 'exclude-filter': '', url: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50, lazy: true, 'dialer-proxy': '' };
+                autoGroup = { name: '自动选择', type: 'url-test', timeout: 5000, proxies: [], use: providersList.value.map(p=>p.name), filter: '', 'exclude-filter': '', url: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50, lazy: true, 'dialer-proxy': '' };
                 config.value['proxy-groups'].splice(1, 0, autoGroup);
             }
 
             regions.forEach(r => {
                 if (!config.value['proxy-groups'].find(g => g.name === r.name)) {
                     config.value['proxy-groups'].push({
-                        name: r.name, type: 'url-test', proxies: [], use: providersList.value.map(p=>p.name),
+                        name: r.name, type: 'url-test', timeout: 5000, proxies: [], use: providersList.value.map(p=>p.name),
                         filter: r.filter, 'exclude-filter': '', url: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50, lazy: true, 'dialer-proxy': ''
                     });
                 }
@@ -1448,21 +1546,14 @@ createApp({
                     try {
                         let jsPattern = g.filter;
                         let flags = '';
-                        if (jsPattern.startsWith('(?i)')) {
-                            jsPattern = jsPattern.substring(4);
-                            flags = 'i';
-                        }
+                        if (jsPattern.startsWith('(?i)')) { jsPattern = jsPattern.substring(4); flags = 'i'; }
                         const regex = new RegExp(jsPattern, flags);
                         
                         const matched = config.value.proxies.filter(px => regex.test(px.name)).map(px => px.name);
-                        matched.forEach(name => {
-                            if (!g.proxies.includes(name)) g.proxies.push(name);
-                        });
+                        matched.forEach(name => { if (!g.proxies.includes(name)) g.proxies.push(name); });
                         
-                        providersList.value.forEach(prov => {
-                            if (prov.name && !g.use.includes(prov.name)) g.use.push(prov.name);
-                        });
-                    } catch(e) { console.warn(`Regex skip: ${g.name}`, e); }
+                        providersList.value.forEach(prov => { if (prov.name && !g.use.includes(prov.name)) g.use.push(prov.name); });
+                    } catch(e) {}
                 }
             });
         };
@@ -1480,10 +1571,10 @@ createApp({
         };
 
         const pickPanel = (p) => { uiState.value.selectedPanel = p.id; config.value['external-ui-url'] = uiState.value.useMirrorForPanels ? p.mirrorUrl : p.rawUrl; };
-        const addProvider = () => providersList.value.push({ name: `Provider-${providersList.value.length + 1}`, type: 'http', url: '', interval: 3600, healthUrl: 'https://www.gstatic.com/generate_204', overrideDialerProxy: '', useDownloadProxy: false, downloadProxy: '', inlineProxies: [] });
+        const addProvider = () => providersList.value.push({ name: `Provider-${providersList.value.length + 1}`, type: 'http', url: '', interval: 3600, healthUrl: 'https://www.gstatic.com/generate_204', overrideDialerProxy: '', useDownloadProxy: false, downloadProxy: '', inlineProxies: [], lazy: false, healthLazy: false, healthTimeout: 5000 });
         const removeProvider = (idx) => providersList.value.splice(idx, 1);
 
-        const addRuleProvider = () => ruleProvidersList.value.push({ name: '', file: '', behavior: 'domain', format: 'yaml', interval: 86400, autoUrl: true, customUrl: '' });
+        const addRuleProvider = () => ruleProvidersList.value.push({ name: '', file: '', behavior: 'domain', format: 'yaml', type: 'http', interval: 86400, autoUrl: true, customUrl: '', payloadText: '' });
         const removeRuleProvider = (idx) => ruleProvidersList.value.splice(idx, 1);
 
         const getRuleProviderUrl = (rp) => {
@@ -1499,19 +1590,13 @@ createApp({
 
         const clearLists = () => { 
             if(confirm('确定要清空所有的节点、订阅和规则列表吗？')) { 
-                config.value.proxies = [];
-                config.value['proxy-groups'] = [];
-                providersList.value = [];
-                ruleProvidersList.value = [];
-                uiState.value.rules = [];
+                config.value.proxies = []; config.value['proxy-groups'] = []; config.value.listeners = []; providersList.value = []; ruleProvidersList.value = []; uiState.value.rules = [];
             } 
         };
 
         const clearCache = () => { 
             if(confirm('此操作将彻底清除浏览器中的所有配置缓存，并重新加载页面。确定要清理吗？')) { 
-                localStorage.removeItem('mihomo_web_config_stable');
-                localStorage.removeItem('mihomo_web_config_v15');
-                location.reload(); 
+                localStorage.removeItem('mihomo_web_config_stable'); localStorage.removeItem('mihomo_web_config_v15'); location.reload(); 
             } 
         };
 
@@ -1520,163 +1605,13 @@ createApp({
         const onRuleDragEnter = () => {}; const onRuleDragEnd = () => { draggedRuleIndex.value = null; uiState.value.rules.forEach(r => r.draggable = false); };
         const onRuleDrop = (idx) => { const from = draggedRuleIndex.value; if (from !== null && from !== idx) { const item = uiState.value.rules.splice(from, 1)[0]; uiState.value.rules.splice(idx, 0, item); } onRuleDragEnd(); };
 
-        const generateProxyNode = (px) => {
-            if (!px) return null;
-            
-            let portVal = px.port;
-            if (typeof portVal === 'string' && !portVal.includes('-')) {
-                const num = Number(portVal);
-                if (!isNaN(num)) portVal = num;
-            }
-            
-            let c = { name: px.name, type: px.type, server: px.server, port: portVal };
-            if (px.ip) c.ip = px.ip;
-            if (px.udp) c.udp = true;
-            if (px.tfo) c.tfo = true;
-
-            if (['vless', 'vmess'].includes(px.type)) { 
-                c.uuid = px.uuid; 
-                if (px.type === 'vless' && px.flow) c.flow = px.flow; 
-                if (px.type === 'vmess' && px.alterId !== undefined && px.alterId !== null) c.alterId = px.alterId; 
-            }
-            if (['trojan', 'ss', 'ssr', 'hysteria2', 'hysteria', 'tuic', 'masque', 'http', 'socks5', 'ssh', 'snell', 'mieru', 'sudoku', 'trusttunnel', 'anytls'].includes(px.type)) { 
-                if (px.type === 'hysteria') {
-                    if (px.password) c['auth-str'] = px.password;
-                } else if (px.type === 'snell') {
-                    if (px.password) c.psk = px.password;
-                } else {
-                    if (px.password) c.password = px.password;
-                }
-            }
-            if (['http', 'socks5', 'ssh', 'mieru'].includes(px.type) && px.username) c.username = px.username;
-            if (px.type === 'tuic' && px.uuid) c.uuid = px.uuid;
-            
-            if (['ss', 'ssr', 'vmess'].includes(px.type) && px.cipher && px.cipher !== 'auto') c.cipher = px.cipher;
-            
-            if (px.type === 'ss') {
-                if (px.version) c.version = px.version;
-                if (px['udp-over-tcp']) c['udp-over-tcp'] = true;
-            }
-            
-            if (['vless', 'trojan', 'vmess'].includes(px.type) && px['packet-encoding']) c['packet-encoding'] = px['packet-encoding'];
-
-            if (px.type === 'ssh') {
-                if (px['private-key']) c['private-key'] = px['private-key'];
-                if (px.passphrase) c.passphrase = px.passphrase;
-            }
-
-            if (px.type === 'ssr') { if(px.protocol){c.protocol=px.protocol; if(px['protocol-param']) c['protocol-param']=px['protocol-param'];} if(px.obfs){c.obfs=px.obfs; if(px['obfs-param']) c['obfs-param']=px['obfs-param'];} }
-            if (px.type === 'snell') {
-                if (px.version) c.version = px.version;
-                if (px.obfs) c.obfs = px.obfs;
-                if (px['obfs-host']) c['obfs-host'] = px['obfs-host'];
-            }
-            if (px.type === 'wireguard') { 
-                c['public-key'] = px['public-key']; c['private-key'] = px['private-key']; 
-                if (px['pre-shared-key']) c['pre-shared-key'] = px['pre-shared-key'];
-                if (px.reserved) {
-                    try { c.reserved = JSON.parse(px.reserved); } catch(e) { c.reserved = px.reserved; }
-                }
-                if (px.workers && px.workers !== 2) c.workers = px.workers;
-                if (px.mtu && px.mtu !== 1420) c.mtu = px.mtu;
-                if (px['wg-dns']) c.dns = px['wg-dns'].split(',').map(s=>s.trim()).filter(Boolean);
-            }
-            if (['hysteria2', 'hysteria'].includes(px.type)) { 
-                c.up = px.up; c.down = px.down; 
-                if (px.type === 'hysteria2' && px.ports) c.ports = px.ports;
-                if (px.obfs) { c.obfs = px.obfs; c['obfs-password'] = px['obfs-password']; } 
-            }
-            if (px.type === 'tuic') { 
-                c['congestion-controller'] = px['congestion-controller'] || 'bbr'; 
-                if(px['udp-relay-mode']) c['udp-relay-mode'] = px['udp-relay-mode']; 
-                if(px['reduce-rtt']) c['reduce-rtt'] = true;
-                if(px.heartbeat && px.heartbeat !== '10s') c.heartbeat = px.heartbeat;
-                if(px['request-timeout'] && px['request-timeout'] !== '15s') c['request-timeout'] = px['request-timeout'];
-            }
-            if (px.type === 'anytls') { 
-                if(px['idle-session-check-interval'] && px['idle-session-check-interval'] !== '30s') c['idle-session-check-interval'] = px['idle-session-check-interval']; 
-                if(px['idle-session-timeout'] && px['idle-session-timeout'] !== '30s') c['idle-session-timeout'] = px['idle-session-timeout']; 
-                if(px['min-idle-session'] && px['min-idle-session'] !== 0) c['min-idle-session'] = px['min-idle-session']; 
-            }
-            if (px.type === 'mieru') { c.transport = px.transport || 'TCP'; c.multiplexing = px.multiplexing || 'MULTIPLEXING_OFF'; }
-
-            if (px.type === 'ss' && px.plugin) {
-                c.plugin = px.plugin; c['plugin-opts'] = {};
-                if (['shadow-tls', 'restls'].includes(px.plugin)) { 
-                    c['plugin-opts'].host = px['plugin-opts'].host; c['plugin-opts'].password = px['plugin-opts'].password; 
-                    if(px.plugin==='restls') c['plugin-opts']['version-hint']='tls13'; 
-                } 
-                else if (px.plugin === 'obfs') { c['plugin-opts'].mode = px['plugin-opts'].mode || 'tls'; c['plugin-opts'].host = px['plugin-opts'].host; }
-                else if (px.plugin === 'kcptun') { c['plugin-opts'] = px['kcptun-opts']; }
-                else if (['v2ray-plugin', 'gost-plugin'].includes(px.plugin)) {
-                    c['plugin-opts'].mode = px['plugin-opts'].mode || 'websocket';
-                    if (px['plugin-opts'].host) c['plugin-opts'].host = px['plugin-opts'].host;
-                    if (px['plugin-opts'].path) c['plugin-opts'].path = px['plugin-opts'].path;
-                    if (px['plugin-opts'].tls) c['plugin-opts'].tls = true;
-                    if (px['plugin-opts'].mux) c['plugin-opts'].mux = true;
-                }
-            }
-
-            if (['vless', 'vmess', 'trojan', 'ss', 'http', 'socks5', 'sudoku'].includes(px.type) && px.network && px.network !== 'tcp') {
-                c.network = px.network;
-                if (px.network === 'ws') {
-                    c['ws-opts'] = { path: px['ws-opts'].path || '/', headers: { Host: px['ws-opts'].headers?.Host || '' } };
-                    if (px['ws-opts']['max-early-data'] > 0) c['ws-opts']['max-early-data'] = px['ws-opts']['max-early-data'];
-                    if (px['ws-opts']['early-data-header-name'] && px['ws-opts']['early-data-header-name'] !== 'Sec-WebSocket-Protocol') c['ws-opts']['early-data-header-name'] = px['ws-opts']['early-data-header-name'];
-                }
-                if (px.network === 'grpc') c['grpc-opts'] = px['grpc-opts'];
-                if (px.network === 'httpupgrade') c['httpupgrade-opts'] = px['httpupgrade-opts'];
-                if (px.network === 'h2') {
-                    c['h2-opts'] = { ...px['h2-opts'] };
-                    c['h2-opts'].host = px['h2-opts'].host ? (Array.isArray(px['h2-opts'].host) ? px['h2-opts'].host.join(',') : px['h2-opts'].host) : [];
-                }
-                if (px.network === 'http') {
-                    c['http-opts'] = {};
-                    if (px['http-opts'].path) c['http-opts'].path = typeof px['http-opts'].path === 'string' ? px['http-opts'].path.split(',').map(s=>s.trim()).filter(Boolean) : (px['http-opts'].path || ['/']);
-                    if (px['http-opts'].host) c['http-opts'].headers = { Connection: ['keep-alive'], Host: [px['http-opts'].host] };
-                }
-                if (px.network === 'xhttp') {
-                    c['xhttp-opts'] = { path: px['xhttp-opts'].path || '/' };
-                    if (px['xhttp-opts'].host) c['xhttp-opts'].host = px['xhttp-opts'].host;
-                    if (px['xhttp-opts'].mode && px['xhttp-opts'].mode !== 'auto') c['xhttp-opts'].mode = px['xhttp-opts'].mode;
-                }
-            }
-
-            let hasTls = false;
-            if (['vless', 'vmess', 'trojan', 'ss', 'http', 'socks5', 'sudoku'].includes(px.type)) {
-                if (px.reality && ['vless', 'trojan'].includes(px.type)) { 
-                    c['reality-opts'] = px['reality-opts']; c['client-fingerprint'] = px['client-fingerprint'] || 'chrome'; c.servername = px.servername; hasTls = true;
-                } else if (px.tls) { 
-                    c.tls = true; if (px.servername) c.servername = px.servername; if (px['client-fingerprint']) c['client-fingerprint'] = px['client-fingerprint']; hasTls = true; 
-                }
-            } else if (['hysteria2', 'hysteria', 'tuic', 'masque', 'anytls'].includes(px.type)) {
-                if (px.servername) c.servername = px.servername;
-                if (px['client-fingerprint']) c['client-fingerprint'] = px['client-fingerprint'];
-                hasTls = true;
-            }
-            
-            if (hasTls) {
-                if (px.alpn) c.alpn = (typeof px.alpn === 'string') ? px.alpn.split(',').map(s=>s.trim()).filter(Boolean) : px.alpn;
-                if (px['skip-cert-verify']) c['skip-cert-verify'] = true;
-            }
-            
-            if (px.smux && px.smux.enabled && !['wireguard', 'hysteria2', 'hysteria', 'tuic', 'masque', 'anytls', 'snell', 'ssr', 'ssh', 'mieru'].includes(px.type)) {
-                c.smux = { enabled: true, protocol: px.smux.protocol, 'max-connections': px.smux['max-connections'] };
-                if (px.smux.padding) c.smux.padding = true;
-            }
-
-            return c;
-        };
-
         const getInlinePayloadPreview = (inlineProxies) => {
             if (!inlineProxies || inlineProxies.length === 0) return '[]';
             const nodes = inlineProxies.map(name => {
                 const px = config.value.proxies.find(x => x.name === name);
-                return generateProxyNode(px);
+                return parseSingleProxyNode(px);
             }).filter(Boolean);
-            try {
-                return jsyaml.dump(nodes, { indent: 2, lineWidth: -1, sortKeys: false });
-            } catch (e) { return '# Preview Error'; }
+            try { return jsyaml.dump(nodes, { indent: 2, lineWidth: -1, sortKeys: false }); } catch (e) { return '# Preview Error'; }
         };
 
         const yamlSections = ref({ general: '', network: '', geo: '', proxies: '', providers: '', ruleProviders: '', groups: '', rules: '' });
@@ -1687,68 +1622,73 @@ createApp({
             const parseText = (text) => text ? text.split('\n').map(s => s.trim()).filter(Boolean) : [];
             const opts = { indent: 2, lineWidth: -1, noRefs: true, sortKeys: false };
             
-            let outGeneral = {
-                port: raw.port, 'socks-port': raw['socks-port'], 'mixed-port': raw['mixed-port'],
-                'allow-lan': raw['allow-lan'], mode: raw.mode, 'log-level': raw['log-level'], ipv6: raw.ipv6,
-                'external-controller': raw['external-controller']
-            };
+            let outGeneral = {};
+            if (raw.port > 0) outGeneral.port = raw.port;
+            if (raw['socks-port'] > 0) outGeneral['socks-port'] = raw['socks-port'];
+            if (raw['mixed-port'] > 0) outGeneral['mixed-port'] = raw['mixed-port'];
+            
+            outGeneral['allow-lan'] = raw['allow-lan'];
+            outGeneral.mode = raw.mode;
+            outGeneral['log-level'] = raw['log-level'];
+            outGeneral.ipv6 = raw.ipv6;
+            
+            if (raw['unified-delay'] !== undefined) outGeneral['unified-delay'] = raw['unified-delay'];
+            if (raw['tcp-concurrent'] !== undefined) outGeneral['tcp-concurrent'] = raw['tcp-concurrent'];
+            if (raw['interface-name'] && raw['interface-name'].trim()) outGeneral['interface-name'] = raw['interface-name'].trim();
+            
+            outGeneral['external-controller'] = raw['external-controller'];
             if (raw.secret) outGeneral.secret = raw.secret;
             if (raw['external-ui-url']) { outGeneral['external-ui'] = raw['external-ui']; outGeneral['external-ui-url'] = raw['external-ui-url']; }
-            if (raw.profile && (raw.profile['store-selected'] || raw.profile['store-selected'] === false)) {
-                outGeneral.profile = raw.profile;
-            }
+            if (raw.profile && (raw.profile['store-selected'] || raw.profile['store-selected'] === false)) { outGeneral.profile = raw.profile; }
             if (raw['find-process-mode'] !== 'always') outGeneral['find-process-mode'] = raw['find-process-mode'];
             if (raw['routing-mark']) outGeneral['routing-mark'] = raw['routing-mark'];
             
-            delete outGeneral['tproxy-port']; // 移除旧版，使用 listeners
-            if (uiState.value.tproxyEnable) {
+            if (uiState.value.hostsText) {
+                const h = {};
+                uiState.value.hostsText.split('\n').forEach(l => {
+                    const parts = l.trim().split(/\s+/);
+                    if (parts.length >= 2) h[parts[0]] = parts[1];
+                });
+                if (Object.keys(h).length > 0) outGeneral.hosts = h;
+            }
+            
+            if (raw.listeners && raw.listeners.length > 0) {
+                outGeneral.listeners = raw.listeners.map(l => {
+                    let outL = { name: l.name, type: l.type, port: l.port, listen: l.listen || '::' };
+                    if (l.udp !== undefined) outL.udp = l.udp;
+                    return outL;
+                });
+            } else if (uiState.value.tproxyEnable) {
                 outGeneral.listeners = [{
-                    name: 'tproxy-in',
-                    type: 'tproxy',
-                    port: uiState.value.nftablesConfig.tproxyPort,
-                    listen: uiState.value.nftablesConfig.listen || '0.0.0.0',
-                    udp: uiState.value.nftablesConfig.udp !== false
+                    name: 'tproxy-in', type: 'tproxy', port: uiState.value.nftablesConfig.tproxyPort, listen: uiState.value.nftablesConfig.listen || '0.0.0.0', udp: uiState.value.nftablesConfig.udp !== false
                 }];
             }
 
             let outNetwork = {};
             if (raw.tun.enable) {
-                outNetwork.tun = { 
-                    enable: true, 
-                    stack: raw.tun.stack, 
-                    'auto-route': raw.tun['auto-route'], 
-                    'auto-detect-interface': raw.tun['auto-detect-interface']
-                };
+                outNetwork.tun = { enable: true, stack: raw.tun.stack, 'auto-route': raw.tun['auto-route'], 'auto-detect-interface': raw.tun['auto-detect-interface'] };
                 if (raw.tun.device && raw.tun.device.trim() !== '') outNetwork.tun.device = raw.tun.device.trim();
                 if (raw.tun.mtu) outNetwork.tun.mtu = raw.tun.mtu;
                 if (raw.tun.gso !== undefined) outNetwork.tun.gso = raw.tun.gso;
                 if (raw.tun.gso && raw.tun['gso-max-size']) outNetwork.tun['gso-max-size'] = raw.tun['gso-max-size'];
                 if (raw.tun['strict-route'] !== undefined) outNetwork.tun['strict-route'] = raw.tun['strict-route'];
                 if (raw.tun['endpoint-independent-nat'] !== undefined) outNetwork.tun['endpoint-independent-nat'] = raw.tun['endpoint-independent-nat'];
-                
                 const hijack = uiState.value.tunDnsHijack.split('\n').map(s=>s.trim()).filter(Boolean);
                 if (hijack.length > 0) outNetwork.tun['dns-hijack'] = hijack;
             }
 
             if (raw.sniffer.enable) {
-                outNetwork.sniffer = { 
-                    enable: true, 
-                    'force-dns-mapping': raw.sniffer['force-dns-mapping'], 
-                    'parse-pure-ip': raw.sniffer['parse-pure-ip'],
-                    'override-destination': raw.sniffer['override-destination']
-                };
+                outNetwork.sniffer = { enable: true, 'force-dns-mapping': raw.sniffer['force-dns-mapping'], 'parse-pure-ip': raw.sniffer['parse-pure-ip'], 'override-destination': raw.sniffer['override-destination'] };
                 if (uiState.value.snifferSniff && uiState.value.snifferSniff.length > 0) {
                     outNetwork.sniffer.sniff = {};
-                    if (uiState.value.snifferSniff.includes('HTTP')) outNetwork.sniffer.sniff.HTTP = { ports: [80, '8080-8880'] };
-                    if (uiState.value.snifferSniff.includes('TLS')) outNetwork.sniffer.sniff.TLS = { ports: [443, 8443] };
-                    if (uiState.value.snifferSniff.includes('QUIC')) outNetwork.sniffer.sniff.QUIC = { ports: [443, 8443] };
+                    const sp = uiState.value.snifferPorts;
+                    if (uiState.value.snifferSniff.includes('HTTP')) outNetwork.sniffer.sniff.HTTP = { ports: sp.HTTP.split(',').map(s=>s.trim().includes('-')?s.trim():Number(s.trim())) };
+                    if (uiState.value.snifferSniff.includes('TLS')) outNetwork.sniffer.sniff.TLS = { ports: sp.TLS.split(',').map(s=>s.trim().includes('-')?s.trim():Number(s.trim())) };
+                    if (uiState.value.snifferSniff.includes('QUIC')) outNetwork.sniffer.sniff.QUIC = { ports: sp.QUIC.split(',').map(s=>s.trim().includes('-')?s.trim():Number(s.trim())) };
                 }
-                const skips = parseText(uiState.value.snifferSkipDomain);
-                if(skips.length > 0) outNetwork.sniffer['skip-domain'] = skips;
-                const forces = parseText(uiState.value.snifferForceDomain);
-                if(forces.length > 0) outNetwork.sniffer['force-domain'] = forces;
-                const whitelists = parseText(uiState.value.snifferPortWhitelist);
-                if(whitelists.length > 0) outNetwork.sniffer['port-whitelist'] = whitelists.map(p => isNaN(p) ? p : Number(p));
+                const skips = parseText(uiState.value.snifferSkipDomain); if(skips.length > 0) outNetwork.sniffer['skip-domain'] = skips;
+                const forces = parseText(uiState.value.snifferForceDomain); if(forces.length > 0) outNetwork.sniffer['force-domain'] = forces;
+                const whitelists = parseText(uiState.value.snifferPortWhitelist); if(whitelists.length > 0) outNetwork.sniffer['port-whitelist'] = whitelists.map(p => isNaN(p) ? p : Number(p));
             }
 
             if (raw.dns.enable) {
@@ -1766,39 +1706,28 @@ createApp({
 
                 if (outNetwork.dns.fallback && outNetwork.dns.fallback.length > 0) {
                     if (!outNetwork.dns['fallback-filter']) outNetwork.dns['fallback-filter'] = {};
-                    
                     outNetwork.dns['fallback-filter'].geoip = config.value.dns['fallback-filter'].geoip;
-                    if (outNetwork.dns['fallback-filter'].geoip) {
-                        outNetwork.dns['fallback-filter']['geoip-code'] = config.value.dns['fallback-filter']['geoip-code'];
-                    } else {
-                        delete outNetwork.dns['fallback-filter']['geoip-code'];
-                    }
+                    if (outNetwork.dns['fallback-filter'].geoip) { outNetwork.dns['fallback-filter']['geoip-code'] = config.value.dns['fallback-filter']['geoip-code'];
+                    } else { delete outNetwork.dns['fallback-filter']['geoip-code']; }
 
                     const geosite = parseText(uiState.value.fallbackFilterGeosite);
                     if (uiState.value.fallbackFilterGeositeEnable && geosite.length > 0) outNetwork.dns['fallback-filter'].geosite = geosite;
-                    
                     const ipcidr = parseText(uiState.value.fallbackFilterIpcidr);
                     const domain = parseText(uiState.value.fallbackFilterDomain);
                     if (ipcidr.length > 0) outNetwork.dns['fallback-filter'].ipcidr = ipcidr;
                     if (domain.length > 0) outNetwork.dns['fallback-filter'].domain = domain;
-                } else { 
-                    delete outNetwork.dns['fallback-filter']; 
-                }
-
+                } else { delete outNetwork.dns['fallback-filter']; }
                 ['default-nameserver', 'nameserver', 'fallback', 'proxy-server-nameserver', 'direct-nameserver'].forEach(k => { if (outNetwork.dns[k] && outNetwork.dns[k].length === 0) delete outNetwork.dns[k]; });
             }
 
             let outGeo = {};
             if (raw.geo['auto-update']) {
-                outGeo['geox-url'] = raw.geo.url;
-                outGeo['geo-auto-update'] = true;
-                outGeo['geo-update-interval'] = raw.geo.interval;
+                outGeo['geox-url'] = raw.geo.url; outGeo['geo-auto-update'] = true; outGeo['geo-update-interval'] = raw.geo.interval;
             }
+            if (raw.geo['geodata-mode']) outGeo['geodata-mode'] = true;
 
             let outProxies = {};
-            if (raw.proxies.length > 0) {
-                outProxies.proxies = raw.proxies.map(px => generateProxyNode(px)).filter(Boolean);
-            }
+            if (raw.proxies.length > 0) { outProxies.proxies = raw.proxies.map(px => parseSingleProxyNode(px)).filter(Boolean); }
 
             let outProviders = {};
             if (providersList.value.length > 0) {
@@ -1808,24 +1737,19 @@ createApp({
                         let prov = { type: p.type || 'http' };
                         if (prov.type === 'http') {
                             if (!p.url) return;
-                            prov.url = p.url;
-                            prov.interval = p.interval || 3600;
-                            prov.path = `./providers/${p.name}.yaml`;
-                            prov['health-check'] = { enable: true, interval: 600, url: p.healthUrl || 'https://www.gstatic.com/generate_204' };
-                            if (p.useDownloadProxy && p.downloadProxy) {
-                                prov['dialer-proxy'] = p.downloadProxy;
-                            }
+                            prov.url = p.url; prov.interval = p.interval || 3600; prov.path = `./providers/${p.name}.yaml`;
+                            if (p.lazy) prov.lazy = true;
+                            prov['health-check'] = { enable: true, interval: p.interval || 600, url: p.healthUrl || 'https://www.gstatic.com/generate_204' };
+                            if (p.healthLazy) prov['health-check'].lazy = true;
+                            if (p.healthTimeout) prov['health-check'].timeout = p.healthTimeout;
+                            if (p.useDownloadProxy && p.downloadProxy) prov['dialer-proxy'] = p.downloadProxy;
                         } else if (prov.type === 'inline') {
                             let payloadNodes = [];
                             if (p.inlineProxies && p.inlineProxies.length > 0) {
-                                payloadNodes = p.inlineProxies.map(pxName => {
-                                    return generateProxyNode(raw.proxies.find(x => x.name === pxName));
-                                }).filter(Boolean);
+                                payloadNodes = p.inlineProxies.map(pxName => parseSingleProxyNode(raw.proxies.find(x => x.name === pxName))).filter(Boolean);
                             }
                             prov.payload = payloadNodes;
-                            if (p.overrideDialerProxy) {
-                                prov.override = { 'dialer-proxy': p.overrideDialerProxy };
-                            }
+                            if (p.overrideDialerProxy) prov.override = { 'dialer-proxy': p.overrideDialerProxy };
                         }
                         outProviders['proxy-providers'][p.name] = prov;
                     }
@@ -1837,16 +1761,19 @@ createApp({
                 outRuleProviders['rule-providers'] = {};
                 ruleProvidersList.value.forEach(rp => {
                     if (!rp.name) return;
-                    const url = rp.autoUrl ? getRuleProviderUrl(rp) : rp.customUrl;
-                    if (!url) return;
-                    outRuleProviders['rule-providers'][rp.name] = {
-                        type: 'http',
-                        behavior: rp.behavior,
-                        format: rp.format,
-                        path: `./rules/${rp.name}.${rp.format}`,
-                        url: url,
-                        interval: rp.interval || 86400
-                    };
+                    outRuleProviders['rule-providers'][rp.name] = { type: rp.type, behavior: rp.behavior, format: rp.format };
+                    if (rp.type === 'http') {
+                        const url = rp.autoUrl ? getRuleProviderUrl(rp) : rp.customUrl;
+                        if (!url) return;
+                        outRuleProviders['rule-providers'][rp.name].path = `./rules/${rp.name}.${rp.format}`;
+                        outRuleProviders['rule-providers'][rp.name].url = url;
+                        outRuleProviders['rule-providers'][rp.name].interval = rp.interval || 86400;
+                    } else if (rp.type === 'file') {
+                        outRuleProviders['rule-providers'][rp.name].path = rp.file;
+                    } else if (rp.type === 'inline') {
+                        const pLines = rp.payloadText.split('\n').map(s=>s.trim()).filter(Boolean);
+                        outRuleProviders['rule-providers'][rp.name].payload = pLines;
+                    }
                 });
             }
 
@@ -1863,8 +1790,10 @@ createApp({
                     if(g.type === 'url-test' || g.type === 'fallback' || g.type === 'load-balance') { 
                         cg.url = g.url || 'https://www.gstatic.com/generate_204'; 
                         cg.interval = g.interval || 300; 
+                        if (g.timeout) cg.timeout = g.timeout;
                     }
                     if(g.type === 'url-test') { cg.tolerance = g.tolerance; cg.lazy = g.lazy; } 
+                    if(g.type === 'load-balance' && g.strategy) cg.strategy = g.strategy;
                     if(g['dialer-proxy']) cg['dialer-proxy'] = g['dialer-proxy'];
                     return cg;
                 });
@@ -1899,16 +1828,9 @@ createApp({
             const dump = (obj) => Object.keys(obj).length > 0 ? jsyaml.dump(obj, opts) : '';
 
             yamlSections.value = {
-                general: dump(outGeneral),
-                network: dump(outNetwork),
-                geo: dump(outGeo),
-                proxies: dump(outProxies),
-                providers: dump(outProviders),
-                ruleProviders: dump(outRuleProviders),
-                groups: dump(outGroups),
-                rules: dump(outRules)
+                general: dump(outGeneral), network: dump(outNetwork), geo: dump(outGeo), proxies: dump(outProxies),
+                providers: dump(outProviders), ruleProviders: dump(outRuleProviders), groups: dump(outGroups), rules: dump(outRules)
             };
-            
             fullYaml.value = [yamlSections.value.general, yamlSections.value.network, yamlSections.value.geo, yamlSections.value.proxies, yamlSections.value.providers, yamlSections.value.ruleProviders, yamlSections.value.groups, yamlSections.value.rules].filter(Boolean).join('');
         };
 
@@ -1917,10 +1839,7 @@ createApp({
             const el = e.target.closest('[data-yaml-target]');
             if (el) {
                 const keyword = el.getAttribute('data-yaml-target');
-                if (keyword && keyword !== lastTarget) {
-                    lastTarget = keyword;
-                    locateAndScroll(keyword);
-                }
+                if (keyword && keyword !== lastTarget) { lastTarget = keyword; locateAndScroll(keyword); }
             }
         };
 
@@ -1928,7 +1847,7 @@ createApp({
             if(!yamlPreviewBox.value) return;
             clearTimeout(scrollTimeout);
             isLocating.value = true;
-            renderStatus.value = `追踪: ${keyword.trim().slice(0, 15)}...`;
+            renderStatus.value = `📍 追踪: ${keyword.trim().slice(0, 15)}...`;
             
             scrollTimeout = setTimeout(() => {
                 const container = yamlPreviewBox.value;
@@ -1940,10 +1859,7 @@ createApp({
                     const targetY = Math.max(0, idx * lineHeight - 60); 
                     container.scrollTo({ top: targetY, behavior: 'smooth' });
                 }
-                setTimeout(() => {
-                    isLocating.value = false;
-                    renderStatus.value = '实时渲染';
-                }, 1000);
+                setTimeout(() => { isLocating.value = false; renderStatus.value = '实时渲染'; }, 1000);
             }, 100);
         };
 
@@ -1965,32 +1881,21 @@ createApp({
         let buildTimeout;
         watch([config, uiState, providersList, ruleProvidersList], () => {
             localStorage.setItem('mihomo_web_config_stable', JSON.stringify({ 
-                config: config.value, 
-                uiState: uiState.value, 
-                providersList: providersList.value,
-                ruleProvidersList: ruleProvidersList.value 
+                config: config.value, uiState: uiState.value, providersList: providersList.value, ruleProvidersList: ruleProvidersList.value 
             }));
             clearTimeout(buildTimeout);
             if (!isLocating.value) renderStatus.value = '实时渲染中...';
-            buildTimeout = setTimeout(() => {
-                buildYaml();
-                if (!isLocating.value) renderStatus.value = '实时渲染';
-            }, 150);
+            buildTimeout = setTimeout(() => { buildYaml(); if (!isLocating.value) renderStatus.value = '实时渲染'; }, 150);
         }, { deep: true });
 
         const parseRuleString = (rStr) => {
             if (typeof rStr !== 'string') return null;
             const logicMatch = rStr.match(/^(AND|OR),\((.+)\),(.+)$/);
             if (logicMatch) {
-                const logic = logicMatch[1];
-                const target = logicMatch[3];
-                const inner = logicMatch[2];
-                const condRe = /\(([^()]+)\)/g;
-                const conditions = [];
-                let m;
+                const logic = logicMatch[1]; const target = logicMatch[3]; const inner = logicMatch[2];
+                const condRe = /\(([^()]+)\)/g; const conditions = []; let m;
                 while ((m = condRe.exec(inner)) !== null) {
-                    const parts = m[1].split(',');
-                    let not = false;
+                    const parts = m[1].split(','); let not = false;
                     if (parts[0] === 'NOT') { not = true; parts.shift(); }
                     conditions.push({ type: parts[0] || 'DOMAIN', value: parts[1] || '', not, noResolve: parts.includes('no-resolve') });
                 }
@@ -1998,21 +1903,12 @@ createApp({
             }
             const notMatch = rStr.match(/^NOT,\(\((.+)\)\),(.+)$/);
             if (notMatch) {
-                const inner = notMatch[1];
-                const target = notMatch[2];
-                const parts = inner.split(',');
-                const type = parts[0]; 
-                const value = parts[1];
-                return { type, value: value || '', target: target || 'DIRECT', noResolve: parts.includes('no-resolve'), not: true };
+                const inner = notMatch[1]; const target = notMatch[2]; const parts = inner.split(',');
+                return { type: parts[0], value: parts[1] || '', target: target || 'DIRECT', noResolve: parts.includes('no-resolve'), not: true };
             }
-            if (rStr.startsWith('MATCH,')) {
-                const parts = rStr.split(',');
-                return { type: 'MATCH', value: '', target: parts[1] || 'DIRECT', noResolve: false, not: false };
-            }
+            if (rStr.startsWith('MATCH,')) { const parts = rStr.split(','); return { type: 'MATCH', value: '', target: parts[1] || 'DIRECT', noResolve: false, not: false }; }
             const parts = rStr.split(',');
-            if (parts.length >= 3) {
-                return { type: parts[0], value: parts[1], target: parts[2], noResolve: parts.includes('no-resolve'), not: false };
-            }
+            if (parts.length >= 3) { return { type: parts[0], value: parts[1], target: parts[2], noResolve: parts.includes('no-resolve'), not: false }; }
             return null;
         };
 
@@ -2025,9 +1921,7 @@ createApp({
                 if (key === '<<' && typeof obj[key] === 'object') {
                     const merged = resolveYamlMergeKeys(obj[key]);
                     Object.assign(result, merged);
-                } else {
-                    result[key] = resolveYamlMergeKeys(obj[key]);
-                }
+                } else { result[key] = resolveYamlMergeKeys(obj[key]); }
             }
             return result;
         };
@@ -2056,12 +1950,19 @@ createApp({
             if (data.port !== undefined) config.value.port = data.port;
             if (data['socks-port'] !== undefined) config.value['socks-port'] = data['socks-port'];
             if (data['mixed-port'] !== undefined) config.value['mixed-port'] = data['mixed-port'];
-            
-            if (data['routing-mark'] !== undefined) {
-                config.value['routing-mark'] = data['routing-mark'];
+            if (data['routing-mark'] !== undefined) config.value['routing-mark'] = data['routing-mark'];
+            if (data['unified-delay'] !== undefined) config.value['unified-delay'] = data['unified-delay'];
+            if (data['tcp-concurrent'] !== undefined) config.value['tcp-concurrent'] = data['tcp-concurrent'];
+            if (data['interface-name'] !== undefined) config.value['interface-name'] = data['interface-name'];
+
+            if (data.hosts && typeof data.hosts === 'object') {
+                let hostStr = [];
+                for(let k in data.hosts) { hostStr.push(`${k} ${data.hosts[k]}`); }
+                uiState.value.hostsText = hostStr.join('\n');
             }
 
             if (data.listeners && Array.isArray(data.listeners)) {
+                config.value.listeners = data.listeners.map(l => ({ name: l.name||'', type: l.type||'mixed', port: l.port||0, listen: l.listen||'::', udp: l.udp!==false }));
                 const tp = data.listeners.find(l => l.type === 'tproxy');
                 if (tp) {
                     uiState.value.tproxyEnable = true;
@@ -2102,9 +2003,10 @@ createApp({
 
                 if(data.sniffer.sniff) {
                     uiState.value.snifferSniff = Object.keys(data.sniffer.sniff).map(k => k.toUpperCase());
-                } else { 
-                    uiState.value.snifferSniff = []; 
-                }
+                    if(data.sniffer.sniff.HTTP && data.sniffer.sniff.HTTP.ports) uiState.value.snifferPorts.HTTP = data.sniffer.sniff.HTTP.ports.join(', ');
+                    if(data.sniffer.sniff.TLS && data.sniffer.sniff.TLS.ports) uiState.value.snifferPorts.TLS = data.sniffer.sniff.TLS.ports.join(', ');
+                    if(data.sniffer.sniff.QUIC && data.sniffer.sniff.QUIC.ports) uiState.value.snifferPorts.QUIC = data.sniffer.sniff.QUIC.ports.join(', ');
+                } else { uiState.value.snifferSniff = []; }
 
                 if(data.sniffer['skip-domain']) uiState.value.snifferSkipDomain = data.sniffer['skip-domain'].join('\n');
                 if(data.sniffer['force-domain']) uiState.value.snifferForceDomain = data.sniffer['force-domain'].join('\n');
@@ -2126,12 +2028,10 @@ createApp({
                 if(data.dns['fallback-filter']) {
                     config.value.dns['fallback-filter'].geoip = data.dns['fallback-filter'].geoip !== false;
                     if(data.dns['fallback-filter']['geoip-code']) config.value.dns['fallback-filter']['geoip-code'] = data.dns['fallback-filter']['geoip-code'];
-                    
                     if(data.dns['fallback-filter'].geosite) {
                         uiState.value.fallbackFilterGeositeEnable = true;
                         uiState.value.fallbackFilterGeosite = data.dns['fallback-filter'].geosite.join('\n');
                     } else { uiState.value.fallbackFilterGeositeEnable = false; }
-                    
                     if(data.dns['fallback-filter'].ipcidr) uiState.value.fallbackFilterIpcidr = data.dns['fallback-filter'].ipcidr.join('\n');
                     if(data.dns['fallback-filter'].domain) uiState.value.fallbackFilterDomain = data.dns['fallback-filter'].domain.join('\n');
                 }
@@ -2140,56 +2040,35 @@ createApp({
             if (data['geox-url']) config.value.geo.url = { ...config.value.geo.url, ...data['geox-url'] };
             if (data['geo-auto-update'] !== undefined) config.value.geo['auto-update'] = data['geo-auto-update'];
             if (data['geo-update-interval'] !== undefined) config.value.geo.interval = data['geo-update-interval'];
+            if (data['geodata-mode'] !== undefined) config.value.geo['geodata-mode'] = data['geodata-mode'];
 
             if (data['proxy-providers']) {
                 Object.values(data['proxy-providers']).forEach(p => {
                     if (p.type === 'inline' && Array.isArray(p.payload)) {
                         if (!data.proxies) data.proxies = [];
                         p.payload.forEach(px => {
-                            if (!data.proxies.find(x => x.name === px.name)) {
-                                data.proxies.push(px);
-                            }
+                            if (!data.proxies.find(x => x.name === px.name)) { data.proxies.push(px); }
                         });
                     }
                 });
             }
 
-            if (data.proxies) {
-                config.value.proxies = data.proxies.map(parseSingleProxyNode);
-            } else config.value.proxies = [];
+            if (data.proxies) { config.value.proxies = data.proxies.map(parseSingleProxyNode); } else config.value.proxies = [];
 
             if (data['proxy-providers']) {
                 providersList.value = Object.keys(data['proxy-providers']).map(key => {
                     const p = data['proxy-providers'][key];
-                    let inlineProxies = [];
-                    let overrideDialerProxy = '';
-                    let useDownloadProxy = false;
-                    let downloadProxy = '';
-                    
+                    let inlineProxies = []; let overrideDialerProxy = ''; let useDownloadProxy = false; let downloadProxy = '';
                     if (p.type === 'inline') {
-                        if (Array.isArray(p.payload)) {
-                            inlineProxies = p.payload.map(x => x.name).filter(Boolean);
-                        }
-                        if (p.override && p.override['dialer-proxy']) {
-                            overrideDialerProxy = p.override['dialer-proxy'];
-                        }
+                        if (Array.isArray(p.payload)) inlineProxies = p.payload.map(x => x.name).filter(Boolean);
+                        if (p.override && p.override['dialer-proxy']) overrideDialerProxy = p.override['dialer-proxy'];
                     } else {
-                        if (p['dialer-proxy']) {
-                            useDownloadProxy = true;
-                            downloadProxy = p['dialer-proxy'];
-                        }
+                        if (p['dialer-proxy']) { useDownloadProxy = true; downloadProxy = p['dialer-proxy']; }
                     }
-                    
                     return { 
-                        name: key, 
-                        type: p.type || 'http',
-                        url: p.url || '', 
-                        healthUrl: p['health-check']?.url || 'https://www.gstatic.com/generate_204',
-                        interval: p.interval || 3600,
-                        overrideDialerProxy: overrideDialerProxy,
-                        useDownloadProxy: useDownloadProxy,
-                        downloadProxy: downloadProxy,
-                        inlineProxies: inlineProxies
+                        name: key, type: p.type || 'http', url: p.url || '', healthUrl: p['health-check']?.url || 'https://www.gstatic.com/generate_204',
+                        interval: p.interval || 3600, overrideDialerProxy: overrideDialerProxy, useDownloadProxy: useDownloadProxy, downloadProxy: downloadProxy,
+                        inlineProxies: inlineProxies, lazy: p.lazy || false, healthLazy: p['health-check']?.lazy || false, healthTimeout: p['health-check']?.timeout || 5000
                     };
                 });
             } else providersList.value = [];
@@ -2197,24 +2076,17 @@ createApp({
             if (data['rule-providers']) {
                 ruleProvidersList.value = Object.keys(data['rule-providers']).map(key => {
                     const rp = data['rule-providers'][key];
-                    let isAuto = false;
-                    let customUrl = rp.url || '';
-                    let file = '';
-                    if (customUrl.includes('meta-rules-dat')) {
+                    let isAuto = false; let customUrl = rp.url || ''; let file = rp.path || ''; let pText = '';
+                    if (rp.type === 'http' && customUrl.includes('meta-rules-dat')) {
                         isAuto = true;
                         const match = customUrl.match(/\/geo\/(?:geosite|geoip)\/(.+?)\.(?:yaml|mrs)$/);
-                        if (match && match[1] !== key) {
-                            file = match[1];
-                        }
+                        if (match && match[1] !== key) file = match[1];
+                    } else if (rp.type === 'inline' && Array.isArray(rp.payload)) {
+                        pText = rp.payload.join('\n');
                     }
                     return {
-                        name: key,
-                        file: file,
-                        behavior: rp.behavior || 'domain',
-                        format: rp.format || 'yaml',
-                        interval: rp.interval || 86400,
-                        autoUrl: isAuto,
-                        customUrl: isAuto ? '' : customUrl
+                        name: key, file: file, behavior: rp.behavior || 'domain', format: rp.format || 'yaml', type: rp.type || 'http',
+                        interval: rp.interval || 86400, autoUrl: isAuto, customUrl: isAuto ? '' : customUrl, payloadText: pText
                     };
                 });
             } else ruleProvidersList.value = [];
@@ -2223,15 +2095,13 @@ createApp({
                 config.value['proxy-groups'] = data['proxy-groups'].map(g => ({
                     name: g.name || '', type: g.type || 'select', proxies: g.proxies || [], use: g.use || [],
                     filter: g.filter || '', 'exclude-filter': g['exclude-filter'] || '', tolerance: g.tolerance || 50, lazy: g.lazy || false,
-                    url: g.url || 'https://www.gstatic.com/generate_204', interval: g.interval || 300, 'dialer-proxy': g['dialer-proxy'] || ''
+                    url: g.url || 'https://www.gstatic.com/generate_204', interval: g.interval || 300, 'dialer-proxy': g['dialer-proxy'] || '',
+                    timeout: g.timeout || 5000, strategy: g.strategy || 'consistent-hashing'
                 }));
             } else config.value['proxy-groups'] = [];
 
-            if (data.rules) {
-                uiState.value.rules = data.rules.map(parseRuleString).filter(Boolean);
-            } else uiState.value.rules = [];
-            
-            autoCategorizeProxies(); // 导入后自动做一次匹配校验
+            if (data.rules) { uiState.value.rules = data.rules.map(parseRuleString).filter(Boolean); } else uiState.value.rules = [];
+            autoCategorizeProxies(); 
         };
 
         const copyYaml = async () => { try { await navigator.clipboard.writeText(fullYaml.value); alert('配置已复制'); } catch{} };
@@ -2243,18 +2113,23 @@ createApp({
                 try {
                     const p = JSON.parse(saved);
                     if (p.config) Object.assign(config.value, p.config);
-                    if (p.uiState) Object.assign(uiState.value, p.uiState);
+                    if (p.uiState) {
+                        Object.assign(uiState.value, p.uiState);
+                        // 【强制清理修复】: 抹除可能在旧缓存中残留的弹窗状态，彻底解决 Vue 陷入白屏和死循环
+                        uiState.value.showTproxyConflict = false;
+                        uiState.value.tproxyConflicts = [];
+                        uiState.value.pendingAction = '';
+                    }
                     if (p.providersList) providersList.value = p.providersList;
                     if (p.ruleProvidersList) ruleProvidersList.value = p.ruleProvidersList;
                 } catch(e) {}
             } else {
-                // 初次进入或已清除缓存，执行一次内置注入
                 injectRegionGroups();
             }
             buildYaml(); 
         });
 
-        return { tabs, currentTab, yamlPreviewBox, fileInput, uiState, config, panels, providersList, ruleProvidersList, pickPanel, addProvider, removeProvider, addRuleProvider, removeRuleProvider, getRuleProviderUrl, addManualProxy, addGroup, removeGroup, getAvailableGroupMembers, addRule, draggedRuleIndex, onRuleDragStart, onRuleDragEnter, onRuleDrop, onRuleDragEnd, getInlinePayloadPreview, yamlSections, fullYaml, copyYaml, downloadYaml, clearLists, clearCache, triggerYamlImport, handleYamlImport, handleFocus, isLocating, renderStatus, injectRegionGroups, autoCategorizeProxies, handleTproxyToggle, handleTunToggle, cancelTproxyEnable, resolveTproxyConflicts, routingCommands, copyCommands, nftablesScript, copyNftables, downloadNftables };
+        return { tabs, currentTab, yamlPreviewBox, fileInput, uiState, config, panels, providersList, ruleProvidersList, pickPanel, addProvider, removeProvider, addRuleProvider, removeRuleProvider, getRuleProviderUrl, addManualProxy, addGroup, removeGroup, getAvailableGroupMembers, addRule, draggedRuleIndex, onRuleDragStart, onRuleDragEnter, onRuleDrop, onRuleDragEnd, getInlinePayloadPreview, yamlSections, fullYaml, copyYaml, downloadYaml, clearLists, clearCache, triggerYamlImport, handleYamlImport, handleFocus, isLocating, renderStatus, injectRegionGroups, autoCategorizeProxies, handleTproxyToggle, handleTunToggle, cancelTproxyEnable, resolveTproxyConflicts, routingCommands, copyCommands, nftablesScript, copyNftables, downloadNftables, addListener, removeListener };
     }
 }).mount('#app');
 </script>
