@@ -1,0 +1,22 @@
+::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f3f4f6; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .dark-scroll::-webkit-scrollbar-track { background: #1f2937; }
+        .dark-scroll::-webkit-scrollbar-thumb { background: #4b5563; }
+        .tab-active { border-bottom: 2px solid #0ea5e9; color: #0ea5e9; font-weight: 700; background: #fff; }
+        .tab-inactive { color: #6b7280; background: #f9fafb; }
+        [v-cloak] { display: none !important; }
+        .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #cbd5e1; transition: .3s; border-radius: 24px; }
+        .toggle-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; transition: .3s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        input:checked + .toggle-slider { background: #0ea5e9; }
+        input:checked + .toggle-slider:before { transform: translateX(20px); }
+        .stitle { font-size: 14px; font-weight: 700; color: #374151; border-left: 4px solid #0ea5e9; padding-left: 10px; margin-bottom: 16px; }
+        [type='text'], [type='number'], select, textarea { border-color: #d1d5db !important; box-shadow: none !important; transition: all 0.2s; }
+        [type='text']:focus, [type='number']:focus, select:focus, textarea:focus { border-color: #0ea5e9 !important; box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2) !important; outline: none !important; }
+        [type='checkbox'], [type='radio'] { border-color: #d1d5db !important; }
+        [type='checkbox']:checked, [type='radio']:checked { background-color: #0ea5e9 !important; border-color: #0ea5e9 !important; }
+        .panel-card { border: 2px solid #e5e7eb; border-radius: 12px; padding: 12px; cursor: pointer; transition: all .2s; background: #f9fafb; }
+        .panel-card.selected { border-color: #0ea5e9; background: #f0f9ff; box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.1); }
