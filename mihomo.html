@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
-    
+
     <style>
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #f3f4f6; border-radius: 3px; }
@@ -68,21 +68,21 @@
         </header>
 
         <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-1 min-h-0">
-            
+
             <div class="xl:col-span-7 bg-white rounded-2xl shadow-lg border border-slate-200 flex flex-col overflow-hidden max-h-full">
                 <div class="flex border-b border-slate-200 overflow-x-auto shrink-0 bg-slate-50">
                     <button v-for="tab in tabs" :key="tab.id" @click="currentTab=tab.id" class="flex-shrink-0 py-3.5 px-5 text-sm transition-all text-center border-r border-slate-200/60 last:border-0" :class="currentTab===tab.id?'tab-active':'tab-inactive'">
                         <i :class="tab.icon" class="mr-1.5"></i>{{ tab.name }}
                     </button>
                 </div>
-                
+
                 <div id="main-scroll" class="p-6 overflow-y-auto flex-1 bg-slate-50/50" @focusin="handleFocus" @click="handleFocus">
 
                     <div v-show="currentTab==='general'" class="space-y-6">
-                        
+
                         <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm" v-if="config.profile">
                             <div class="stitle mb-4">基础端口与系统行为</div>
-                            
+
                             <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-5 border-b border-slate-100 pb-5">
                                 <div data-yaml-target="mixed-port:"><label class="block text-[10px] font-bold text-sky-600 uppercase mb-1">Mixed 端口</label><input type="number" v-model.number="config['mixed-port']" placeholder="7890" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></div>
                                 <div data-yaml-target="port:"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">HTTP 端口</label><input type="number" v-model.number="config.port" placeholder="7891" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></div>
@@ -221,7 +221,14 @@
                                     <div><label class="block text-[10px] font-bold text-purple-600 uppercase mb-1" title="macOS必须留空或配置为utunX格式">网卡名称 (device)</label><input type="text" v-model="config.tun.device" placeholder="留空自动分配" class="w-full px-2 py-1.5 bg-white border border-purple-200 rounded-md text-xs font-mono outline-none focus:ring-1 focus:ring-purple-400"></div>
                                     <div><label class="block text-[10px] font-bold text-purple-600 uppercase mb-1">最大传输单元 (MTU)</label><input type="number" v-model.number="config.tun.mtu" placeholder="1500" class="w-full px-2 py-1.5 bg-white border border-purple-200 rounded-md text-xs font-mono outline-none focus:ring-1 focus:ring-purple-400"></div>
                                     <div><label class="block text-[10px] font-bold text-purple-600 uppercase mb-1">GSO 最大尺寸</label><input type="number" v-model.number="config.tun['gso-max-size']" :disabled="!config.tun.gso" class="w-full px-2 py-1.5 bg-white border border-purple-200 rounded-md text-xs font-mono disabled:opacity-50 outline-none focus:ring-1 focus:ring-purple-400"></div>
-                                    <div class="col-span-2"><label class="block text-[10px] font-bold text-purple-600 uppercase mb-1">DNS 劫持 (dns-hijack)</label><textarea v-model="uiState.tunDnsHijack" rows="2" class="w-full px-2 py-1.5 bg-white border border-purple-200 rounded-md text-xs font-mono outline-none resize-none focus:ring-1 focus:ring-purple-400"></textarea></div>
+                                    <div class="col-span-2">
+                                        <label class="flex items-center gap-2 cursor-pointer mb-2">
+                                            <input type="checkbox" v-model="uiState.tunDnsHijackEnabled" class="w-4 h-4 text-purple-600 rounded">
+                                            <span class="text-[10px] font-bold text-purple-700 uppercase">DNS 劫持 (dns-hijack)</span>
+                                        </label>
+                                        <textarea v-if="uiState.tunDnsHijackEnabled" v-model="uiState.tunDnsHijack" rows="2" class="w-full px-2 py-1.5 bg-white border border-purple-200 rounded-md text-xs font-mono outline-none resize-none focus:ring-1 focus:ring-purple-400"></textarea>
+                                        <p v-else class="text-[10px] text-slate-400 leading-5">未启用时不会生成 <code>dns-hijack</code> 配置。</p>
+                                    </div>
                                 </div>
                                 <div class="flex flex-wrap gap-x-6 gap-y-3 pt-3 border-t border-purple-200">
                                     <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="config.tun['auto-route']" class="w-4 h-4 text-purple-600 rounded"><span class="text-xs font-bold text-slate-700">自动接管路由</span></label>
@@ -232,7 +239,7 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-pink-500" data-yaml-target="sniffer:" v-if="config && config.sniffer">
                             <div class="flex justify-between items-center mb-4"><div class="stitle mb-0 !border-l-0 !pl-0 text-pink-700">域名嗅探器 (Sniffer)</div><label class="toggle-switch"><input type="checkbox" v-model="config.sniffer.enable"><span class="toggle-slider"></span></label></div>
                             <div v-if="config.sniffer.enable" class="grid grid-cols-2 gap-6 bg-pink-50 p-4 rounded-xl border border-pink-100">
@@ -261,24 +268,112 @@
                             <div class="flex justify-between items-center mb-4"><div class="stitle mb-0 !border-l-0 !pl-0 text-sky-700">全局 DNS 设置</div><label class="toggle-switch"><input type="checkbox" v-model="config.dns.enable"><span class="toggle-slider"></span></label></div>
                             <div v-if="config.dns.enable" class="space-y-6">
                                 <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4" data-yaml-target="dns:">
-                                    <div class="grid grid-cols-3 gap-4">
-                                        <div><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">监听端口</label><input type="text" v-model="config.dns.listen" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm font-mono outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></div>
-                                        <div><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">增强模式</label>
-                                            <select v-model="config.dns['enhanced-mode']" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm font-bold text-sky-700 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"><option value="fake-ip">伪装 IP (fake-ip)</option><option value="redir-host">真实 IP (redir-host)</option></select>
+                                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">监听端口</label>
+                                            <input type="number" min="1" max="65535" v-model="dnsListenPortInput" @blur="normalizeDnsListenInput" placeholder="53" inputmode="numeric" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm font-mono outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400">
+                                            <div class="mt-2 bg-sky-50 border border-sky-200 rounded-lg p-3">
+                                                <div class="text-xs font-black text-sky-700 mb-1"><i class="fas fa-circle-info mr-1.5"></i>监听端口说明</div>
+                                                <p class="text-[11px] text-slate-600 leading-5">
+                                                    客户端系统 DNS 通常只会请求 <code>53</code>。<br>
+                                                    如果启用 TUN 或 TProxy，且这里仍监听 <code>53</code>，建议修改为其它端口。
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">IPv6 解析</label>
-                                            <select v-model="config.dns.ipv6" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"><option :value="true">开启 (true)</option><option :value="false">禁用 (false)</option></select>
+                                        <div class="space-y-4">
+                                            <div class="grid grid-cols-2 gap-4">
+                                                <div><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">增强模式</label>
+                                                    <select v-model="config.dns['enhanced-mode']" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm font-bold text-sky-700 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"><option value="fake-ip">伪装 IP (fake-ip)</option><option value="redir-host">真实 IP (redir-host)</option></select>
+                                                </div>
+                                                <div><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">IPv6 解析</label>
+                                                    <select v-model="config.dns.ipv6" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"><option :value="true">开启 (true)</option><option :value="false">禁用 (false)</option></select>
+                                                </div>
+                                            </div>
+                                            <div class="grid grid-cols-1 sm:grid-cols-6 gap-x-3 gap-y-3 pt-3 border-t border-slate-200">
+                                                <label class="sm:col-span-2 flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.dns['prefer-h3']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-600">优先开启 DoH3 (prefer-h3)</span></label>
+                                                <label class="sm:col-span-2 flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.dns['respect-rules']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-600">遵守路由规则 (respect-rules)</span></label>
+                                                <label class="sm:col-span-2 flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.dns['use-hosts']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-600">使用内置 Hosts</span></label>
+                                                <label class="sm:col-span-3 flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.dns['use-system-hosts']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-600">读取系统 Hosts</span></label>
+                                                <label class="sm:col-span-3 flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.dns['direct-nameserver-follow-policy']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-600">直连 DNS 遵循策略</span></label>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div class="flex flex-wrap gap-x-6 gap-y-3 pt-3 border-t border-slate-200">
-                                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.dns['prefer-h3']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-600">优先开启 DoH3 (prefer-h3)</span></label>
-                                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.dns['respect-rules']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-600">遵守路由规则 (respect-rules)</span></label>
-                                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.dns['use-hosts']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-600">使用内置 Hosts</span></label>
-                                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.dns['use-system-hosts']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-600">读取系统 Hosts</span></label>
-                                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.dns['direct-nameserver-follow-policy']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-600">直连 DNS 遵循策略</span></label>
                                     </div>
                                 </div>
-                                
+
+                                                                <div class="bg-white p-4 rounded-xl border border-sky-200 space-y-4" v-if="uiState">
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div class="space-y-3">
+<label class="flex items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" v-model="uiState.useLocalDns53Forward" class="w-4 h-4 text-sky-600 rounded">
+                                                <span class="text-sm font-bold text-slate-700">使用本地 53 端口转发</span>
+                                            </label>
+                                            <p class="text-[11px] text-slate-500 leading-5 -mt-1">
+                                                适用于由 dnsmasq / smartdns / AdGuard Home 监听本机 <code>53</code>，再转发到 Mihomo 的内置 DNS。<br>
+                                                示例路径：<code>192.168.1.1:53 -> 本机 53 前端 -> 127.0.0.1:{{ dnsListenPort }}</code>
+                                            </p>
+                                        </div>
+
+                                        <div class="space-y-3">
+                                            <div v-if="usingTransparentProxy && dnsListenPort === 53" class="bg-rose-50 border border-rose-200 rounded-lg p-3">
+                                                <div class="text-xs font-black text-rose-700 mb-1"><i class="fas fa-triangle-exclamation mr-1.5"></i>端口提醒</div>
+                                                <p class="text-[11px] text-rose-700 leading-5">
+                                                    当前已启用
+                                                    <span class="font-black">{{ config.tun && config.tun.enable ? 'TUN' : '' }}{{ config.tun && config.tun.enable && uiState.tproxyEnable ? ' + ' : '' }}{{ uiState.tproxyEnable ? 'TProxy' : '' }}</span>，
+                                                    且全局 DNS 监听端口仍为 <code>53</code>。建议修改为其它端口。
+                                                </p>
+                                            </div>
+
+                                            <div v-if="dnsForwardConflict" class="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                                <div class="text-xs font-black text-amber-700 mb-1"><i class="fas fa-circle-exclamation mr-1.5"></i>配置警告</div>
+                                                <p class="text-[11px] text-amber-700 leading-5">
+                                                    你同时启用了 <b>DNS 劫持</b> 和 <b>本地 53 端口转发</b>。通常二选一即可，否则容易出现路径重叠、排障困难。
+                                                </p>
+                                            </div>
+
+                                            <div v-if="dnsLocalForwardNeedsNon53" class="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                                <div class="text-xs font-black text-amber-700 mb-1"><i class="fas fa-circle-exclamation mr-1.5"></i>转发目标提醒</div>
+                                                <p class="text-[11px] text-amber-700 leading-5">
+                                                    既然要使用本地 <code>53</code> 端口前端转发，Mihomo 内置 DNS 监听端口就不应继续占用 <code>53</code>。建议修改为其它端口。
+                                                </p>
+                                            </div>
+
+                                            <div v-if="specifiedPortsContain53 && uiState.nftablesConfig && uiState.nftablesConfig.hijackDns" class="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                                <div class="text-xs font-black text-amber-700 mb-1"><i class="fas fa-circle-exclamation mr-1.5"></i>53 端口重复处理</div>
+                                                <p class="text-[11px] text-amber-700 leading-5">
+                                                    “仅代理指定端口”中已包含 <code>53</code>，同时 TProxy DNS 劫持也已开启。建议把 <code>53</code> 从指定端口列表里移除，避免规则重叠。
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="rounded-xl border p-4"
+                                         :class="dnsPathPreview.tone === 'emerald'
+                                            ? 'bg-emerald-50 border-emerald-200'
+                                            : dnsPathPreview.tone === 'amber'
+                                                ? 'bg-amber-50 border-amber-200'
+                                                : 'bg-slate-50 border-slate-200'">
+                                        <div class="text-xs font-black mb-2"
+                                             :class="dnsPathPreview.tone === 'emerald'
+                                                ? 'text-emerald-700'
+                                                : dnsPathPreview.tone === 'amber'
+                                                    ? 'text-amber-700'
+                                                    : 'text-slate-700'">
+                                            <i class="fas fa-shuffle mr-1.5"></i>{{ dnsPathPreview.title }}
+                                        </div>
+                                        <div class="space-y-1">
+                                            <div v-for="(line, idx) in dnsPathPreview.lines" :key="'dns-preview-' + idx"
+                                                 class="text-[11px] font-mono break-all"
+                                                 :class="dnsPathPreview.tone === 'emerald'
+                                                    ? 'text-emerald-800'
+                                                    : dnsPathPreview.tone === 'amber'
+                                                        ? 'text-amber-800'
+                                                        : 'text-slate-700'">
+                                                {{ line }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div v-if="config.dns['enhanced-mode'] === 'fake-ip'" class="bg-orange-50 p-4 rounded-xl border border-orange-200" data-yaml-target="fake-ip-filter:">
                                     <div class="flex items-center gap-2 mb-3"><i class="fas fa-filter text-orange-500"></i><span class="text-sm font-bold text-orange-700 uppercase">Fake-IP 过滤设置</span></div>
                                     <div class="grid grid-cols-2 gap-4 mb-3">
@@ -291,32 +386,38 @@
                                 </div>
 
                                 <div class="bg-slate-50 p-4 rounded-xl border border-slate-200" data-yaml-target="nameserver-policy:" v-if="uiState">
-                                    <div class="flex items-center gap-2 mb-3"><i class="fas fa-map-signs text-slate-500"></i><span class="text-sm font-bold text-slate-700 uppercase">DNS 指定解析 (nameserver-policy)</span></div>
+                                    <div class="flex items-center gap-2 mb-3"><i class="fas fa-map-signs text-slate-500"></i><span class="text-sm font-bold text-slate-700 uppercase">指定规则 DNS (nameserver-policy)</span></div>
                                     <textarea v-model="uiState.dnsNameserverPolicy" rows="3" placeholder="geosite:cn: 114.114.114.114&#10;'rule-set:apple': https://doh.pub/dns-query" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea>
                                 </div>
 
-                                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200" data-yaml-target="hosts:" v-if="uiState">
+                                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200" data-yaml-target="hosts:" v-if="uiState && showHostsEditor">
                                     <div class="flex items-center gap-2 mb-3"><i class="fas fa-address-book text-slate-500"></i><span class="text-sm font-bold text-slate-700 uppercase">Hosts 本地映射</span></div>
                                     <textarea v-model="uiState.hosts" rows="2" placeholder="router.asus.com: 192.168.50.1&#10;'*.myhome.local': 192.168.1.10" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea>
                                 </div>
-                                
+
                                 <div class="grid grid-cols-2 gap-4" v-if="uiState">
-                                    <div class="col-span-2 md:col-span-1" data-yaml-target="default-nameserver:"><label class="block text-xs font-bold text-slate-700 mb-1.5"><i class="fas fa-flag mr-1.5 text-slate-500"></i>默认底层解析 (Default Nameserver)</label><textarea v-model="uiState.dnsDefaultNameservers" rows="3" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea></div>
-                                    <div class="col-span-2 md:col-span-1" data-yaml-target="nameserver:"><label class="block text-xs font-bold text-slate-700 mb-1.5"><i class="fas fa-server mr-1.5 text-emerald-500"></i>国内主解析 (Nameserver)</label><textarea v-model="uiState.dnsNameservers" rows="3" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea></div>
-                                    <div class="col-span-2 md:col-span-1" data-yaml-target="fallback:">
-                                       <label class="block text-xs font-bold text-slate-700 mb-1.5 flex items-center flex-wrap gap-1.5">
-                                          <span><i class="fas fa-globe mr-1.5 text-sky-500"></i>防污染解析 (Fallback)</span>
-                                          <span class="text-[9px] font-black text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">※ 已不推荐使用</span>
-                                       </label>
-                                       <textarea v-model="uiState.dnsFallback" rows="3" placeholder="https://1.0.0.1/dns-query" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea>
+                                    <div class="col-span-2 md:col-span-1" data-yaml-target="default-nameserver:"><label class="block text-xs font-bold text-slate-700 mb-1.5"><i class="fas fa-flag mr-1.5 text-slate-500"></i>Bootstrap DNS (Default Nameserver)</label><textarea v-model="uiState.dnsDefaultNameservers" rows="3" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea></div>
+                                    <div class="col-span-2 md:col-span-1" data-yaml-target="nameserver:"><label class="block text-xs font-bold text-slate-700 mb-1.5"><i class="fas fa-server mr-1.5 text-emerald-500"></i>默认/国外DNS(Nameserver)</label><textarea v-model="uiState.dnsNameservers" rows="3" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea></div>
+                                                                        <div class="col-span-2 md:col-span-1" data-yaml-target="fallback:">
+                                        <div class="flex items-center flex-wrap gap-2 mb-1.5">
+                                            <label class="block text-xs font-bold text-slate-700 mb-0"><i class="fas fa-globe mr-1.5 text-sky-500"></i>Fallback DNS (Fallback)</label>
+                                            <label class="flex items-center gap-1.5 cursor-pointer text-[11px] font-bold text-slate-600">
+                                                <input type="checkbox" v-model="uiState.enableDnsFallback" class="w-4 h-4 text-sky-600 rounded">
+                                                <span>是否启用</span>
+                                            </label>
+                                        </div>
+                                        <textarea v-if="uiState.enableDnsFallback" v-model="uiState.dnsFallback" rows="3" placeholder="https://1.0.0.1/dns-query" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea>
+                                        <div v-else class="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-md text-xs text-slate-400">
+                                            未启用时不生成 fallback 配置
+                                        </div>
                                     </div>
-                                    <div class="col-span-2 md:col-span-1" data-yaml-target="proxy-server-nameserver:"><label class="block text-xs font-bold text-slate-700 mb-1.5"><i class="fas fa-route mr-1.5 text-indigo-500"></i>代理节点专属解析 (Proxy Server Nameserver)</label><textarea v-model="uiState.dnsProxyServerNameservers" rows="3" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea></div>
-                                    <div class="col-span-2" data-yaml-target="direct-nameserver:"><label class="block text-[10px] font-bold text-slate-700 mb-1.5"><i class="fas fa-location-arrow mr-1.5 text-teal-500"></i>直连专属解析 (Direct Nameserver)</label><textarea v-model="uiState.dnsDirectNameservers" rows="2" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea></div>
+                                    <div class="col-span-2 md:col-span-1" data-yaml-target="proxy-server-nameserver:"><label class="block text-xs font-bold text-slate-700 mb-1.5"><i class="fas fa-route mr-1.5 text-indigo-500"></i>节点订阅DNS(proxy-server-nameserver)</label><textarea v-model="uiState.dnsProxyServerNameservers" rows="3" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea></div>
+                                    <div class="col-span-2" data-yaml-target="direct-nameserver:"><label class="block text-[10px] font-bold text-slate-700 mb-1.5"><i class="fas fa-location-arrow mr-1.5 text-teal-500"></i>国内/直连DNS(direct-nameserver)</label><textarea v-model="uiState.dnsDirectNameservers" rows="2" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea></div>
                                 </div>
 
-                                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200" data-yaml-target="fallback-filter:" v-if="config.dns['fallback-filter'] && uiState">
-                                    <div class="flex items-center gap-2 mb-3"><i class="fas fa-shield-alt text-indigo-500"></i><span class="text-sm font-bold text-indigo-700 uppercase">防污染回退过滤 (Fallback Filter)</span></div>
-                                    
+                                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200" data-yaml-target="fallback-filter:" v-if="uiState.enableDnsFallback && config.dns['fallback-filter'] && uiState">
+                                    <div class="flex items-center gap-2 mb-3"><i class="fas fa-shield-alt text-indigo-500"></i><span class="text-sm font-bold text-indigo-700 uppercase">防污染过滤 (Fallback Filter)</span></div>
+
                                     <div class="grid grid-cols-2 gap-4 mb-4">
                                         <div>
                                             <label class="flex items-center gap-2 cursor-pointer mb-1"><input type="checkbox" v-model="config.dns['fallback-filter'].geoip" class="w-4 h-4 text-indigo-600 rounded"><span class="text-[11px] font-bold text-indigo-800">启用 GeoIP 判断</span></label>
@@ -327,7 +428,7 @@
                                             <input type="text" v-model="uiState.fallbackFilterGeosite" :disabled="!uiState.fallbackFilterGeositeEnable" placeholder="例如: gfw" class="w-full px-3 py-1.5 bg-white border border-indigo-200 rounded-md text-sm font-mono outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 disabled:opacity-50">
                                         </div>
                                     </div>
-                                    
+
                                     <div class="grid grid-cols-2 gap-4">
                                         <div><label class="block text-[10px] font-bold text-indigo-600 uppercase mb-1">IP CIDR (强制 Fallback)</label><textarea v-model="uiState.fallbackFilterIpcidr" rows="3" class="w-full px-3 py-2 bg-white border border-indigo-200 rounded-md text-xs font-mono resize-none outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"></textarea></div>
                                         <div><label class="block text-[10px] font-bold text-indigo-600 uppercase mb-1">Domain (强制 Fallback)</label><textarea v-model="uiState.fallbackFilterDomain" rows="3" class="w-full px-3 py-2 bg-white border border-indigo-200 rounded-md text-xs font-mono resize-none outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"></textarea></div>
@@ -345,7 +446,7 @@
                             <div class="space-y-4">
                                 <div v-for="(p, idx) in (providersList || [])" :key="idx" :data-yaml-target="'  ' + (p.name||'') + ':'" class="bg-slate-50 p-4 rounded-xl border border-slate-200 relative group shadow-sm hover:border-amber-300 transition-colors">
                                     <button @click="askConfirm('确定删除此代理集合？') && removeProvider(idx)" class="absolute top-2 right-2 text-red-400 hover:bg-red-500 hover:text-white w-6 h-6 rounded flex items-center justify-center transition z-10"><i class="fas fa-trash text-xs"></i></button>
-                                    
+
                                     <div class="grid grid-cols-12 gap-3 pr-6 mb-3">
                                         <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">名称</label><input type="text" v-model="p.name" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold text-amber-700 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"></div>
                                         <div class="col-span-3">
@@ -355,7 +456,7 @@
                                                 <option value="inline">Inline (内联负载)</option>
                                             </select>
                                         </div>
-                                        
+
                                         <div class="col-span-6" v-if="p.type === 'http'">
                                             <label class="flex items-center gap-1.5 cursor-pointer mb-1 h-4 text-[10px] font-bold text-indigo-500 uppercase tracking-wider">
                                                 <input type="checkbox" v-model="p.useDownloadProxy" class="w-3.5 h-3.5 text-indigo-500 rounded border-indigo-200">
@@ -367,7 +468,7 @@
                                             </select>
                                             <div v-else class="w-full px-2 py-1.5 bg-slate-100 border border-slate-200 rounded-md text-xs text-slate-400 opacity-50 cursor-not-allowed">直连下载</div>
                                         </div>
-                                        
+
                                         <div class="col-span-6" v-if="p.type === 'inline'">
                                             <label class="block text-[10px] font-bold text-indigo-500 uppercase mb-1 tracking-wider" title="整个集合内的节点都会强制走这个前置代理，用于实现链式代理">节点链式前置 (override)</label>
                                             <select v-model="p.overrideDialerProxy" class="w-full px-2 py-1.5 bg-indigo-50 border border-indigo-200 rounded-md text-xs font-bold text-indigo-700 outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400">
@@ -401,7 +502,7 @@
                                                 </label>
                                                 <div v-if="(config.proxies || []).length === 0" class="text-xs text-slate-400 italic font-medium py-1">请先在下方「手动节点」中添加节点供此引用</div>
                                             </div>
-                                            
+
                                             <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Payload 预览 (自动转换展示)</label>
                                             <pre class="w-full px-3 py-2 bg-slate-800 text-slate-300 border border-slate-700 rounded-md text-[10px] font-mono overflow-x-auto max-h-40 whitespace-pre-wrap">{{ getInlinePayloadPreview(p.inlineProxies) }}</pre>
                                         </div>
@@ -409,7 +510,7 @@
 
                                 </div>
                                 <div v-if="(providersList || []).length===0" class="text-center py-4 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-sm font-bold">暂无代理集合</div>
-                                
+
                                 <div class="mt-4 pt-2 flex justify-center" v-if="(providersList || []).length > 3">
                                     <button @click="addProvider" class="bg-amber-50 text-amber-600 border border-amber-200 px-4 py-2 rounded-xl text-xs font-bold hover:bg-amber-100 transition shadow-sm flex items-center"><i class="fas fa-plus mr-1.5"></i>追加代理集合</button>
                                 </div>
@@ -424,7 +525,7 @@
                             <div class="space-y-4">
                                 <div v-for="(px, idx) in config.proxies" :key="idx" :data-yaml-target="'- name: ' + px.name" class="bg-slate-50 p-4 rounded-xl border border-slate-200 relative hover:border-emerald-300 transition-colors">
                                     <button @click="askConfirm('确定删除此节点？') && config.proxies.splice(idx,1)" class="absolute top-2 right-2 text-red-400 hover:bg-red-500 hover:text-white w-6 h-6 rounded flex items-center justify-center transition z-10"><i class="fas fa-trash text-xs"></i></button>
-                                    
+
                                     <div class="grid grid-cols-12 gap-3 mb-3 pr-8">
                                         <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">节点名称</label><input type="text" v-model="px.name" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold text-emerald-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"></div>
                                         <div class="col-span-2"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">协议架构</label>
@@ -450,7 +551,7 @@
                                                 </select>
                                             </div>
                                         </template>
-                                        
+
                                         <template v-if="['trojan', 'ss', 'ssr', 'hysteria2', 'hysteria', 'tuic', 'masque', 'http', 'socks5', 'ssh', 'snell', 'mieru', 'sudoku', 'trusttunnel', 'anytls'].includes(px.type)">
                                             <div class="col-span-3" v-if="['http', 'socks5', 'ssh', 'mieru', 'tuic'].includes(px.type)">
                                                 <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">{{ px.type==='tuic' ? 'UUID' : '用户名' }}</label>
@@ -509,7 +610,7 @@
                                             <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">混淆 (obfs)</label><input type="text" v-model="px.obfs" placeholder="salamander" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"></div>
                                             <div class="col-span-3" v-if="px.type==='hysteria2'"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">混淆密码</label><input type="text" v-model="px['obfs-password']" :disabled="!px.obfs" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 disabled:opacity-50"></div>
                                         </template>
-                                        
+
                                         <template v-if="px.type === 'tuic'">
                                             <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">拥塞控制算法</label><select v-model="px['congestion-controller']" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold text-slate-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"><option value="bbr">BBR</option><option value="cubic">CUBIC</option><option value="new_reno">New Reno</option></select></div>
                                             <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">0-RTT (Reduce RTT)</label><select v-model="px['reduce-rtt']" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs text-slate-700 outline-none focus:border-emerald-400"><option :value="false">禁用</option><option :value="true">启用</option></select></div>
@@ -568,7 +669,7 @@
                                         <div class="grid grid-cols-12 gap-3 mb-3 bg-white p-2 rounded-lg border border-slate-200" v-if="px.tls || px.reality || ['hysteria2', 'hysteria', 'tuic', 'masque', 'anytls'].includes(px.type)">
                                             <div class="col-span-4"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">Servername (SNI)</label><input type="text" v-model="px.servername" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></div>
                                             <div class="col-span-3" v-if="!px.reality"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">指纹 (Fingerprint)</label><select v-model="px['client-fingerprint']" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs text-slate-700 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"><option value="">(空)</option><option value="chrome">chrome</option><option value="ios">ios</option><option value="safari">safari</option><option value="firefox">firefox</option><option value="edge">edge</option><option value="qq">qq</option><option value="360">360</option><option value="random">random</option></select></div>
-                                            
+
                                             <div class="col-span-3">
                                                 <label class="block text-[10px] font-bold text-sky-600 uppercase mb-1 tracking-wider">ALPN (协议协商)</label>
                                                 <select v-model="px.alpn" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-mono text-slate-700 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400">
@@ -580,7 +681,7 @@
                                                     <option value="http/1.1">http/1.1</option>
                                                 </select>
                                             </div>
-                                            
+
                                             <div class="col-span-2 pt-5">
                                                 <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="px['skip-cert-verify']" class="w-3.5 h-3.5 text-rose-500 rounded border-rose-300"><span class="text-[10px] font-bold text-rose-600">跳过证书验证</span></label>
                                             </div>
@@ -632,7 +733,7 @@
                                     </div>
                                 </div>
                                 <div v-if="(config.proxies || []).length===0" class="text-center py-4 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-sm font-bold">暂无手动节点</div>
-                                
+
                                 <div class="mt-4 pt-2 flex justify-center" v-if="(config.proxies || []).length > 3">
                                     <button @click="addManualProxy" class="bg-emerald-50 text-emerald-600 border border-emerald-200 px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-100 transition shadow-sm flex items-center"><i class="fas fa-plus mr-1.5"></i>追加节点</button>
                                 </div>
@@ -654,11 +755,11 @@
                                     <button @click="addRuleProvider" class="bg-rose-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-rose-500 transition shadow-sm"><i class="fas fa-plus mr-1"></i>添加规则源</button>
                                 </div>
                             </div>
-                            
+
                             <div class="space-y-4">
                                 <div v-for="(rp, idx) in (ruleProvidersList || [])" :key="idx" :data-yaml-target="'  ' + (rp.name||'') + ':'" class="bg-slate-50 p-4 rounded-xl border border-slate-200 relative group shadow-sm hover:border-rose-300 transition-colors">
                                     <button @click="askConfirm('确定删除此规则集合？') && removeRuleProvider(idx)" class="absolute top-2 right-2 text-red-400 hover:bg-red-500 hover:text-white w-6 h-6 rounded flex items-center justify-center transition z-10"><i class="fas fa-trash text-xs"></i></button>
-                                    
+
                                     <div class="grid grid-cols-12 gap-3 pr-8 mb-3">
                                         <div class="col-span-3">
                                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider" title="在路由规则中将被引用的唯一标识名">标识名 (Name)</label>
@@ -721,9 +822,9 @@
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <div v-if="(ruleProvidersList || []).length===0" class="text-center py-4 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-sm font-bold">暂无统一规则源，请先添加</div>
-                                
+
                                 <div class="mt-4 pt-2 flex justify-center" v-if="(ruleProvidersList || []).length > 3">
                                     <button @click="addRuleProvider" class="bg-rose-50 text-rose-600 border border-rose-200 px-4 py-2 rounded-xl text-xs font-bold hover:bg-rose-100 transition shadow-sm flex items-center"><i class="fas fa-plus mr-1.5"></i>追加规则源</button>
                                 </div>
@@ -744,7 +845,7 @@
                             <div class="space-y-4">
                                 <div v-for="(g, idx) in config['proxy-groups']" :key="idx" :data-yaml-target="'- name: ' + g.name" class="bg-slate-50 p-4 rounded-xl border border-slate-200 relative hover:border-teal-300 transition-colors">
                                     <button @click="askConfirm('确定删除此策略组？') && removeGroup(idx)" class="absolute top-2 right-2 text-red-400 hover:bg-red-500 hover:text-white w-6 h-6 rounded flex items-center justify-center transition-colors z-10"><i class="fas fa-trash text-xs"></i></button>
-                                    
+
                                     <div class="grid grid-cols-12 gap-3 mb-3 pr-6">
                                         <div class="col-span-3">
                                             <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">组名称</label>
@@ -777,7 +878,7 @@
                                             <input type="text" v-model="g['exclude-filter']" placeholder="如: 官网|过期" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm font-mono text-pink-600 outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400">
                                         </div>
                                     </div>
-                                    
+
                                     <div class="grid grid-cols-12 gap-3 bg-white p-3 rounded-lg border border-slate-200 mb-3" v-if="['url-test', 'fallback', 'load-balance'].includes(g.type)">
                                         <div class="col-span-5"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">测速 URL (url)</label><input type="text" v-model="g.url" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-mono outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"></div>
                                         <div class="col-span-2"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">间隔 (interval)</label><input type="number" v-model.number="g.interval" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"></div>
@@ -815,7 +916,7 @@
                                                 </label>
                                             </div>
                                         </div>
-                                        
+
                                         <div class="transition-opacity" :class="g['include-all'] ? 'opacity-30 pointer-events-none' : 'opacity-100'" v-if="g.type !== 'relay'">
                                             <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">引用订阅集合 (use)</label>
                                             <div class="flex flex-wrap gap-2">
@@ -827,7 +928,7 @@
                                     </div>
 
                                 </div>
-                                
+
                                 <div class="mt-4 pt-2 flex justify-center" v-if="(config['proxy-groups'] || []).length > 3">
                                     <button @click="addGroup" class="bg-teal-50 text-teal-600 border border-teal-200 px-4 py-2 rounded-xl text-xs font-bold hover:bg-teal-100 transition shadow-sm flex items-center"><i class="fas fa-plus mr-1.5"></i>追加策略组</button>
                                 </div>
@@ -920,7 +1021,7 @@
                                                 <option value="MATCH">MATCH (兜底)</option>
                                             </optgroup>
                                         </select>
-                                        
+
                                         <template v-if="r.type === 'RULE-SET'">
                                             <select v-model="r.value" class="flex-1 min-w-0 px-3 py-1.5 bg-rose-50 border border-rose-200 rounded-md text-xs font-bold text-rose-700 outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400">
                                                 <option value="" disabled>请选择引用的规则集...</option>
@@ -984,7 +1085,7 @@
                                                 <option value="RULE-SET">RULE-SET</option><option value="IN-TYPE">IN-TYPE</option>
                                             </optgroup>
                                         </select>
-                                        
+
                                         <template v-if="cond.type === 'RULE-SET'">
                                             <select v-model="cond.value" class="flex-1 min-w-0 px-2 py-1 bg-rose-50 border border-rose-200 rounded text-xs font-bold text-rose-700 outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400">
                                                 <option value="" disabled>请选择...</option>
@@ -1015,7 +1116,7 @@
                             <div v-if="(uiState.rules || []).length===0" class="text-center py-6 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-sm font-bold">
                                 暂无规则，请点击上方按钮添加
                             </div>
-                            
+
                             <div class="mt-4 pt-2 flex justify-center gap-3" v-if="(uiState.rules || []).length > 5">
                                 <button @click="addRule('simple')" class="bg-indigo-50 text-indigo-600 border border-indigo-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-100 transition shadow-sm flex items-center"><i class="fas fa-plus mr-1"></i>追加普通规则</button>
                                 <button @click="addRule('AND')" class="bg-emerald-50 text-emerald-600 border border-emerald-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-100 transition shadow-sm flex items-center"><i class="fas fa-plus mr-1"></i>追加 AND</button>
@@ -1024,149 +1125,180 @@
                         </div>
                     </div>
 
+
                     <div v-show="currentTab==='tproxy'" class="space-y-6" v-if="uiState.nftablesConfig">
                         <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-fuchsia-500">
                             <div class="flex justify-between items-center mb-4">
                                 <div>
-                                    <div class="stitle mb-0 !border-l-0 !pl-0 text-fuchsia-700">Tproxy 透明代理 (Linux 内核级)</div>
-                                    <p class="text-xs text-slate-500 mt-1">基于 nftables 变量化架构。支持 Hex 标记与本地服务源端口绕过。</p>
+                                    <div class="stitle mb-0 !border-l-0 !pl-0 text-fuchsia-700">Tproxy 透明代理 (Linux / nftables)</div>
+                                    <p class="text-xs text-slate-500 mt-1">参考 sing-box 的双 Mark / 双接口 / UID+GID 防回环设计；DNS 劫持固定使用 NAT/redirect，回包保护默认启用。</p>
                                 </div>
                                 <label class="toggle-switch">
                                     <input type="checkbox" v-model="uiState.tproxyEnable" @change="handleTproxyToggle">
                                     <span class="toggle-slider"></span>
                                 </label>
                             </div>
-                            
+
                             <div v-if="uiState.tproxyEnable" class="space-y-6" data-yaml-target="tproxy-port:">
                                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-fuchsia-50 p-4 rounded-xl border border-fuchsia-100">
-                                    <div class="col-span-1">
+                                    <div>
                                         <label class="block text-xs font-bold text-fuchsia-600 mb-1.5 uppercase">Tproxy 端口</label>
                                         <input type="number" v-model.number="config['tproxy-port']" class="w-full px-3 py-2 bg-white border border-fuchsia-200 rounded-md text-sm">
                                     </div>
-                                    <div class="col-span-1">
+                                    <div>
+                                        <label class="block text-xs font-bold text-fuchsia-600 mb-1.5 uppercase">NFT 表名</label>
+                                        <input type="text" v-model="uiState.nftablesConfig.nftTable" placeholder="mihomo" class="w-full px-3 py-2 bg-white border border-fuchsia-200 rounded-md text-sm font-mono">
+                                    </div>
+                                    <div>
                                         <label class="block text-xs font-bold text-fuchsia-600 mb-1.5 uppercase">监听地址</label>
-                                        <input type="text" v-model="uiState.nftablesConfig.listen" placeholder="::" class="w-full px-3 py-2 bg-white border border-fuchsia-200 rounded-md text-sm font-mono">
+                                        <input type="text" v-model="uiState.nftablesConfig.listen" placeholder="0.0.0.0 / ::" class="w-full px-3 py-2 bg-white border border-fuchsia-200 rounded-md text-sm font-mono">
                                     </div>
-                                    <div class="col-span-2 flex flex-col justify-end pb-2 gap-2">
-                                        <div class="flex gap-4">
-                                            <label class="flex items-center gap-2 cursor-pointer">
-                                                <input type="checkbox" v-model="uiState.nftablesConfig.udp" class="w-4 h-4 text-fuchsia-600 rounded">
-                                                <span class="text-[11px] font-bold text-fuchsia-800 uppercase">开启 UDP</span>
-                                            </label>
-                                            <label class="flex items-center gap-2 cursor-pointer">
-                                                <input type="checkbox" v-model="uiState.nftablesConfig.tproxyIpv6" class="w-4 h-4 text-fuchsia-600 rounded">
-                                                <span class="text-[11px] font-bold text-fuchsia-800 uppercase">开启 IPv6</span>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-
-<div class="grid grid-cols-1 md:grid-cols-12 gap-4 bg-fuchsia-50/30 p-4 rounded-xl border border-fuchsia-100">
-                                    <div class="md:col-span-4 flex flex-col">
-                                        <label class="block text-xs font-bold text-fuchsia-700 mb-1 uppercase tracking-tight">出口网卡 (Interface)</label>
-                                        <input type="text" v-model="uiState.nftablesConfig.outInterface" placeholder="如 eth0 (留空不限)" class="w-full px-3 py-2 bg-white border border-fuchsia-200 rounded-md text-sm font-mono outline-none focus:border-fuchsia-400 focus:ring-1 focus:ring-fuchsia-400 mt-auto">
-                                    </div>
-                                    <div class="md:col-span-8 flex flex-col">
-                                        <label class="block text-xs font-bold text-fuchsia-700 mb-0.5 uppercase tracking-tight">放行本地服务端口 (sport)</label>
-                                        <p class="text-[9px] text-fuchsia-400 mb-1">(如本地 SSH 等，防断网)</p>
-                                        <input type="text" v-model="uiState.nftablesConfig.bypassSports" placeholder="22, 80, 443" class="w-full px-3 py-2 bg-white border border-fuchsia-200 rounded-md text-sm font-mono outline-none focus:border-fuchsia-400 focus:ring-1 focus:ring-fuchsia-400 mt-auto">
+                                    <div class="flex flex-col justify-end gap-2 pb-1">
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" v-model="uiState.nftablesConfig.udp" class="w-4 h-4 text-fuchsia-600 rounded">
+                                            <span class="text-[11px] font-bold text-fuchsia-800 uppercase">开启 UDP</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" v-model="uiState.nftablesConfig.tproxyIpv6" class="w-4 h-4 text-fuchsia-600 rounded">
+                                            <span class="text-[11px] font-bold text-fuchsia-800 uppercase">开启 IPv6</span>
+                                        </label>
                                     </div>
                                 </div>
 
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                    <div data-yaml-target="routing-mark:">
-                                        <label class="block text-xs font-bold text-slate-600 mb-0.5 uppercase">路由标记 Route Mark (hex)</label>
-                                        <p class="text-[10px] text-slate-400 mb-1.5">(自身出站流量，默认 0x02)</p>
-                                        <input type="text" v-model="uiState.nftablesConfig.routeMarkHex" placeholder="0x02" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm font-mono focus:border-sky-400">
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1 uppercase">入口接口 Ingress</label>
+                                        <input type="text" v-model="uiState.nftablesConfig.ingressIface" placeholder="如 br-lan / 留空表示所有入口" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm font-mono">
+                                        <p class="text-[10px] text-slate-400 mt-1">仅筛选来自指定 LAN / bridge 的入站流量；留空则不限制。</p>
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-600 mb-0.5 uppercase">路由标记 Mark (hex)</label>
-                                        <p class="text-[10px] text-slate-400 mb-1.5">(代理导流流量，默认 0x01)</p>
-                                        <input type="text" v-model="uiState.nftablesConfig.tproxyMarkHex" placeholder="0x01" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm font-mono focus:border-sky-400">
+                                        <label class="block text-xs font-bold text-slate-700 mb-1 uppercase">出口接口 Egress</label>
+                                        <input type="text" v-model="uiState.nftablesConfig.egressIface" placeholder="如 eth0 / pppoe-wan" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm font-mono">
+                                        <p class="text-[10px] text-slate-400 mt-1">会自动同步到 YAML 的 <code>interface-name</code>，用于 Mihomo 自身出站绑定。</p>
+                                    </div>
+                                </div>
+
+                                <div v-if="nftMarkIssues.length > 0" class="bg-rose-50 border border-rose-300 rounded-xl p-4">
+                                    <div class="flex justify-between items-start gap-4">
+                                        <div>
+                                            <div class="text-sm font-black text-rose-700 mb-2"><i class="fas fa-exclamation-triangle mr-1.5"></i>Mark 参数存在问题</div>
+                                            <ul class="list-disc pl-5 text-xs text-rose-700 space-y-1">
+                                                <li v-for="(msg, i) in nftMarkIssues" :key="i">{{ msg }}</li>
+                                            </ul>
+                                        </div>
+                                        <button @click="resetNftMarksSafe" class="shrink-0 bg-rose-600 hover:bg-rose-500 text-white px-3 py-2 rounded-lg text-xs font-bold transition">恢复安全值 111 / 112</button>
+                                    </div>
+                                </div>
+                                <div v-else class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-700 font-bold">
+                                    <i class="fas fa-check-circle mr-1.5"></i>Mark 校验通过：代理 Mark 与路由 Mark 已分离，且未使用保留路由表号。
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                    <div data-yaml-target="routing-mark:">
+                                        <label class="block text-xs font-bold text-slate-700 mb-0.5 uppercase">Route Mark (自身出站) / hex or dec</label>
+                                        <p class="text-[10px] text-slate-400 mb-1.5">用于 Mihomo 自身出站流量，自动同步为 YAML 的 <code>routing-mark</code></p>
+                                        <input type="text" v-model="uiState.nftablesConfig.routeMarkHex" @blur="sanitizeNftMarks" placeholder="112 或 0x70" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm font-mono">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 mb-0.5 uppercase">Proxy Mark (导流流量) / hex or dec</label>
+                                        <p class="text-[10px] text-slate-400 mb-1.5">用于 nft fwmark 与策略路由表号，建议与 Route Mark 不同</p>
+                                        <input type="text" v-model="uiState.nftablesConfig.tproxyMarkHex" @blur="sanitizeNftMarks" placeholder="111 或 0x6f" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm font-mono">
                                     </div>
                                 </div>
 
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50/50 p-4 rounded-xl border border-slate-200">
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-600 mb-1.5 uppercase">Proxy UID</label>
-                                        <input type="text" v-model="uiState.nftablesConfig.proxyUid" placeholder="如: 989 (用 id mihomo 查看)" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm">
+                                        <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase">Mihomo UID</label>
+                                        <input type="text" v-model="uiState.nftablesConfig.proxyUid" placeholder="如: 989" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm font-mono">
+                                        <p class="text-[10px] text-slate-400 mt-1">建议用 <code>id mihomo</code> / <code>id -u mihomo</code> 获取，用于精确防回环。</p>
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-600 mb-1.5 uppercase">Proxy GID</label>
-                                        <input type="text" v-model="uiState.nftablesConfig.proxyGid" placeholder="如: 989 (用 id mihomo 查看)" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm">
+                                        <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase">Mihomo GID</label>
+                                        <input type="text" v-model="uiState.nftablesConfig.proxyGid" placeholder="如: 989" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm font-mono">
+                                        <p class="text-[10px] text-slate-400 mt-1">建议同时填写 UID 与 GID；若留空，则仅使用较弱的 <code>lo</code> 兜底防回环。</p>
                                     </div>
                                 </div>
 
-                                <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="grid grid-cols-1 gap-4 bg-white p-4 rounded-xl border border-slate-200">
                                     <div>
-                                        <label class="block text-xs font-bold text-fuchsia-600 mb-1.5 uppercase" title="在此定义不走代理的内网和保留网段">保留地址集合 (IPv4 - 换行分割)</label>
-                                        <textarea v-model="uiState.nftablesConfig.privateIps" rows="4" class="w-full px-3 py-2 bg-white border border-fuchsia-200 rounded-md text-xs font-mono resize-none outline-none focus:border-fuchsia-400 focus:ring-1 focus:ring-fuchsia-400"></textarea>
+                                        <label class="block text-xs font-bold text-slate-700 mb-2 uppercase">DNS 劫持</label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" v-model="uiState.nftablesConfig.hijackDns" class="w-4 h-4 text-fuchsia-600 rounded">
+                                            <span class="text-sm font-bold text-slate-700">启用劫持</span>
+                                        </label>
+                                        <p class="text-[10px] text-slate-400 mt-1">内部固定使用 NAT / redirect 到 <code>:{{ dnsListenPort }}</code>；回包保护默认启用。</p>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-4 rounded-xl border border-slate-200">
+                                    <div>
+                                        <label class="flex items-center gap-2 cursor-pointer mb-2">
+                                            <input type="checkbox" v-model="uiState.nftablesConfig.filterPorts" class="w-4 h-4 text-fuchsia-600 rounded">
+                                            <span class="text-sm font-bold text-slate-700">仅代理指定端口</span>
+                                        </label>
+                                        <input type="text" v-model="uiState.nftablesConfig.commonPorts" :disabled="!uiState.nftablesConfig.filterPorts" placeholder="22,587,465,995,993,143,80,443,853,9418" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-sm font-mono disabled:opacity-50">
+                                        <p class="text-[10px] text-slate-400 mt-1">
+                                            默认内置端口：<code>22,587,465,995,993,143,80,443,853,9418</code>，可手动追加。<br>
+                                            DNS <code>53</code> 建议交给“DNS 劫持”或“本地 53 前端转发”单独处理。
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label class="flex items-center gap-2 cursor-pointer mb-2">
+                                            <input type="checkbox" v-model="uiState.nftablesConfig.bypassCnIp" class="w-4 h-4 text-fuchsia-600 rounded">
+                                            <span class="text-sm font-bold text-slate-700">底层绕过中国 IP</span>
+                                        </label>
+                                        <p class="text-[10px] text-slate-400 mb-2">如果启用，会在 nft 层直接放行大陆网段，而不是交给 Mihomo 路由规则决定。</p>
+                                        <div class="text-[10px] text-amber-600 font-bold">为空时不会生成 cn_ip / cn_ip6 集合。</div>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-fuchsia-700 mb-1.5 uppercase">保留地址集合 IPv4</label>
+                                        <textarea v-model="uiState.nftablesConfig.privateIps" rows="5" class="w-full px-3 py-2 bg-white border border-fuchsia-200 rounded-md text-xs font-mono resize-none outline-none focus:border-fuchsia-400 focus:ring-1 focus:ring-fuchsia-400"></textarea>
+                                        <p class="text-[10px] text-slate-400 mt-1">会自动跳过与 Fake-IP 完全同名的条目，避免把 Fake-IP 直接放行。</p>
                                     </div>
                                     <div v-if="uiState.nftablesConfig.tproxyIpv6">
-                                        <label class="block text-xs font-bold text-fuchsia-600 mb-1.5 uppercase">保留地址集合 (IPv6 - 换行分割)</label>
-                                        <textarea v-model="uiState.nftablesConfig.privateIpsV6" rows="4" class="w-full px-3 py-2 bg-white border border-fuchsia-200 rounded-md text-xs font-mono resize-none outline-none focus:border-fuchsia-400 focus:ring-1 focus:ring-fuchsia-400"></textarea>
-                                    </div>
-                                </div>
-                                
-                                <div class="mt-4 pt-4 border-t border-fuchsia-100">
-                                    <div class="stitle mb-3 !border-l-fuchsia-500 text-fuchsia-700">进阶透明代理规则 (高级分流与劫持)</div>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div class="bg-white p-3 border border-fuchsia-200 rounded-lg shadow-sm">
-                                            <div class="flex justify-between items-center mb-2">
-                                                <label class="text-xs font-bold text-fuchsia-700">本地 DNS 劫持</label>
-                                                <label class="toggle-switch transform scale-75 origin-right"><input type="checkbox" v-model="uiState.nftablesConfig.hijackDns"><span class="toggle-slider"></span></label>
-                                            </div>
-                                            <p class="text-[10px] text-slate-500">将53端口请求劫持至全局 DNS 监听端口 ({{ config.dns && config.dns.listen ? config.dns.listen : ':53' }})</p>
-                                        </div>
-                                        
-                                        <div class="bg-white p-3 border border-fuchsia-200 rounded-lg shadow-sm">
-                                            <div class="flex justify-between items-center mb-2">
-                                                <label class="text-xs font-bold text-fuchsia-700">常规端口过滤</label>
-                                                <label class="toggle-switch transform scale-75 origin-right"><input type="checkbox" v-model="uiState.nftablesConfig.filterPorts"><span class="toggle-slider"></span></label>
-                                            </div>
-                                            <p class="text-[10px] text-slate-500 mb-2">非 Fake-IP ({{ config.dns && config.dns['fake-ip-range'] ? config.dns['fake-ip-range'] : '198.18.0.1/16' }}) 仅代理常用端口：<br/><span class="text-red-400 text-[9px]">(注: Redir-Host下会导致非同端口UDP代理失效)</span></p>
-                                            <input type="text" v-model="uiState.nftablesConfig.commonPorts" :disabled="!uiState.nftablesConfig.filterPorts" class="w-full px-2 py-1 bg-slate-50 border border-fuchsia-100 rounded text-xs font-mono disabled:opacity-50 outline-none focus:border-fuchsia-400">
-                                        </div>
-                            
-                                        <div class="md:col-span-2 bg-white p-3 border border-fuchsia-200 rounded-lg shadow-sm">
-                                            <div class="flex justify-between items-center mb-2">
-                                                <label class="text-xs font-bold text-fuchsia-700">直连大陆 IP (底层白名单分流)</label>
-                                                <label class="toggle-switch transform scale-75 origin-right"><input type="checkbox" v-model="uiState.nftablesConfig.bypassCnIp"><span class="toggle-slider"></span></label>
-                                            </div>
-                                            <div v-if="uiState.nftablesConfig.bypassCnIp" class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div>
-                                                    <p class="text-[10px] text-slate-500 mb-1">IPv4 段 (为避免前端卡顿默认留空):</p>
-                                                    <textarea v-model="uiState.nftablesConfig.cnIps" rows="5" placeholder="1.1.8.0/24&#10;1.2.4.0/24..." class="w-full px-2 py-1.5 bg-slate-50 border border-fuchsia-100 rounded text-xs font-mono outline-none resize-none focus:border-fuchsia-400"></textarea>
-                                                </div>
-                                                <div v-if="uiState.nftablesConfig.tproxyIpv6">
-                                                    <p class="text-[10px] text-slate-500 mb-1">IPv6 段 (换行或逗号分割):</p>
-                                                    <textarea v-model="uiState.nftablesConfig.cnIpsV6" rows="5" placeholder="2408:8000::/20&#10;2408:8000::/24..." class="w-full px-2 py-1.5 bg-slate-50 border border-fuchsia-100 rounded text-xs font-mono outline-none resize-none focus:border-fuchsia-400"></textarea>
-                                                </div>
-                                            </div>
-                                        </div>
+                                        <label class="block text-xs font-bold text-fuchsia-700 mb-1.5 uppercase">保留地址集合 IPv6</label>
+                                        <textarea v-model="uiState.nftablesConfig.privateIpsV6" rows="5" class="w-full px-3 py-2 bg-white border border-fuchsia-200 rounded-md text-xs font-mono resize-none outline-none focus:border-fuchsia-400 focus:ring-1 focus:ring-fuchsia-400"></textarea>
                                     </div>
                                 </div>
 
-                                <div class="mt-6">
+                                <div v-if="uiState.nftablesConfig.bypassCnIp" class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase">中国 IPv4 段</label>
+                                        <textarea v-model="uiState.nftablesConfig.cnIps" rows="5" placeholder="1.0.1.0/24&#10;1.0.2.0/23" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none"></textarea>
+                                    </div>
+                                    <div v-if="uiState.nftablesConfig.tproxyIpv6">
+                                        <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase">中国 IPv6 段</label>
+                                        <textarea v-model="uiState.nftablesConfig.cnIpsV6" rows="5" placeholder="2408:8000::/20" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none"></textarea>
+                                    </div>
+                                </div>
+
+                                <div>
                                     <div class="flex justify-between items-end mb-2">
-                                        <label class="block text-[10px] font-bold text-slate-400 uppercase">系统路由策略命令 (必须执行)</label>
+                                        <label class="block text-[10px] font-bold text-slate-400 uppercase">系统策略路由命令（必须执行）</label>
                                         <button @click="copyCommands" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-1.5 rounded text-xs font-bold transition"><i class="fas fa-copy mr-1"></i>复制命令</button>
                                     </div>
                                     <pre class="w-full px-4 py-3 bg-[#1e1e1e] text-emerald-400 border border-slate-800 rounded-xl text-xs font-mono overflow-x-auto whitespace-pre-wrap">{{ routingCommands }}</pre>
-                                    <p class="text-[9px] text-slate-400 mt-1">※ ip rule 路由命令为一次性生效，重启将丢失，请配置开机自启或网络管理器钩子 (如 systemd, if-up.d等) 持久化。</p>
+                                    <p class="text-[9px] text-slate-400 mt-1">策略路由表号直接取 Proxy Mark；Route Mark 仅给 Mihomo 自身出站流量使用。</p>
                                 </div>
 
                                 <div class="mt-4">
                                     <div class="stitle mb-3 !border-l-emerald-500 text-emerald-700">持久化脚本与路由规则生成</div>
-                                    
+
                                     <div class="flex flex-col gap-4 mb-4">
                                         <div class="w-full border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                                             <div class="bg-slate-100 px-3 py-2 border-b border-slate-200 flex justify-between items-center">
-                                                <span class="text-xs font-bold text-slate-600"><i class="fas fa-file-alt mr-1.5"></i>/etc/mihomo/tproxy.nft</span>
-                                                <button @click="copyNftables" class="text-indigo-600 hover:text-indigo-700 text-[10px] font-bold"><i class="fas fa-copy mr-1"></i>复制无注释</button>
+                                                <span class="text-xs font-bold text-slate-600"><i class="fas fa-file-alt mr-1.5"></i>/etc/mihomo/{{ uiState.nftablesConfig.nftTable || 'mihomo' }}.nft</span>
+                                                <div class="flex gap-2">
+                                                    <button @click="copyNftables" class="text-indigo-600 hover:text-indigo-700 text-[10px] font-bold"><i class="fas fa-copy mr-1"></i>复制</button>
+                                                    <button @click="downloadNftables" class="text-emerald-600 hover:text-emerald-700 text-[10px] font-bold"><i class="fas fa-download mr-1"></i>下载</button>
+                                                </div>
                                             </div>
-                                            <pre class="p-3 bg-[#1e1e1e] text-[#d4d4d4] text-[10px] font-mono overflow-y-auto max-h-60">{{ nftablesScript }}</pre>
+                                            <pre class="p-3 bg-[#1e1e1e] text-[#d4d4d4] text-[10px] font-mono overflow-y-auto max-h-72">{{ nftablesScript }}</pre>
                                         </div>
+
                                         <div class="w-full border border-slate-200 rounded-xl overflow-hidden shadow-sm transition-all">
                                             <button @click="uiState.showSystemdService = !uiState.showSystemdService" class="w-full px-3 py-2 flex justify-between items-center bg-slate-100 hover:bg-slate-200/60 transition-colors focus:outline-none">
                                                 <span class="text-xs font-bold text-slate-600"><i class="fas fa-server mr-1.5"></i>/etc/systemd/system/mihomo-tproxy.service</span>
@@ -1177,16 +1309,16 @@
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <div class="bg-indigo-50 border border-indigo-200 rounded-xl relative overflow-hidden transition-all">
                                         <button @click="uiState.showInstallScript = !uiState.showInstallScript" class="w-full px-4 py-3 flex justify-between items-center bg-indigo-100/50 hover:bg-indigo-100 transition-colors focus:outline-none">
-                                            <span class="text-xs font-black text-indigo-800"><i class="fas fa-terminal mr-1.5"></i>快速安装指南 (一键部署脚本)</span>
+                                            <span class="text-xs font-black text-indigo-800"><i class="fas fa-terminal mr-1.5"></i>快速安装指南（一键部署脚本）</span>
                                             <i class="fas text-indigo-500 transition-transform" :class="uiState.showInstallScript ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
                                         </button>
-                                        
+
                                         <div v-show="uiState.showInstallScript" class="p-4 border-t border-indigo-100 relative">
-                                            <button @click="copyInstallScript" class="absolute top-4 right-4 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs font-bold transition shadow-sm"><i class="fas fa-magic mr-1.5"></i>一键复制脚本 (Root执行)</button>
-                                            <p class="text-[10px] text-indigo-700 mb-2 pr-40">此 Bash 脚本将自动为您创建 Nftables 配置文件、Systemd 服务文件，并立即启动且设置开机自启。请在您的 Linux 服务器上以 root 身份执行：</p>
+                                            <button @click="copyInstallScript" class="absolute top-4 right-4 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs font-bold transition shadow-sm"><i class="fas fa-magic mr-1.5"></i>复制脚本</button>
+                                            <p class="text-[10px] text-indigo-700 mb-2 pr-40">脚本会创建 nft 文件、systemd 服务，并立即启动与设置开机自启。</p>
                                             <pre class="w-full px-3 py-2.5 bg-slate-900 text-sky-300 border border-slate-800 rounded-lg text-[10px] font-mono overflow-x-auto whitespace-pre-wrap">{{ installScript }}</pre>
                                         </div>
                                     </div>
@@ -1196,9 +1328,7 @@
                     </div>
 
                 </div>
-            </div>
-
-            <div class="xl:col-span-5 bg-[#1e1e1e] rounded-2xl shadow-xl flex flex-col overflow-hidden border border-slate-800 max-h-full relative">
+            </div>            <div class="xl:col-span-5 bg-[#1e1e1e] rounded-2xl shadow-xl flex flex-col overflow-hidden border border-slate-800 max-h-full relative">
                 <div class="bg-[#2d2d2d] px-5 py-3 border-b border-[#3d3d3d] flex justify-between items-center shrink-0 z-10 shadow-sm">
                     <span class="text-slate-200 font-mono text-sm font-bold"><i class="fas fa-file-code mr-2 text-sky-400"></i>config.yaml</span>
                     <span class="text-[10px] text-emerald-400 font-bold flex items-center gap-1 transition-all" :class="{'text-sky-400 scale-105': isLocating}">
@@ -1209,9 +1339,9 @@
                     <pre class="text-[#d4d4d4] font-mono text-[11px] leading-relaxed whitespace-pre overflow-x-auto"><span id="yaml-general">{{ yamlSections.general }}</span><span id="yaml-network">{{ yamlSections.network }}</span><span id="yaml-proxies">{{ yamlSections.proxies }}</span><span id="yaml-providers">{{ yamlSections.providers }}</span><span id="yaml-rule-providers">{{ yamlSections.ruleProviders }}</span><span id="yaml-groups">{{ yamlSections.groups }}</span><span id="yaml-rules">{{ yamlSections.rules }}</span></pre>
                 </div>
             </div>
-            
+
         </div>
-        
+
         <div v-if="uiState.showTproxyConflict" class="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center backdrop-blur-sm transition-all" @click.self="cancelTproxyEnable">
             <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
                 <div class="bg-rose-50 border-b border-rose-100 px-6 py-4 flex items-center gap-3">
@@ -1267,7 +1397,93 @@ function parseHosts(str) {
     return Object.keys(obj).length > 0 ? obj : undefined;
 }
 
-// 基于深度的逗号安全分割算法，用于完美解析复杂的 AND/OR/NOT 嵌套规则
+function parseMarkValue(val, fallback = 111) {
+    const s = String(val ?? '').trim();
+    if (!s) return fallback;
+    const n = parseInt(s, s.toLowerCase().startsWith('0x') ? 16 : 10);
+    return Number.isInteger(n) ? n : fallback;
+}
+
+function getListenPort(val, fallback = 53) {
+    const m = String(val || '').match(/(\d+)\s*$/);
+    return m ? Number(m[1]) : fallback;
+}
+
+function parseLineList(str) {
+    return String(str || '')
+        .split('\n')
+        .map(s => s.replace(/#.*/, '').trim())
+        .filter(Boolean);
+}
+
+function parseCommaList(str) {
+    return String(str || '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+}
+
+const DEFAULT_NFT_PRIVATE4 = `0.0.0.0/8
+10.0.0.0/8
+100.64.0.0/10
+127.0.0.0/8
+169.254.0.0/16
+172.16.0.0/12
+192.0.0.0/24
+192.0.2.0/24
+192.88.99.0/24
+192.168.0.0/16
+198.51.100.0/24
+203.0.113.0/24
+224.0.0.0/4
+240.0.0.0/4`;
+
+const DEFAULT_NFT_PRIVATE6 = `::/128
+::1/128
+fc00::/7
+fe80::/10
+2001:db8::/32
+64:ff9b::/96
+100::/64
+ff00::/8`;
+
+const DEFAULT_NFT_COMMON_PORTS = '22,587,465,995,993,143,80,443,853,9418';
+
+function normalizeNftablesConfig(nft, cfg) {
+    const base = (nft && typeof nft === 'object') ? nft : {};
+    const ipv6 = !!base.tproxyIpv6;
+    const ifaceName = (cfg && cfg['interface-name']) || '';
+    const rawPort = Number(base.tproxyPort || (cfg && cfg['tproxy-port']) || 7894);
+
+    return {
+        nftTable: String(base.nftTable || 'mihomo').trim() || 'mihomo',
+        tproxyPort: Number.isFinite(rawPort) && rawPort > 0 ? rawPort : 7894,
+        listen: String(base.listen || (ipv6 ? '::' : '0.0.0.0')).trim() || (ipv6 ? '::' : '0.0.0.0'),
+        udp: base.udp !== false,
+        tproxyIpv6: ipv6,
+        ingressIface: String(base.ingressIface || '').trim(),
+        egressIface: String(base.egressIface || base.outInterface || ifaceName || '').trim(),
+        routeMarkHex: String(base.routeMarkHex || '112').trim() || '112',
+        tproxyMarkHex: String(base.tproxyMarkHex || '111').trim() || '111',
+        proxyUid: String(base.proxyUid || '').trim(),
+        proxyGid: String(base.proxyGid || '').trim(),
+        hijackDns: ('hijackDns' in base) ? !!base.hijackDns : true,
+        privateIps: String(base.privateIps || DEFAULT_NFT_PRIVATE4),
+        privateIpsV6: String(base.privateIpsV6 || DEFAULT_NFT_PRIVATE6),
+        bypassCnIp: !!base.bypassCnIp,
+        cnIps: String(base.cnIps || ''),
+        cnIpsV6: String(base.cnIpsV6 || ''),
+        filterPorts: !!base.filterPorts,
+        commonPorts: String((base.commonPorts && String(base.commonPorts).trim() === '22, 80, 443, 8080, 8443') ? DEFAULT_NFT_COMMON_PORTS : (base.commonPorts || DEFAULT_NFT_COMMON_PORTS))
+    };
+}
+
+function getSanitizedUiStateForSave(state, cfg) {
+    const cloned = JSON.parse(JSON.stringify(state || {}));
+    cloned.nftablesConfig = normalizeNftablesConfig(cloned.nftablesConfig, cfg);
+    return cloned;
+}
+
 function splitByComma(str) {
     if (!str) return [];
     let result = [];
@@ -1288,7 +1504,6 @@ function splitByComma(str) {
     return result;
 }
 
-// 深度合并算法
 const deepMerge = (target, source) => {
     if (!source || typeof source !== 'object') return;
     for (const key in source) {
@@ -1310,7 +1525,6 @@ createApp({
     setup() {
         const crashError = ref(null);
 
-        // 终极防御：全局错误捕获
         onErrorCaptured((err, instance, info) => {
             console.error('UI渲染层捕获到异常，已自动拦截以防止白屏:', err, info);
             crashError.value = `Error: ${err.message}\nInfo: ${info}\nStack: ${err.stack}`;
@@ -1318,7 +1532,7 @@ createApp({
         });
 
         const forceClearCache = () => {
-            localStorage.removeItem('mihomo_web_config_v16');
+            localStorage.removeItem('mihomo_web_config_v17');
             location.reload();
         };
 
@@ -1338,7 +1552,7 @@ createApp({
         const currentTab = ref('general');
         const yamlPreviewBox = ref(null);
         const fileInput = ref(null);
-        
+
         const renderStatus = ref('实时渲染');
         const isLocating = ref(false);
         let scrollTimeout = null;
@@ -1349,26 +1563,31 @@ createApp({
             { id: 'yacd-meta', name: 'Yacd-meta', icon: 'fas fa-chart-bar', rawUrl: 'https://github.com/MetaCubeX/Yacd-meta/archive/gh-pages.zip', mirrorUrl: 'https://fastly.jsdelivr.net/gh/MetaCubeX/Yacd-meta@gh-pages/Yacd-meta-gh-pages.zip' },
             { id: 'custom', name: '自定义', icon: 'fas fa-link', rawUrl: '', mirrorUrl: '' }
         ];
-        
-        // V16: 增加 UI State 扩展变量 (UID, GID, Interface, Sport, Hex Marks)
+
         const uiState = ref({
             useMirrorForPanels: true, selectedPanel: '', useMirrorForGeo: true, useMirrorForRuleProviders: true, showInstallScript: false, showSystemdService: false,
+            tunDnsHijackEnabled: true,
             tunDnsHijack: "any:53\ntcp://any:53",
-            tproxyEnable: false, showTproxyConflict: false, tproxyConflicts: [], pendingAction: '', 
-            nftablesConfig: { 
+            tproxyEnable: false, showTproxyConflict: false, tproxyConflicts: [], pendingAction: '',
+                        nftablesConfig: {
+                nftTable: 'mihomo',
                 tproxyPort: 7894, listen: '0.0.0.0', udp: true, tproxyIpv6: false,
-                routeMarkHex: '0x02', tproxyMarkHex: '0x01',
-                outInterface: '', bypassSports: '22', proxyUid: '', proxyGid: '',
-                privateIps: "0.0.0.0/8\n10.0.0.0/8\n100.64.0.0/10\n127.0.0.0/8\n169.254.0.0/16\n172.16.0.0/12\n192.0.0.0/24\n192.0.2.0/24\n192.88.99.0/24\n192.168.0.0/16\n198.19.0.0/16\n198.51.100.0/24\n203.0.113.0/24\n224.0.0.0/3\n255.255.255.255/32",
-                privateIpsV6: "::/128\n::1/128\nfc00::/7\nfe80::/10\n2001:db8::/32\n64:ff9b::/96\n100::/64",
-                hijackDns: false, bypassCnIp: false, cnIps: '', cnIpsV6: '', filterPorts: false, commonPorts: '22, 80, 443, 8080, 8443'
+                ingressIface: '', egressIface: '',
+                routeMarkHex: '112', tproxyMarkHex: '111',
+                proxyUid: '', proxyGid: '',
+                hijackDns: true,
+                privateIps: "0.0.0.0/8\n10.0.0.0/8\n100.64.0.0/10\n127.0.0.0/8\n169.254.0.0/16\n172.16.0.0/12\n192.0.0.0/24\n192.0.2.0/24\n192.88.99.0/24\n192.168.0.0/16\n198.51.100.0/24\n203.0.113.0/24\n224.0.0.0/4\n240.0.0.0/4",
+                privateIpsV6: "::/128\n::1/128\nfc00::/7\nfe80::/10\n2001:db8::/32\n64:ff9b::/96\n100::/64\nff00::/8",
+                bypassCnIp: false, cnIps: '', cnIpsV6: '', filterPorts: false, commonPorts: '22,587,465,995,993,143,80,443,853,9418'
             },
             snifferSniff: { HTTP: "80, 8080-8880", TLS: "443, 8443", QUIC: "443, 8443" },
             snifferSkipDomain: "Mijia Cloud\n*.apple.com", snifferForceDomain: "", snifferPortWhitelist: "",
             fakeIpFilter: "*.lan\n*.local\ntime.*.com\nntp.*.com\n*.msftconnecttest.com",
             hosts: "", dnsNameserverPolicy: "",
-            dnsDefaultNameservers: "system\n223.6.6.6\n8.8.8.8", dnsNameservers: "223.5.5.5\n119.29.29.29\n180.76.76.76",
-            dnsFallback: "8.8.8.8\n1.1.1.1\ntls://8.8.4.4", dnsProxyServerNameservers: "https://doh.pub/dns-query\ntls://223.5.5.5", dnsDirectNameservers: "",
+            useLocalDns53Forward: false,
+            enableDnsFallback: false,
+            dnsDefaultNameservers: "223.5.5.5\n119.29.29.29\n1.1.1.1\n8.8.8.8", dnsNameservers: "https://dns.alidns.com/dns-query\nhttps://doh.pub/dns-query",
+            dnsFallback: "https://dns.google/dns-query\nhttps://cloudflare-dns.com/dns-query", dnsProxyServerNameservers: "https://dns.alidns.com/dns-query\nhttps://doh.pub/dns-query", dnsDirectNameservers: "https://dns.alidns.com/dns-query\nhttps://doh.pub/dns-query",
             fallbackFilterGeositeEnable: true, fallbackFilterGeosite: "gfw", fallbackFilterIpcidr: "240.0.0.0/4\n0.0.0.0/32", fallbackFilterDomain: "+.google.com\n+.facebook.com",
             rules: [
                 { type: 'GEOSITE', value: 'category-ads-all', target: 'REJECT', noResolve: false, not: false },
@@ -1378,36 +1597,35 @@ createApp({
             ]
         });
 
-        // V16: 基础端口预设调整
         const getDefaultConfig = () => ({
             'mixed-port': 7890, port: 7891, 'socks-port': 7892, 'redir-port': 7893, 'tproxy-port': 7894,
             listeners: [],
-            'routing-mark': 2, 'allow-lan': true, mode: 'rule', 'log-level': 'info', ipv6: false, 'global-client-fingerprint': '',
+            'routing-mark': 112, 'allow-lan': true, mode: 'rule', 'log-level': 'info', ipv6: false, 'global-client-fingerprint': '',
             'find-process-mode': 'strict', profile: { 'store-selected': true, 'store-fake-ip': true },
             'external-controller': '127.0.0.1:9090', secret: '', 'external-ui': 'ui', 'external-ui-url': '',
             'interface-name': '', 'geodata-mode': true, 'unified-delay': true, 'tcp-concurrent': true,
             tun: { enable: false, stack: 'system', device: '', mtu: 1500, gso: false, 'gso-max-size': 65536, 'auto-route': true, 'strict-route': true, 'auto-detect-interface': true, 'endpoint-independent-nat': false, 'dns-hijack': ['any:53', 'tcp://any:53'] },
             sniffer: { enable: false, 'force-dns-mapping': true, 'parse-pure-ip': true, 'override-destination': false },
-            dns: { enable: true, listen: ':53', ipv6: false, 'enhanced-mode': 'redir-host', 'fake-ip-range': '198.18.0.1/16', 'fake-ip-filter-mode': 'blacklist', 'prefer-h3': false, 'respect-rules': false, 'use-hosts': false, 'use-system-hosts': false, 'direct-nameserver-follow-policy': false, 'fallback-filter': { geoip: true, 'geoip-code': 'CN' } },
-            geo: { 
-                'auto-update': true, interval: 24, 
-                url: { 
-                    geoip: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat', 
-                    geosite: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat', 
-                    mmdb: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb' 
-                } 
+            dns: { enable: true, listen: '53', ipv6: false, 'enhanced-mode': 'redir-host', 'fake-ip-range': '198.18.0.1/16', 'fake-ip-filter-mode': 'blacklist', 'prefer-h3': false, 'respect-rules': false, 'use-hosts': false, 'use-system-hosts': false, 'direct-nameserver-follow-policy': false, 'fallback-filter': { geoip: true, 'geoip-code': 'CN' } },
+            geo: {
+                'auto-update': true, interval: 24,
+                url: {
+                    geoip: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat',
+                    geosite: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat',
+                    mmdb: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb'
+                }
             },
-            proxies: [], 
+            proxies: [],
             'proxy-groups': [
                 { name: 'Proxy', type: 'select', proxies: ['自动选择', '香港节点', '台湾节点', '韩国节点', '日本节点', '新加坡节点', '美国节点', '其他国家', 'DIRECT'], use: [], filter: '', 'exclude-filter': '', url: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50, lazy: false, 'dialer-proxy': '', 'include-all': false },
-                { name: '自动选择', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: ['MySub'], filter: '', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
-                { name: '香港节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: ['MySub'], filter: '(?i)港|hk|hongkong|hong kong', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
-                { name: '台湾节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: ['MySub'], filter: '(?i)台|tw|taiwan', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
-                { name: '韩国节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: ['MySub'], filter: '(?i)韩|kr|korea|south korea', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
-                { name: '日本节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: ['MySub'], filter: '(?i)日|jp|japan', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
-                { name: '新加坡节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: ['MySub'], filter: '(?i)新|sg|singapore', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
-                { name: '美国节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: ['MySub'], filter: '(?i)美|us|united states|america', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
-                { name: '其他国家', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: ['MySub'], filter: '(?i)^(?!.*(?:港|hk|台|tw|韩|kr|日|jp|新|sg|美|us)).*$', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false }
+                { name: '自动选择', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: [], filter: '', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
+                { name: '香港节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: [], filter: '(?i)港|hk|hongkong|hong kong', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
+                { name: '台湾节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: [], filter: '(?i)台|tw|taiwan', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
+                { name: '韩国节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: [], filter: '(?i)韩|kr|korea|south korea', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
+                { name: '日本节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: [], filter: '(?i)日|jp|japan', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
+                { name: '新加坡节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: [], filter: '(?i)新|sg|singapore', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
+                { name: '美国节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: [], filter: '(?i)美|us|united states|america', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
+                { name: '其他国家', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: [], filter: '(?i)^(?!.*(?:港|hk|台|tw|韩|kr|日|jp|新|sg|美|us)).*$', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false }
             ]
         });
 
@@ -1415,11 +1633,11 @@ createApp({
         const providersList = ref([]);
         const ruleProvidersList = ref([]);
 
-        watch(() => uiState.value.useMirrorForPanels, (n) => { 
-            const p = panels.find(x => x.id === uiState.value.selectedPanel); 
-            if (p && p.id !== 'custom') config.value['external-ui-url'] = n ? p.mirrorUrl : p.rawUrl; 
+        watch(() => uiState.value.useMirrorForPanels, (n) => {
+            const p = panels.find(x => x.id === uiState.value.selectedPanel);
+            if (p && p.id !== 'custom') config.value['external-ui-url'] = n ? p.mirrorUrl : p.rawUrl;
         });
-        
+
         watch(() => uiState.value.useMirrorForGeo, (n) => {
             if (n) {
                 config.value.geo.url = { geoip: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat', geosite: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat', mmdb: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb' };
@@ -1430,6 +1648,167 @@ createApp({
 
         const resetGeoUrls = () => { uiState.value.useMirrorForGeo = true; config.value.geo.url = { geoip: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat', geosite: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat', mmdb: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb' }; };
 
+        const normalizeDnsListenText = (val, fallback = '53') => {
+            const raw = String(val ?? '').trim();
+            const digits = raw.replace(/[^\d]/g, '');
+            if (!digits) return fallback;
+            let port = Number(digits);
+            if (!Number.isInteger(port) || port < 1) port = 1;
+            if (port > 65535) port = 65535;
+            return String(port);
+        };
+
+        const dnsListenPortInput = computed({
+            get() {
+                return normalizeDnsListenText(config.value.dns && config.value.dns.listen, '53');
+            },
+            set(val) {
+                if (!config.value.dns) config.value.dns = {};
+                const digits = String(val ?? '').replace(/[^\d]/g, '');
+                if (!digits) {
+                    config.value.dns.listen = '';
+                    return;
+                }
+                let port = Number(digits);
+                if (!Number.isInteger(port) || port < 1) port = 1;
+                if (port > 65535) port = 65535;
+                config.value.dns.listen = String(port);
+            }
+        });
+
+        const normalizeDnsListenInput = () => {
+            if (!config.value.dns) return;
+            config.value.dns.listen = normalizeDnsListenText(config.value.dns.listen, '53');
+        };
+
+        const dnsListenPort = computed(() => getListenPort(config.value.dns && config.value.dns.listen, 53));
+        const showHostsEditor = computed(() => !!(config.value && config.value.dns && config.value.dns['use-hosts']));
+        const usingTransparentProxy = computed(() => !!((config.value.tun && config.value.tun.enable) || uiState.value.tproxyEnable));
+
+        const dnsHijackEnabled = computed(() => {
+            const tunHijack = !!(config.value.tun && config.value.tun.enable && uiState.value.tunDnsHijackEnabled && String(uiState.value.tunDnsHijack || '').trim());
+            const tproxyHijack = !!(uiState.value.tproxyEnable && uiState.value.nftablesConfig && uiState.value.nftablesConfig.hijackDns);
+            return tunHijack || tproxyHijack;
+        });
+
+        const dnsForwardConflict = computed(() => !!(uiState.value.useLocalDns53Forward && dnsHijackEnabled.value));
+        const dnsLocalForwardNeedsNon53 = computed(() => !!(uiState.value.useLocalDns53Forward && dnsListenPort.value === 53));
+
+        const specifiedProxyPortList = computed(() =>
+            parseCommaList((uiState.value.nftablesConfig && uiState.value.nftablesConfig.commonPorts) || '')
+                .map(s => String(s).trim())
+                .filter(Boolean)
+        );
+
+        const specifiedPortsContain53 = computed(() =>
+            !!(uiState.value.nftablesConfig && uiState.value.nftablesConfig.filterPorts && specifiedProxyPortList.value.includes('53'))
+        );
+
+        const dnsPathPreview = computed(() => {
+            const listen = `:${dnsListenPort.value}`;
+
+            if (!(config.value.dns && config.value.dns.enable)) {
+                return {
+                    tone: 'slate',
+                    title: 'DNS 当前未启用',
+                    lines: [
+                        'DNS 未启用，客户端会按系统原始 DNS 设置直接发送。',
+                        '若你准备使用透明代理分流，建议开启内置 DNS。'
+                    ]
+                };
+            }
+
+            if (dnsForwardConflict.value) {
+                return {
+                    tone: 'amber',
+                    title: '检测到 DNS 劫持与本地 53 转发同时开启',
+                    lines: [
+                        '客户端 -> 53 端口请求',
+                        '-> 可能被 TUN / TProxy DNS 劫持接走',
+                        '-> 也可能先到本机 53 前端再转发',
+                        '建议：DNS 劫持 与 本地 53 前端转发 二选一'
+                    ]
+                };
+            }
+
+            if (uiState.value.useLocalDns53Forward) {
+                return {
+                    tone: dnsLocalForwardNeedsNon53.value ? 'amber' : 'emerald',
+                    title: '使用本地 53 端口转发',
+                    lines: [
+                        '客户端 -> 192.168.1.1:53',
+                        '-> 本机 53 前端服务 (dnsmasq / smartdns / AdGuard Home)',
+                        `-> 127.0.0.1:${dnsListenPort.value}`,
+                        '-> Mihomo 内置 DNS'
+                    ]
+                };
+            }
+
+            if (dnsHijackEnabled.value) {
+                const mode = (config.value.tun && config.value.tun.enable) ? 'TUN dns-hijack' : 'TProxy DNS 劫持';
+                return {
+                    tone: 'emerald',
+                    title: `${mode} 已接管 53 端口`,
+                    lines: [
+                        '客户端 -> 任意 DNS:53',
+                        `-> ${mode}`,
+                        `-> ${listen}`,
+                        '-> Mihomo 内置 DNS'
+                    ]
+                };
+            }
+
+            if (usingTransparentProxy.value) {
+                return {
+                    tone: 'amber',
+                    title: '透明代理已开启，但 DNS 未被接管',
+                    lines: [
+                        '客户端 -> 原始 DNS 服务器:53',
+                        '-> 不经过 Mihomo 内置 DNS',
+                        '如需稳定域名分流，请开启 DNS 劫持或使用本地 53 端口转发'
+                    ]
+                };
+            }
+
+            return {
+                tone: 'slate',
+                title: '按客户端原始 DNS 设置发送',
+                lines: [
+                    '当前既未启用透明代理 DNS 劫持，也未使用本地 53 端口转发。',
+                    'DNS 行为取决于客户端自己的 DNS 配置。'
+                ]
+            };
+        });
+
+        const dns53WarnedKey = ref('');
+        watch(
+            () => [
+                config.value.tun && config.value.tun.enable,
+                uiState.value.tproxyEnable,
+                config.value.dns && config.value.dns.enable,
+                config.value.dns && config.value.dns.listen
+            ].join('|'),
+            () => {
+                if (usingTransparentProxy.value && config.value.dns && config.value.dns.enable && dnsListenPort.value === 53) {
+                    const key = [
+                        config.value.tun && config.value.tun.enable ? 'tun' : '',
+                        uiState.value.tproxyEnable ? 'tproxy' : '',
+                        config.value.dns && config.value.dns.listen ? config.value.dns.listen : ':53'
+                    ].join('|');
+
+                    if (dns53WarnedKey.value !== key) {
+                        dns53WarnedKey.value = key;
+                        setTimeout(() => {
+                            alert('检测到已启用 TUN 或 TProxy，而全局 DNS 监听端口仍为 53。\n\n请修改为其它端口，避免与本机 53 端口服务、DNS 劫持或本地 53 端口转发冲突。');
+                        }, 0);
+                    }
+                } else {
+                    dns53WarnedKey.value = '';
+                }
+            },
+            { immediate: true }
+        );
+
         watch(() => uiState.value.nftablesConfig?.tproxyIpv6, (val) => {
             if (!uiState.value.nftablesConfig) return;
             if (val && uiState.value.nftablesConfig.listen === '0.0.0.0') {
@@ -1438,6 +1817,21 @@ createApp({
                 uiState.value.nftablesConfig.listen = '0.0.0.0';
             }
         });
+
+        watch(() => uiState.value.nftablesConfig?.routeMarkHex, (v) => {
+            if (!uiState.value.nftablesConfig) return;
+            config.value['routing-mark'] = parseMarkValue(v, 112);
+        }, { immediate: true });
+
+        watch(() => uiState.value.nftablesConfig?.egressIface, (v) => {
+            if (!uiState.value.nftablesConfig) return;
+            config.value['interface-name'] = (v || '').trim();
+        }, { immediate: true });
+
+        watch(() => config.value['tproxy-port'], (v) => {
+            if (!uiState.value.nftablesConfig) return;
+            uiState.value.nftablesConfig.tproxyPort = v || 7894;
+        }, { immediate: true });
 
         const scrollToBottom = () => {
             nextTick(() => {
@@ -1451,6 +1845,7 @@ createApp({
 
         const handleTproxyToggle = (e) => {
             if (uiState.value.tproxyEnable) {
+                sanitizeNftMarks();
                 let conflicts = [];
                 if (config.value.tun && config.value.tun.enable) {
                     conflicts.push({ key: 'tun', desc: 'TUN 透明代理模式已开启 (TUN 与 Tproxy 可能会产生路由循环和冲突)' });
@@ -1474,7 +1869,7 @@ createApp({
                     uiState.value.tproxyConflicts = conflicts;
                     uiState.value.pendingAction = 'tun';
                     uiState.value.showTproxyConflict = true;
-                    config.value.tun.enable = false; 
+                    config.value.tun.enable = false;
                 }
             }
         };
@@ -1487,12 +1882,45 @@ createApp({
                 if (c.key === 'tproxy') uiState.value.tproxyEnable = false;
             });
             uiState.value.showTproxyConflict = false;
-            if (uiState.value.pendingAction === 'tproxy') { 
-                uiState.value.tproxyEnable = true; 
-            } else if (uiState.value.pendingAction === 'tun' && config.value.tun) { 
-                config.value.tun.enable = true; 
+            if (uiState.value.pendingAction === 'tproxy') {
+                uiState.value.tproxyEnable = true;
+            } else if (uiState.value.pendingAction === 'tun' && config.value.tun) {
+                config.value.tun.enable = true;
             }
             uiState.value.pendingAction = '';
+        };
+
+        const RESERVED_ROUTE_TABLES = new Set([0, 253, 254, 255]);
+
+        const nftMarkIssues = computed(() => {
+            if (!uiState.value.nftablesConfig) return [];
+            const issues = [];
+            const proxyMark = parseMarkValue(uiState.value.nftablesConfig.tproxyMarkHex, 111);
+            const routeMark = parseMarkValue(uiState.value.nftablesConfig.routeMarkHex, 112);
+
+            if (RESERVED_ROUTE_TABLES.has(proxyMark)) issues.push(`代理 Mark ${proxyMark} 与保留路由表号冲突`);
+            if (RESERVED_ROUTE_TABLES.has(routeMark)) issues.push(`路由 Mark ${routeMark} 与保留路由表号冲突`);
+            if (proxyMark === routeMark) issues.push('代理 Mark 与路由 Mark 不能相同');
+            return issues;
+        });
+
+        const sanitizeNftMarks = () => {
+            if (!uiState.value.nftablesConfig) return;
+            let proxyMark = parseMarkValue(uiState.value.nftablesConfig.tproxyMarkHex, 111);
+            let routeMark = parseMarkValue(uiState.value.nftablesConfig.routeMarkHex, 112);
+
+            if (RESERVED_ROUTE_TABLES.has(proxyMark)) proxyMark = 111;
+            if (RESERVED_ROUTE_TABLES.has(routeMark)) routeMark = 112;
+            if (proxyMark === routeMark) routeMark = proxyMark === 111 ? 112 : 111;
+
+            uiState.value.nftablesConfig.tproxyMarkHex = String(proxyMark);
+            uiState.value.nftablesConfig.routeMarkHex = String(routeMark);
+        };
+
+        const resetNftMarksSafe = () => {
+            if (!uiState.value.nftablesConfig) return;
+            uiState.value.nftablesConfig.tproxyMarkHex = '111';
+            uiState.value.nftablesConfig.routeMarkHex = '112';
         };
 
         const formatConditions = (r) => {
@@ -1507,247 +1935,196 @@ createApp({
             }).join(r.logic === 'AND' ? ' && ' : ' || ');
         };
 
-        // V16: 动态读取 Hex 作为路由表
         const routingCommands = computed(() => {
-            if (!uiState.value.nftablesConfig) return '';
-            const tMarkHex = uiState.value.nftablesConfig.tproxyMarkHex || '0x01';
-            const tTable = parseInt(tMarkHex, 16) || 1;
-            
-            let cmds = `ip rule add fwmark ${tMarkHex} table ${tTable}\nip route add local default dev lo table ${tTable}`;
-            if (uiState.value.nftablesConfig.tproxyIpv6) {
-                cmds += `\nip -6 rule add fwmark ${tMarkHex} table ${tTable}\nip -6 route add local default dev lo table ${tTable}`;
+            const proxyMark = parseMarkValue(uiState.value.nftablesConfig?.tproxyMarkHex, 111);
+            const ipv6 = !!uiState.value.nftablesConfig?.tproxyIpv6;
+
+            let cmds = `ip rule add fwmark ${proxyMark} table ${proxyMark}\nip route add local default dev lo table ${proxyMark}`;
+            if (ipv6) {
+                cmds += `\nip -6 rule add fwmark ${proxyMark} table ${proxyMark}\nip -6 route add local default dev lo table ${proxyMark}`;
             }
             return cmds;
         });
 
-        const copyCommands = async () => { 
-            try { 
-                await navigator.clipboard.writeText(routingCommands.value); 
-                alert('路由命令已复制'); 
-            } catch(e){} 
+        const copyCommands = async () => {
+            try {
+                await navigator.clipboard.writeText(routingCommands.value);
+                alert('路由命令已复制');
+            } catch(e){}
         };
 
         const systemdService = computed(() => {
-            if (!uiState.value.nftablesConfig) return '';
-            const tMarkHex = uiState.value.nftablesConfig.tproxyMarkHex || '0x01';
-            const tTable = parseInt(tMarkHex, 16) || 1;
-            const ipv6 = uiState.value.nftablesConfig.tproxyIpv6;
-            
-            let script = `[Unit]\nDescription=Mihomo Tproxy Routing Rules\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\n\n`;
-            script += `# 启动时：加载 Nftables 规则并添加策略路由\n`;
+            const nft = uiState.value.nftablesConfig || {};
+            const nftTable = ((nft.nftTable || 'mihomo').trim() || 'mihomo').replace(/[^\w-]+/g, '_');
+            const proxyMark = parseMarkValue(nft.tproxyMarkHex, 111);
+            const ipv6 = !!nft.tproxyIpv6;
+
+            let script = `[Unit]\nDescription=Mihomo TProxy Routing Rules\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\n\n`;
+            script += `# 启动前删除旧表（忽略不存在错误）\n`;
+            script += `ExecStartPre=-/usr/sbin/nft delete table inet ${nftTable}\n`;
             script += `ExecStart=/usr/sbin/nft -f /etc/mihomo/tproxy.nft\n`;
-            script += `ExecStart=/sbin/ip rule add fwmark ${tMarkHex} table ${tTable}\n`;
-            script += `ExecStart=/sbin/ip route add local default dev lo table ${tTable}\n`;
+            script += `ExecStart=/sbin/ip rule add fwmark ${proxyMark} table ${proxyMark}\n`;
+            script += `ExecStart=/sbin/ip route add local default dev lo table ${proxyMark}\n`;
             if (ipv6) {
-                script += `ExecStart=/sbin/ip -6 rule add fwmark ${tMarkHex} table ${tTable}\n`;
-                script += `ExecStart=/sbin/ip -6 route add local default dev lo table ${tTable}\n`;
+                script += `ExecStart=/sbin/ip -6 rule add fwmark ${proxyMark} table ${proxyMark}\n`;
+                script += `ExecStart=/sbin/ip -6 route add local default dev lo table ${proxyMark}\n`;
             }
-            script += `\n# 停止时：清空特定 Nftables 表并删除策略路由\n`;
-            script += `ExecStop=/usr/sbin/nft flush table inet mihomo\n`;
-            script += `ExecStop=/sbin/ip rule del fwmark ${tMarkHex} table ${tTable}\n`;
-            script += `ExecStop=/sbin/ip route del local default dev lo table ${tTable}\n`;
+
+            script += `\n# 停止时删除路由与 nft 表（忽略不存在错误）\n`;
+            script += `ExecStop=-/sbin/ip rule del fwmark ${proxyMark} table ${proxyMark}\n`;
+            script += `ExecStop=-/sbin/ip route del local default dev lo table ${proxyMark}\n`;
             if (ipv6) {
-                script += `ExecStop=/sbin/ip -6 rule del fwmark ${tMarkHex} table ${tTable}\n`;
-                script += `ExecStop=/sbin/ip -6 route del local default dev lo table ${tTable}\n`;
+                script += `ExecStop=-/sbin/ip -6 rule del fwmark ${proxyMark} table ${proxyMark}\n`;
+                script += `ExecStop=-/sbin/ip -6 route del local default dev lo table ${proxyMark}\n`;
             }
+            script += `ExecStop=-/usr/sbin/nft delete table inet ${nftTable}\n`;
             script += `\n[Install]\nWantedBy=multi-user.target`;
             return script;
         });
 
-        // V16 终极版 Nftables 内核脚本：变量化重构、严格双链隔离、UID/GID防环容错、Sport响应保护
         const nftablesScript = computed(() => {
-            if (!uiState.value.nftablesConfig) return '';
-            
-            const p = config.value['tproxy-port'] || uiState.value.nftablesConfig.tproxyPort || 7894;
-            const tMarkHex = uiState.value.nftablesConfig.tproxyMarkHex || '0x01';
-            const rMarkHex = uiState.value.nftablesConfig.routeMarkHex || '0x02';
-            const dnsPort = (config.value.dns && config.value.dns.listen ? config.value.dns.listen : ':53').replace(/[^0-9]/g, '') || '53';
-            
-            const interfaceName = uiState.value.nftablesConfig.outInterface || '';
-            const bypassSports = uiState.value.nftablesConfig.bypassSports || '';
-            const proxyUid = uiState.value.nftablesConfig.proxyUid || '';
-            const proxyGid = uiState.value.nftablesConfig.proxyGid || '';
-            
-            const ipList = (uiState.value.nftablesConfig.privateIps || '').split('\n').map(s => s.trim()).filter(Boolean).join(', ');
-            const { hijackDns, bypassCnIp, cnIps, cnIpsV6, filterPorts, commonPorts, tproxyIpv6, privateIpsV6 } = uiState.value.nftablesConfig;
-            const fakeIpRange = (config.value.dns && config.value.dns['fake-ip-range']) ? config.value.dns['fake-ip-range'] : '198.18.0.1/16';
-            
-            let script = `#!/usr/sbin/nft -f\n\n`;
-            script += `flush ruleset\n\n`;
-            script += `# ==========================================\n`;
-            script += `# 全局变量定义区\n`;
-            script += `# ==========================================\n`;
-            if (interfaceName) {
-                script += `define INTERFACE = "${interfaceName}"\n`;
-            } else {
-                script += `# 未限制出口网卡 (INTERFACE 未配置)\n`;
+            const nft = uiState.value.nftablesConfig || {};
+
+            const table = (((nft.nftTable || 'mihomo').trim()) || 'mihomo').replace(/[^\w-]+/g, '_');
+            const tproxyPort = Number(config.value['tproxy-port'] || nft.tproxyPort || 7894);
+            const dnsPort = getListenPort(config.value.dns && config.value.dns.listen, 53);
+
+            const proxyMark = parseMarkValue(nft.tproxyMarkHex, 111);
+            const routeMark = parseMarkValue(nft.routeMarkHex, 112);
+
+            const ingressIface = (nft.ingressIface || '').trim();
+            const egressIface = (nft.egressIface || config.value['interface-name'] || '').trim();
+
+            const proxyUid = String(nft.proxyUid || '').trim();
+            const proxyGid = String(nft.proxyGid || '').trim();
+            const hasUidGid = !!(proxyUid && proxyGid);
+
+            const ipv6 = !!nft.tproxyIpv6;
+            const hijackDns = !!nft.hijackDns;
+            const bypassCnIp = !!nft.bypassCnIp;
+            const filterPorts = !!nft.filterPorts;
+
+            const commonPorts = parseCommaList(nft.commonPorts).join(', ');
+            const fakeIpRange = (config.value.dns && config.value.dns['enhanced-mode'] === 'fake-ip' && config.value.dns['fake-ip-range'])
+                ? config.value.dns['fake-ip-range']
+                : '';
+
+            const private4 = parseLineList(nft.privateIps).filter(cidr => !fakeIpRange || cidr !== fakeIpRange);
+            const private6 = parseLineList(nft.privateIpsV6);
+            const cn4 = parseLineList(nft.cnIps);
+            const cn6 = parseLineList(nft.cnIpsV6);
+
+            const dnsBypassLine = hijackDns
+                ? `        meta l4proto { tcp, udp } th dport 53 accept comment "DNS 交给 NAT/redirect 链处理"\n`
+                : '';
+
+            const portFilterRulesV4 = (filterPorts && commonPorts)
+                ? (
+                    fakeIpRange
+                        ? `        ip daddr != ${fakeIpRange} tcp dport != { ${commonPorts} } accept comment "非 Fake-IP 的非常规 TCP 端口直连"\n        ip daddr != ${fakeIpRange} udp dport != { ${commonPorts} } accept comment "非 Fake-IP 的非常规 UDP 端口直连"\n`
+                        : `        tcp dport != { ${commonPorts} } accept comment "非常规 TCP 端口直连"\n        udp dport != { ${commonPorts} } accept comment "非常规 UDP 端口直连"\n`
+                )
+                : '';
+
+            let script = `#!/usr/sbin/nft -f
+
+# table name: ${table}
+# 若手动重复执行 nft -f 时提示 table already exists，可先执行：
+#   nft delete table inet ${table}
+
+table inet ${table} {
+    set private_ip {
+        type ipv4_addr
+        flags interval
+        elements = { ${private4.length ? private4.join(', ') : '127.0.0.0/8'} }
+    }
+`;
+
+            if (ipv6) {
+                script += `
+    set private_ip6 {
+        type ipv6_addr
+        flags interval
+        elements = { ${private6.length ? private6.join(', ') : '::1/128'} }
+    }
+`;
             }
-            script += `define TPROXY_PORT = ${p}\n`;
-            script += `define DNS_PORT = ${dnsPort}\n`;
-            script += `define PROXY_MARK = ${tMarkHex}\n`;
-            script += `define ROUTE_DEFAULT_MARK = ${rMarkHex}\n`;
-            
-            if (proxyUid) script += `define PROXY_UID = ${proxyUid}\n`;
-            else script += `# 未配置 PROXY_UID\n`;
-            
-            if (proxyGid) script += `define PROXY_GID = ${proxyGid}\n`;
-            else script += `# 未配置 PROXY_GID\n`;
-            
-            script += `\ntable inet mihomo {\n`;
-            script += `    # 保留地址集合 (内网与局域网互访不走代理)\n`;
-            script += `    set private_ip {\n        type ipv4_addr\n        flags interval\n        elements = { ${ipList || '127.0.0.0/8'} }\n    }\n`;
-            
-            if (tproxyIpv6) {
-                const ipList6 = (privateIpsV6 || '').split('\n').map(s => s.trim()).filter(Boolean).join(', ');
-                script += `\n    # IPv6 保留地址集合\n`;
-                script += `    set private_ip6 {\n        type ipv6_addr\n        flags interval\n        elements = { ${ipList6 || '::1/128'} }\n    }\n`;
+
+            if (bypassCnIp && cn4.length) {
+                script += `
+    set cn_ip {
+        type ipv4_addr
+        flags interval
+        elements = { ${cn4.join(', ')} }
+    }
+`;
             }
-            
-            if (bypassCnIp) {
-                const cnIpArr = (cnIps || '').split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
-                const cnIpString = cnIpArr.length > 0 ? cnIpArr.join(', ') : '1.1.1.1/32 /* 示例占位: 请在 UI 中填入具体 IPv4 段 */';
-                script += `\n    # 国内 IPv4 集合 (绕过代理)\n`;
-                script += `    set cn_ip {\n        type ipv4_addr\n        flags interval\n        elements = { ${cnIpString} }\n    }\n`;
-                
-                if (tproxyIpv6) {
-                    const cnIp6Arr = (cnIpsV6 || '').split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
-                    const cnIp6String = cnIp6Arr.length > 0 ? cnIp6Arr.join(', ') : '2408:8000::/20 /* 示例占位: 请在 UI 中填入具体 IPv6 段 */';
-                    script += `\n    # 国内 IPv6 集合 (绕过代理)\n`;
-                    script += `    set cn_ip6 {\n        type ipv6_addr\n        flags interval\n        elements = { ${cnIp6String} }\n    }\n`;
-                }
+
+            if (bypassCnIp && ipv6 && cn6.length) {
+                script += `
+    set cn_ip6 {
+        type ipv6_addr
+        flags interval
+        elements = { ${cn6.join(', ')} }
+    }
+`;
             }
-            
+
             if (hijackDns) {
-                script += `\n    # ==========================================\n`;
-                script += `    # 1. 局域网 DNS 劫持链 (NAT 表)\n`;
-                script += `    # ==========================================\n`;
-                script += `    chain prerouting_dns {\n        type nat hook prerouting priority dstnat; policy accept;\n`;
-                script += `        meta l4proto { tcp, udp } th dport 53 dnat ip to 127.0.0.1:$DNS_PORT comment "劫持局域网 IPv4 DNS"\n`;
-                if (tproxyIpv6) {
-                    script += `        meta l4proto { tcp, udp } th dport 53 dnat ip6 to [::1]:$DNS_PORT comment "劫持局域网 IPv6 DNS"\n`;
-                }
-                script += `    }\n`;
-                
-                script += `\n    # ==========================================\n`;
-                script += `    # 2. 本机 DNS 劫持链 (NAT 表)\n`;
-                script += `    # ==========================================\n`;
-                script += `    chain output_dns {\n        type nat hook output priority dstnat; policy accept;\n`;
-                
-                if (proxyUid && proxyGid) {
-                    script += `        # 【关键防护】放行 Mihomo 自身的 DNS 请求，防止死循环\n`;
-                    script += `        meta skuid $PROXY_UID meta skgid $PROXY_GID accept comment "绕过代理自身的 DNS 请求"\n`;
-                } else {
-                    script += `        # [警告] 未配置 UID/GID，跳过自身 DNS 防环保护 (如非同机运行可忽略)\n`;
-                }
-                
-                script += `        meta l4proto { tcp, udp } th dport 53 dnat ip to 127.0.0.1:$DNS_PORT comment "劫持本机 IPv4 DNS"\n`;
-                if (tproxyIpv6) {
-                    script += `        meta l4proto { tcp, udp } th dport 53 dnat ip6 to [::1]:$DNS_PORT comment "劫持本机 IPv6 DNS"\n`;
-                }
-                script += `    }\n`;
-            }
-            
-            script += `\n    # ==========================================\n`;
-            script += `    # 3. 局域网及入站透明代理链 (Mangle 表)\n`;
-            script += `    # ==========================================\n`;
-            script += `    chain prerouting_tproxy {\n        type filter hook prerouting priority mangle; policy accept;\n`;
-            
-            if (hijackDns) {
-                script += `        # 跳过 DNS 端口，交由 NAT 链处理\n`;
-                script += `        meta l4proto { tcp, udp } th dport 53 accept comment "跳过 DNS"\n`;
-            }
-            
-            script += `        # 拒绝外部直接访问透明代理监听端口，防止恶意探测\n`;
-            script += `        fib daddr type local meta l4proto { tcp, udp } th dport $TPROXY_PORT reject with icmpx type host-unreachable\n`;
-            
-            script += `        # 绕过发往本机的流量及保留网段（内网互访直连）\n`;
-            script += `        fib daddr type local accept\n`;
-            script += `        ip daddr @private_ip accept\n`;
-            if (tproxyIpv6) script += `        ip6 daddr @private_ip6 accept\n`;
-            
-            if (bypassCnIp) {
-                script += `        # 大陆 IP 直连\n`;
-                script += `        ip daddr @cn_ip accept\n`;
-                if (tproxyIpv6) script += `        ip6 daddr @cn_ip6 accept\n`;
+                script += `
+    chain prerouting_dns {
+        type nat hook prerouting priority dstnat; policy accept;
+${ingressIface ? `        iifname != "lo" iifname != "${ingressIface}" accept comment "非指定入口接口放行"\n` : ''}        meta l4proto { tcp, udp } th dport 53 redirect to :${dnsPort} comment "DNS -> Mihomo DNS"
+    }
+
+    chain output_dns {
+        type nat hook output priority dstnat; policy accept;
+${hasUidGid ? `        meta skuid ${proxyUid} meta skgid ${proxyGid} accept comment "Mihomo 自身 DNS 请求放行"\n` : `        oifname "lo" accept comment "缺少 UID/GID 时仅放行 lo，避免最明显的 DNS 回环"\n`}        meta l4proto { tcp, udp } th dport 53 redirect to :${dnsPort} comment "本机 DNS -> Mihomo DNS"
+    }
+`;
             }
 
-            if (!tproxyIpv6) {
-                script += `        # 未开启 IPv6 代理，直接放行底层 IPv6 流量\n`;
-                script += `        meta nfproto ipv6 accept\n`;
-            }
-            
-            if (filterPorts) {
-                const cPorts = (commonPorts || '').split(/[, ]+/).map(s=>s.trim()).filter(Boolean).join(', ');
-                script += `        # 常规目标端口过滤 (非 Fake-IP 且非常用端口则直连放行)\n`;
-                script += `        ip daddr != ${fakeIpRange} tcp dport != { ${cPorts} } accept\n`;
-                script += `        ip daddr != ${fakeIpRange} udp dport != { ${cPorts} } accept\n`;
+            script += `
+    chain prerouting_tproxy {
+        type filter hook prerouting priority mangle; policy accept;
+${ingressIface ? `        iifname != "lo" iifname != "${ingressIface}" accept comment "非指定入口接口放行"\n` : ''}${dnsBypassLine}        fib daddr type local accept comment "发往本机地址的流量放行"
+        ip daddr @private_ip accept comment "私有 IPv4 放行"
+${bypassCnIp && cn4.length ? `        ip daddr @cn_ip accept comment "大陆 IPv4 放行"\n` : ''}${!ipv6 ? `        meta nfproto ipv6 accept comment "未启用 IPv6 TProxy"\n` : ''}${portFilterRulesV4}        meta l4proto { tcp, udp } th dport ${tproxyPort} reject with icmpx type host-unreachable comment "拒绝外部直接打到 TProxy 端口"
+        meta l4proto tcp socket transparent 1 meta mark set ${proxyMark} accept comment "已由透明 socket 接管的 TCP 流量放行"
+        meta l4proto { tcp, udp } tproxy to :${tproxyPort} meta mark set ${proxyMark} comment "导流到 Mihomo TProxy 端口"
+    }
+
+    chain output_tproxy {
+        type route hook output priority mangle; policy accept;
+${egressIface ? `        oifname != "${egressIface}" accept comment "非指定出口接口放行"\n` : ''}        ct direction reply accept comment "本机服务回包放行"\n        meta mark ${routeMark} accept comment "已打 route mark 的自身流量放行"
+${hasUidGid ? `        meta skuid ${proxyUid} meta skgid ${proxyGid} meta mark set ${routeMark} accept comment "Mihomo 自身流量改打 route mark，避免回环"\n` : ''}${dnsBypassLine}        fib daddr type local accept comment "发往本机地址的流量放行"
+        ip daddr @private_ip accept comment "私有 IPv4 放行"
+${bypassCnIp && cn4.length ? `        ip daddr @cn_ip accept comment "大陆 IPv4 放行"\n` : ''}${!ipv6 ? `        meta nfproto ipv6 accept comment "未启用 IPv6 TProxy"\n` : ''}${portFilterRulesV4}        meta l4proto { tcp, udp } meta mark set ${proxyMark} comment "本机流量打 proxy mark，交给策略路由回注 lo"
+    }
+`;
+
+            if (ipv6) {
+                script += `
+    chain prerouting_tproxy_v6 {
+        type filter hook prerouting priority mangle; policy accept;
+${ingressIface ? `        iifname != "lo" iifname != "${ingressIface}" accept comment "非指定入口接口放行"\n` : ''}${dnsBypassLine}        fib daddr type local accept comment "发往本机 IPv6 的流量放行"
+        ip6 daddr @private_ip6 accept comment "私有 IPv6 放行"
+${bypassCnIp && cn6.length ? `        ip6 daddr @cn_ip6 accept comment "大陆 IPv6 放行"\n` : ''}        meta l4proto { tcp, udp } th dport ${tproxyPort} reject with icmpx type host-unreachable comment "拒绝外部直接打到 TProxy 端口"
+        meta l4proto tcp socket transparent 1 meta mark set ${proxyMark} accept comment "已由透明 socket 接管的 TCP 流量放行"
+        meta l4proto { tcp, udp } tproxy to :${tproxyPort} meta mark set ${proxyMark} comment "导流到 Mihomo TProxy 端口"
+    }
+
+    chain output_tproxy_v6 {
+        type route hook output priority mangle; policy accept;
+${egressIface ? `        oifname != "${egressIface}" accept comment "非指定出口接口放行"\n` : ''}        ct direction reply accept comment "本机服务回包放行"\n        meta mark ${routeMark} accept comment "已打 route mark 的自身流量放行"
+${hasUidGid ? `        meta skuid ${proxyUid} meta skgid ${proxyGid} meta mark set ${routeMark} accept comment "Mihomo 自身流量改打 route mark，避免回环"\n` : ''}${dnsBypassLine}        fib daddr type local accept comment "发往本机 IPv6 的流量放行"
+        ip6 daddr @private_ip6 accept comment "私有 IPv6 放行"
+${bypassCnIp && cn6.length ? `        ip6 daddr @cn_ip6 accept comment "大陆 IPv6 放行"\n` : ''}        meta l4proto { tcp, udp } meta mark set ${proxyMark} comment "本机 IPv6 流量打 proxy mark，交给策略路由回注 lo"
+    }
+`;
             }
 
-            script += `        # 性能优化：绕过已经由 TPROXY 建立的活动连接\n`;
-            script += `        meta l4proto tcp socket transparent 1 meta mark set $PROXY_MARK accept\n`;
-            
-            script += `        # 【核心逻辑】对于剩下的外部流量，导流至 Tproxy 端口\n`;
-            script += `        meta l4proto { tcp, udp } tproxy to :$TPROXY_PORT meta mark set $PROXY_MARK\n`;
-            script += `    }\n`;
-            
-            script += `\n    # ==========================================\n`;
-            script += `    # 4. 本机直接出站流量打标链 (Mangle 表)\n`;
-            script += `    # ==========================================\n`;
-            script += `    chain output_tproxy {\n        type route hook output priority mangle; policy accept;\n`;
-            
-            if (interfaceName) {
-                script += `        # 排除非指定出口网卡\n`;
-                script += `        oifname != $INTERFACE accept\n`;
-            }
-            
-            if (hijackDns) {
-                script += `        # 跳过 DNS 端口，交由 NAT 链处理\n`;
-                script += `        meta l4proto { tcp, udp } th dport 53 accept comment "跳过 DNS"\n`;
-            }
-            
-            if (bypassSports) {
-                const bSports = bypassSports.split(/[, ]+/).map(s=>s.trim()).filter(Boolean).join(', ');
-                script += `        # 【关键防护】放行本机对外提供服务的响应包，防止 SSH/Web 断开\n`;
-                script += `        tcp sport { ${bSports} } accept comment "绕过本地服务响应"\n`;
-            }
-            
-            if (proxyUid && proxyGid) {
-                script += `        # 【防环路核心】识别代理软件发出的流量，打上放行标记并放行\n`;
-                script += `        meta skuid $PROXY_UID meta skgid $PROXY_GID meta mark set $ROUTE_DEFAULT_MARK accept\n`;
-                script += `        meta mark $ROUTE_DEFAULT_MARK accept\n`;
-            } else {
-                script += `        # [警告] 未配置代理 UID/GID，本机直接出站防环依赖单级 Route Mark！\n`;
-                script += `        meta mark $ROUTE_DEFAULT_MARK accept\n`;
-            }
-            
-            script += `        # 绕过发往本机的流量及保留网段（直连）\n`;
-            script += `        fib daddr type local accept\n`;
-            script += `        ip daddr @private_ip accept\n`;
-            if (tproxyIpv6) script += `        ip6 daddr @private_ip6 accept\n`;
-            
-            if (bypassCnIp) {
-                script += `        # 大陆 IP 直连\n`;
-                script += `        ip daddr @cn_ip accept\n`;
-                if (tproxyIpv6) script += `        ip6 daddr @cn_ip6 accept\n`;
-            }
-
-            if (!tproxyIpv6) {
-                script += `        # 未开启 IPv6 代理\n`;
-                script += `        meta nfproto ipv6 accept\n`;
-            }
-
-            if (filterPorts) {
-                const cPorts = (commonPorts || '').split(/[, ]+/).map(s=>s.trim()).filter(Boolean).join(', ');
-                script += `        # 常规目标端口过滤 (非 Fake-IP 且非常用端口则直连放行)\n`;
-                script += `        ip daddr != ${fakeIpRange} tcp dport != { ${cPorts} } accept\n`;
-                script += `        ip daddr != ${fakeIpRange} udp dport != { ${cPorts} } accept\n`;
-            }
-            
-            script += `        # 【核心逻辑】为本机发出的其他流量打标，等待 ip rule 策略路由重路由至 lo\n`;
-            script += `        meta l4proto { tcp, udp } meta mark set $PROXY_MARK\n`;
-            script += `    }\n`;
-            script += `}`;
-
+            script += `}\n`;
             return script;
         });
 
@@ -1758,68 +2135,75 @@ createApp({
         });
 
         const copyNftables = async () => { try { await navigator.clipboard.writeText(getCleanNftables()); alert('nftables 规则已复制'); } catch(e){} };
-        const downloadNftables = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([getCleanNftables()])); a.download = 'tproxy.nft'; a.click(); };
+                const downloadNftables = () => {
+            const url = URL.createObjectURL(new Blob([getCleanNftables()], { type: 'text/plain' }));
+            const a = document.createElement('a');
+            const fname = ((uiState.value.nftablesConfig?.nftTable || 'mihomo').trim() || 'mihomo').replace(/[^\w.-]+/g, '_');
+            a.href = url;
+            a.download = `${fname}.nft`;
+            a.click();
+            URL.revokeObjectURL(url);
+        };
         const copyInstallScript = async () => { try { await navigator.clipboard.writeText(installScript.value); alert('部署脚本已复制'); } catch(e){} };
 
 
-        // ----------------- 核心数据清洗与解析 -----------------
         const parseSingleProxyNode = (px) => {
             if (!px) return null;
-            
+
             let portVal = px.port;
             if (typeof portVal === 'string' && !portVal.includes('-')) {
                 const num = Number(portVal);
                 if (!isNaN(num)) portVal = num;
             }
-            
+
             const base = {
-                name: px.name || `Node-${Math.floor(Math.random()*1000)}`, 
-                type: px.type || 'vless', 
-                server: px.server || '', 
-                port: portVal || 443, 
-                udp: px.udp !== false, 
-                tfo: px.tfo || false, 
-                ip: px.ip || '', 
+                name: px.name || `Node-${Math.floor(Math.random()*1000)}`,
+                type: px.type || 'vless',
+                server: px.server || '',
+                port: portVal || 443,
+                udp: px.udp !== false,
+                tfo: px.tfo || false,
+                ip: px.ip || '',
                 'packet-encoding': px['packet-encoding'] || '',
-                uuid: px.uuid || '', 
-                flow: px.flow || '', 
-                alterId: px.alterId || 0, 
-                password: px['auth-str'] || px.psk || px.password || '', 
-                username: px.username || '', 
+                uuid: px.uuid || '',
+                flow: px.flow || '',
+                alterId: px.alterId || 0,
+                password: px['auth-str'] || px.psk || px.password || '',
+                username: px.username || '',
                 cipher: px.cipher || 'auto',
-                plugin: px.plugin || '', 
-                'plugin-opts': { mode: 'websocket', host: '', path: '/', tls: false, mux: false, password: '', ...(px['plugin-opts'] || {}) }, 
+                plugin: px.plugin || '',
+                'plugin-opts': { mode: 'websocket', host: '', path: '/', tls: false, mux: false, password: '', ...(px['plugin-opts'] || {}) },
                 'kcptun-opts': { crypt: 'aes-128-gcm', ...(px['kcptun-opts'] || {}) },
-                protocol: px.protocol || '', 
-                'protocol-param': px['protocol-param'] || '', 
-                obfs: px.obfs || '', 
-                'obfs-param': px['obfs-param'] || '', 
+                protocol: px.protocol || '',
+                'protocol-param': px['protocol-param'] || '',
+                obfs: px.obfs || '',
+                'obfs-param': px['obfs-param'] || '',
                 version: px.version || '4',
-                'public-key': px['public-key'] || '', 
-                'private-key': px['private-key'] || '', 
-                'pre-shared-key': px['pre-shared-key'] || '', 
-                reserved: px.reserved ? (typeof px.reserved === 'object' ? JSON.stringify(px.reserved) : px.reserved) : '', 
-                workers: px.workers || 2, 
-                mtu: px.mtu || 1420, 
+                'public-key': px['public-key'] || '',
+                'private-key': px['private-key'] || '',
+                'pre-shared-key': px['pre-shared-key'] || '',
+                reserved: px.reserved ? (typeof px.reserved === 'object' ? JSON.stringify(px.reserved) : px.reserved) : '',
+                workers: px.workers || 2,
+                mtu: px.mtu || 1420,
                 'wg-dns': px.dns ? (Array.isArray(px.dns) ? px.dns.join(',') : px.dns) : '',
-                up: px.up || '100 Mbps', 
-                down: px.down || '100 Mbps', 
-                'obfs-password': px['obfs-password'] || '', 
-                ports: px.ports || '', 
+                up: px.up || '100 Mbps',
+                down: px.down || '100 Mbps',
+                'obfs-password': px['obfs-password'] || '',
+                ports: px.ports || '',
                 'hop-interval': px['hop-interval'] || '',
-                'congestion-controller': px['congestion-controller'] || 'bbr', 
-                'udp-relay-mode': px['udp-relay-mode'] || 'native', 
-                'reduce-rtt': px['reduce-rtt'] || false, 
-                heartbeat: px.heartbeat || '10s', 
+                'congestion-controller': px['congestion-controller'] || 'bbr',
+                'udp-relay-mode': px['udp-relay-mode'] || 'native',
+                'reduce-rtt': px['reduce-rtt'] || false,
+                heartbeat: px.heartbeat || '10s',
                 'request-timeout': px['request-timeout'] || '15s',
-                'udp-over-tcp': px['udp-over-tcp'] || false, 
-                passphrase: px.passphrase || '', 
+                'udp-over-tcp': px['udp-over-tcp'] || false,
+                passphrase: px.passphrase || '',
                 'obfs-host': px['obfs-host'] || '',
-                network: px.network || 'tcp', 
-                tls: px.tls || false, 
-                'skip-cert-verify': px['skip-cert-verify'] || false, 
-                servername: px.servername || '', 
-                'client-fingerprint': px['client-fingerprint'] || '', 
+                network: px.network || 'tcp',
+                tls: px.tls || false,
+                'skip-cert-verify': px['skip-cert-verify'] || false,
+                servername: px.servername || '',
+                'client-fingerprint': px['client-fingerprint'] || '',
                 alpn: px.alpn ? (Array.isArray(px.alpn) ? px.alpn.join(',') : px.alpn) : '',
                 reality: !!(px['reality-opts'] && Object.keys(px['reality-opts']).length > 0) || !!px.reality,
                 'reality-opts': { 'public-key': '', 'short-id': '', ...(px['reality-opts'] || {}) },
@@ -1830,14 +2214,14 @@ createApp({
                 'h2-opts': { host: px['h2-opts']?.host || '', path: px['h2-opts']?.path || '/' },
                 'http-opts': { path: px['http-opts']?.path || '/', host: px['http-opts']?.host || '', headers: { Host: px['http-opts']?.headers?.Host || '' } },
                 'xhttp-opts': { path: px['xhttp-opts']?.path || '/', host: px['xhttp-opts']?.host || '', mode: px['xhttp-opts']?.mode || 'auto' },
-                'idle-session-check-interval': px['idle-session-check-interval'] || '30s', 
-                'idle-session-timeout': px['idle-session-timeout'] || '30s', 
+                'idle-session-check-interval': px['idle-session-check-interval'] || '30s',
+                'idle-session-timeout': px['idle-session-timeout'] || '30s',
                 'min-idle-session': px['min-idle-session'] || 0,
-                transport: px.transport || 'TCP', 
-                multiplexing: px.multiplexing || 'MULTIPLEXING_OFF', 
+                transport: px.transport || 'TCP',
+                multiplexing: px.multiplexing || 'MULTIPLEXING_OFF',
                 'dialer-proxy': px['dialer-proxy'] || ''
             };
-            
+
             if (base['h2-opts'] && Array.isArray(base['h2-opts'].host)) base['h2-opts'].host = base['h2-opts'].host.join(',');
             if (base['http-opts']) {
                 if (Array.isArray(base['http-opts'].path)) base['http-opts'].path = base['http-opts'].path.join(',');
@@ -1850,7 +2234,7 @@ createApp({
         const addManualProxy = () => { config.value.proxies.push(parseSingleProxyNode({ type: 'vless' })); scrollToBottom(); };
         const addGroup = () => { config.value['proxy-groups'].push({ name: `Group-${(config.value['proxy-groups']||[]).length + 1}`, type: 'select', proxies: [], use: [], filter: '', 'exclude-filter': '', url: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50, timeout: 0, lazy: false, 'dialer-proxy': '', strategy: 'consistent-hashing', 'include-all': false }); scrollToBottom(); };
         const removeGroup = (idx) => { config.value['proxy-groups'].splice(idx, 1); };
-        
+
         const getAvailableGroupMembers = (currentGroupName) => {
             let groups = (config.value['proxy-groups'] || []).map(g=>g.name);
             if (currentGroupName) groups = groups.filter(n => n !== currentGroupName);
@@ -1902,13 +2286,13 @@ createApp({
                         let flags = '';
                         if (jsPattern.startsWith('(?i)')) { jsPattern = jsPattern.substring(4); flags = 'i'; }
                         const regex = new RegExp(jsPattern, flags);
-                        
+
                         const matched = config.value.proxies.filter(px => regex.test(px.name)).map(px => px.name);
                         matched.forEach(name => {
                             if (!g.proxies) g.proxies = [];
                             if (!g.proxies.includes(name)) g.proxies.push(name);
                         });
-                        
+
                         (providersList.value||[]).forEach(prov => {
                             if (!g.use) g.use = [];
                             if (prov.name && !g.use.includes(prov.name)) g.use.push(prov.name);
@@ -1944,7 +2328,7 @@ createApp({
 
         const addRuleProvider = () => { ruleProvidersList.value.push({ name: '', type: 'http', file: '', behavior: 'domain', format: 'yaml', interval: 86400, autoUrl: true, customUrl: '', path: '', payload: '' }); scrollToBottom(); };
         const removeRuleProvider = (idx) => ruleProvidersList.value.splice(idx, 1);
-        
+
         const updateRuleProviderName = (rp, newName) => {
             const oldName = rp.name;
             rp.name = newName;
@@ -1969,18 +2353,11 @@ createApp({
             return `${base}/${folder}/${targetName}.${rp.format}`;
         };
 
-        const clearLists = () => { 
-            if(askConfirm('确定要清空所有的节点、订阅和规则列表吗？')) { 
+        const clearLists = () => {
+            if(askConfirm('确定要清空所有的节点、订阅和规则列表吗？')) {
                 config.value.proxies = []; config.value['proxy-groups'] = []; providersList.value = []; ruleProvidersList.value = []; uiState.value.rules = [];
-            } 
+            }
         };
-
-        const clearCache = () => { 
-            if(askConfirm('此操作将彻底清除浏览器中的所有配置缓存，并重新加载页面。确定要清理吗？')) { 
-                localStorage.removeItem('mihomo_web_config_v16'); location.reload(); 
-            } 
-        };
-
         const draggedRuleIndex = ref(null);
         const onRuleDragStart = (idx, e) => { draggedRuleIndex.value = idx; e.dataTransfer.effectAllowed = 'move'; };
         const onRuleDragEnter = () => {}; const onRuleDragEnd = () => { draggedRuleIndex.value = null; (uiState.value.rules||[]).forEach(r => r.draggable = false); };
@@ -2007,9 +2384,9 @@ createApp({
                 const raw = JSON.parse(JSON.stringify(config.value));
                 const parseText = (text) => text ? (text||'').split('\n').map(s => s.trim()).filter(Boolean) : [];
                 const opts = { indent: 2, lineWidth: -1, noRefs: true, sortKeys: false };
-                
+
                 let outGeneral = {};
-                
+
                 Object.assign(outGeneral, {
                     'mixed-port': raw['mixed-port'],
                     port: raw.port,
@@ -2023,13 +2400,13 @@ createApp({
                 ['mixed-port', 'port', 'socks-port', 'redir-port', 'tproxy-port'].forEach(k => {
                     if (!outGeneral[k] && outGeneral[k] !== 0) delete outGeneral[k];
                 });
-                
+
                 if (raw['global-client-fingerprint']) outGeneral['global-client-fingerprint'] = raw['global-client-fingerprint'];
                 if (raw.secret) outGeneral.secret = raw.secret;
                 if (raw['external-ui-url']) { outGeneral['external-ui'] = raw['external-ui']; outGeneral['external-ui-url'] = raw['external-ui-url']; }
                 if (raw['interface-name']) outGeneral['interface-name'] = raw['interface-name'];
                 if (raw['geodata-mode'] !== undefined) outGeneral['geodata-mode'] = raw['geodata-mode'];
-                
+
                 if (raw.geo) {
                     outGeneral['geo-auto-update'] = raw.geo['auto-update'];
                     outGeneral['geo-update-interval'] = raw.geo.interval;
@@ -2038,22 +2415,20 @@ createApp({
 
                 if (raw['unified-delay'] !== undefined) outGeneral['unified-delay'] = raw['unified-delay'];
                 if (raw['tcp-concurrent'] !== undefined) outGeneral['tcp-concurrent'] = raw['tcp-concurrent'];
-                
+
                 if (raw.profile && (raw.profile['store-selected'] || raw.profile['store-selected'] === false)) {
                     outGeneral.profile = raw.profile;
                 }
                 if (raw['find-process-mode'] !== 'always') outGeneral['find-process-mode'] = raw['find-process-mode'];
-                
-                // V16: Hex 路由标记自动转换为数字写入 YAML
-                let rMarkInt = parseInt(uiState.value.nftablesConfig.routeMarkHex, 16);
-                if (isNaN(rMarkInt)) rMarkInt = 2; // Default 0x02
+
+                let rMarkInt = parseMarkValue(uiState.value.nftablesConfig.routeMarkHex, 112);
                 outGeneral['routing-mark'] = rMarkInt;
-                
+
                 let finalListeners = [];
                 if (raw.listeners && Array.isArray(raw.listeners)) {
                     finalListeners = JSON.parse(JSON.stringify(raw.listeners));
                 }
-                
+
                 let tpIndex = finalListeners.findIndex(l => l.type === 'tproxy');
                 if (uiState.value.tproxyEnable) {
                     if (tpIndex > -1) {
@@ -2072,12 +2447,12 @@ createApp({
                 } else {
                     if (tpIndex > -1) finalListeners.splice(tpIndex, 1);
                 }
-                
+
                 if (finalListeners.length > 0) outGeneral.listeners = finalListeners;
 
                 let outNetwork = {};
                 if (raw.tun && raw.tun.enable) {
-                    outNetwork.tun = { 
+                    outNetwork.tun = {
                         enable: true, stack: raw.tun.stack, 'auto-route': raw.tun['auto-route'], 'auto-detect-interface': raw.tun['auto-detect-interface']
                     };
                     if (raw.tun.device && raw.tun.device.trim() !== '') outNetwork.tun.device = raw.tun.device.trim();
@@ -2086,16 +2461,18 @@ createApp({
                     if (raw.tun.gso && raw.tun['gso-max-size']) outNetwork.tun['gso-max-size'] = raw.tun['gso-max-size'];
                     if (raw.tun['strict-route'] !== undefined) outNetwork.tun['strict-route'] = raw.tun['strict-route'];
                     if (raw.tun['endpoint-independent-nat'] !== undefined) outNetwork.tun['endpoint-independent-nat'] = raw.tun['endpoint-independent-nat'];
-                    
-                    const hijack = (uiState.value.tunDnsHijack||'').split('\n').map(s=>s.trim()).filter(Boolean);
-                    if (hijack.length > 0) outNetwork.tun['dns-hijack'] = hijack;
+
+                    const hijack = uiState.value.tunDnsHijackEnabled
+                        ? (uiState.value.tunDnsHijack||'').split('\n').map(s=>s.trim()).filter(Boolean)
+                        : [];
+                    if (uiState.value.tunDnsHijackEnabled && hijack.length > 0) outNetwork.tun['dns-hijack'] = hijack;
                 }
 
                 if (raw.sniffer && raw.sniffer.enable) {
-                    outNetwork.sniffer = { 
+                    outNetwork.sniffer = {
                         enable: true, 'force-dns-mapping': raw.sniffer['force-dns-mapping'], 'parse-pure-ip': raw.sniffer['parse-pure-ip'], 'override-destination': raw.sniffer['override-destination']
                     };
-                    
+
                     let sHTTP = parsePorts(uiState.value.snifferSniff?.HTTP);
                     let sTLS = parsePorts(uiState.value.snifferSniff?.TLS);
                     let sQUIC = parsePorts(uiState.value.snifferSniff?.QUIC);
@@ -2115,24 +2492,30 @@ createApp({
 
                 if (raw.dns && raw.dns.enable) {
                     outNetwork.dns = { ...raw.dns };
+                    const normalizedDnsListen = getListenPort(raw.dns.listen, 53);
+                    outNetwork.dns.listen = `:${normalizedDnsListen}`;
                     if (outNetwork.dns['enhanced-mode'] === 'fake-ip') {
                         outNetwork.dns['fake-ip-filter-mode'] = raw.dns['fake-ip-filter-mode'];
                         const filters = parseText(uiState.value.fakeIpFilter);
                         if (filters.length > 0) outNetwork.dns['fake-ip-filter'] = filters;
                     } else { delete outNetwork.dns['fake-ip-range']; delete outNetwork.dns['fake-ip-filter-mode']; }
-                    
+
                     outNetwork.dns['default-nameserver'] = parseText(uiState.value.dnsDefaultNameservers);
                     outNetwork.dns.nameserver = parseText(uiState.value.dnsNameservers);
-                    outNetwork.dns.fallback = parseText(uiState.value.dnsFallback);
+                    if (uiState.value.enableDnsFallback) {
+                        outNetwork.dns.fallback = parseText(uiState.value.dnsFallback);
+                    } else {
+                        delete outNetwork.dns.fallback;
+                    }
                     outNetwork.dns['proxy-server-nameserver'] = parseText(uiState.value.dnsProxyServerNameservers);
                     outNetwork.dns['direct-nameserver'] = parseText(uiState.value.dnsDirectNameservers);
-                    
+
                     const parsedPolicy = parseHosts(uiState.value.dnsNameserverPolicy);
                     if (parsedPolicy) outNetwork.dns['nameserver-policy'] = parsedPolicy;
 
-                    if (outNetwork.dns.fallback && outNetwork.dns.fallback.length > 0) {
+                    if (uiState.value.enableDnsFallback && outNetwork.dns.fallback && outNetwork.dns.fallback.length > 0) {
                         if (!outNetwork.dns['fallback-filter']) outNetwork.dns['fallback-filter'] = {};
-                        
+
                         outNetwork.dns['fallback-filter'].geoip = config.value.dns['fallback-filter']?.geoip !== false;
                         if (outNetwork.dns['fallback-filter'].geoip) {
                             outNetwork.dns['fallback-filter']['geoip-code'] = config.value.dns['fallback-filter']['geoip-code'] || 'CN';
@@ -2142,21 +2525,31 @@ createApp({
 
                         const geosite = parseText(uiState.value.fallbackFilterGeosite);
                         if (uiState.value.fallbackFilterGeositeEnable && geosite.length > 0) outNetwork.dns['fallback-filter'].geosite = geosite;
-                        
+
                         const ipcidr = parseText(uiState.value.fallbackFilterIpcidr);
                         const domain = parseText(uiState.value.fallbackFilterDomain);
                         if (ipcidr.length > 0) outNetwork.dns['fallback-filter'].ipcidr = ipcidr;
                         if (domain.length > 0) outNetwork.dns['fallback-filter'].domain = domain;
-                    } else { 
-                        delete outNetwork.dns['fallback-filter']; 
+                    } else {
+                        delete outNetwork.dns.fallback;
+                        delete outNetwork.dns['fallback-filter'];
                     }
 
                     ['default-nameserver', 'nameserver', 'fallback', 'proxy-server-nameserver', 'direct-nameserver'].forEach(k => { if (outNetwork.dns[k] && outNetwork.dns[k].length === 0) delete outNetwork.dns[k]; });
                 }
-                
-                const parsedHosts = parseHosts(uiState.value.hosts);
-                if (parsedHosts) outNetwork.hosts = parsedHosts;
 
+                if (raw.dns && raw.dns['use-hosts']) {
+                    const parsedHosts = parseHosts(uiState.value.hosts);
+                    if (parsedHosts) outNetwork.hosts = parsedHosts;
+                }
+
+                const providerNames = (providersList.value || []).map(p => p.name).filter(Boolean);
+                const groupNames = (raw['proxy-groups'] || []).map(g => g.name).filter(Boolean);
+                const proxyNames = (raw.proxies || []).map(p => p.name).filter(Boolean);
+                const validStaticMembers = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', ...groupNames, ...proxyNames]);
+                const defaultRuleTarget = groupNames[0] || 'DIRECT';
+                const normalizeRuleTarget = (target) => validStaticMembers.has(target) ? target : defaultRuleTarget;
+                const normalizeDialerProxy = (value) => value && validStaticMembers.has(value) ? value : '';
                 let outProxies = {};
                 if (raw.proxies && raw.proxies.length > 0) {
                     outProxies.proxies = raw.proxies.map(px => parseSingleProxyNode(px)).filter(Boolean);
@@ -2174,18 +2567,20 @@ createApp({
                                 prov.interval = p.interval || 3600;
                                 if (p.lazy !== undefined) prov.lazy = p.lazy;
                                 prov.path = `./providers/${p.name}.yaml`;
-                                prov['health-check'] = { 
+                                prov['health-check'] = {
                                     enable: true, interval: 600, url: p.healthUrl || 'https://www.gstatic.com/generate_204',
                                     lazy: p.healthCheckLazy !== false, timeout: p.healthCheckTimeout || 5000
                                 };
-                                if (p.useDownloadProxy && p.downloadProxy) prov['dialer-proxy'] = p.downloadProxy;
+                                const normalizedDownloadProxy = normalizeDialerProxy(p.downloadProxy);
+                                if (p.useDownloadProxy && normalizedDownloadProxy) prov['dialer-proxy'] = normalizedDownloadProxy;
                             } else if (prov.type === 'inline') {
                                 let payloadNodes = [];
                                 if (p.inlineProxies && p.inlineProxies.length > 0) {
                                     payloadNodes = p.inlineProxies.map(pxName => parseSingleProxyNode((raw.proxies||[]).find(x => x.name === pxName))).filter(Boolean);
                                 }
                                 prov.payload = payloadNodes;
-                                if (p.overrideDialerProxy) prov.override = { 'dialer-proxy': p.overrideDialerProxy };
+                                const normalizedOverrideDialerProxy = normalizeDialerProxy(p.overrideDialerProxy);
+                                if (normalizedOverrideDialerProxy) prov.override = { 'dialer-proxy': normalizedOverrideDialerProxy };
                             }
                             outProviders['proxy-providers'][p.name] = prov;
                         }
@@ -2219,30 +2614,31 @@ createApp({
                     outGroups['proxy-groups'] = raw['proxy-groups'].map(g => {
                         let cg = { name: g.name, type: g.type };
                         if (g['include-all']) cg['include-all'] = true;
-                        
+
                         if(g.type === 'load-balance') cg.strategy = g.strategy || 'consistent-hashing';
-                        
+
                         if(g.type !== 'relay') {
                             if(!cg['include-all']) {
-                                if(g.proxies && g.proxies.length>0) cg.proxies = g.proxies;
-                                if(g.use && g.use.length>0) cg.use = g.use;
+                                if(g.proxies && g.proxies.length>0) cg.proxies = g.proxies.filter(name => validStaticMembers.has(name));
+                                if(g.use && g.use.length>0) cg.use = g.use.filter(name => providerNames.includes(name));
                             }
                             if(g.filter) cg.filter = g.filter;
                             if(g['exclude-filter']) cg['exclude-filter'] = g['exclude-filter'];
                         } else {
                             if(g.proxies && g.proxies.length>0) cg.proxies = g.proxies;
                         }
-                        
-                        if(g.type === 'url-test' || g.type === 'fallback' || g.type === 'load-balance') { 
-                            cg.url = g.url || 'https://www.gstatic.com/generate_204'; 
-                            cg.interval = g.interval || 300; 
+
+                        if(g.type === 'url-test' || g.type === 'fallback' || g.type === 'load-balance') {
+                            cg.url = g.url || 'https://www.gstatic.com/generate_204';
+                            cg.interval = g.interval || 300;
                         }
                         if(g.type === 'url-test' || g.type === 'fallback') {
                             if (g.timeout > 0) cg.timeout = g.timeout;
                         }
-                        if(g.type === 'url-test') { cg.tolerance = g.tolerance; cg.lazy = g.lazy; } 
-                        if(g['dialer-proxy']) cg['dialer-proxy'] = g['dialer-proxy'];
-                        
+                        if(g.type === 'url-test') { cg.tolerance = g.tolerance; cg.lazy = g.lazy; }
+                        const normalizedGroupDialerProxy = normalizeDialerProxy(g['dialer-proxy']);
+                        if(normalizedGroupDialerProxy) cg['dialer-proxy'] = normalizedGroupDialerProxy;
+
                         if (cg.type === 'relay') {
                             delete cg.url; delete cg.interval; delete cg.timeout; delete cg.tolerance; delete cg.lazy;
                         }
@@ -2263,22 +2659,22 @@ createApp({
                             });
                             const body = `${r.logic},(${parts.join(',')})`;
                             const wrapped = r.not ? `NOT,((${body}))` : body;
-                            return `${wrapped},${r.target}`;
+                            return `${wrapped},${normalizeRuleTarget(r.target)}`;
                         }
-                        if (r.type === 'MATCH') return `MATCH,${r.target}`;
+                        if (r.type === 'MATCH') return `MATCH,${normalizeRuleTarget(r.target)}`;
                         let outerVal = r.type === 'DOMAIN-REGEX' && r.value && r.value.includes(',') ? `"${r.value}"` : r.value;
                         let inner = `${r.type},${outerVal}`;
                         if (r.not) {
                             if (r.noResolve && ipTypes.includes(r.type)) inner += ',no-resolve';
-                            return `NOT,((${inner})),${r.target}`;
+                            return `NOT,((${inner})),${normalizeRuleTarget(r.target)}`;
                         } else {
-                            let ruleStr = `${inner},${r.target}`;
+                            let ruleStr = `${inner},${normalizeRuleTarget(r.target)}`;
                             if (r.noResolve && ipTypes.includes(r.type)) ruleStr += ',no-resolve';
                             return ruleStr;
                         }
                     });
                 }
-                if (!outRules.rules.some(r => r.startsWith('MATCH'))) outRules.rules.push('MATCH,Proxy');
+                if (!outRules.rules.some(r => r.startsWith('MATCH'))) outRules.rules.push(`MATCH,${defaultRuleTarget}`);
 
                 const dump = (obj) => Object.keys(obj).length > 0 ? jsyaml.dump(obj, opts) : '';
 
@@ -2287,7 +2683,7 @@ createApp({
                     proxies: dump(outProxies), providers: dump(outProviders), ruleProviders: dump(outRuleProviders),
                     groups: dump(outGroups), rules: dump(outRules)
                 };
-                
+
                 fullYaml.value = [yamlSections.value.general, yamlSections.value.network, yamlSections.value.proxies, yamlSections.value.providers, yamlSections.value.ruleProviders, yamlSections.value.groups, yamlSections.value.rules].filter(Boolean).join('');
             } catch (err) {
                 console.error("YAML 构建遭遇异常:", err);
@@ -2311,7 +2707,7 @@ createApp({
             clearTimeout(scrollTimeout);
             isLocating.value = true;
             renderStatus.value = `追踪: ${keyword.trim().slice(0, 15)}...`;
-            
+
             scrollTimeout = setTimeout(() => {
                 const container = yamlPreviewBox.value;
                 const lines = fullYaml.value.split('\n');
@@ -2319,7 +2715,7 @@ createApp({
                 if(idx !== -1) {
                     const scrollHeight = container.querySelector('pre').getBoundingClientRect().height;
                     const lineHeight = scrollHeight / lines.length;
-                    const targetY = Math.max(0, idx * lineHeight - 60); 
+                    const targetY = Math.max(0, idx * lineHeight - 60);
                     container.scrollTo({ top: targetY, behavior: 'smooth' });
                 }
                 setTimeout(() => { isLocating.value = false; renderStatus.value = '实时渲染'; }, 1000);
@@ -2343,8 +2739,9 @@ createApp({
 
         let buildTimeout;
         watch([config, uiState, providersList, ruleProvidersList], () => {
-            localStorage.setItem('mihomo_web_config_v16', JSON.stringify({ 
-                config: config.value, uiState: uiState.value, providersList: providersList.value, ruleProvidersList: ruleProvidersList.value 
+            const sanitizedUiState = getSanitizedUiStateForSave(uiState.value, config.value);
+            localStorage.setItem('mihomo_web_config_v17', JSON.stringify({
+                config: config.value, uiState: sanitizedUiState, providersList: providersList.value, ruleProvidersList: ruleProvidersList.value
             }));
             clearTimeout(buildTimeout);
             if (!isLocating.value) renderStatus.value = '实时渲染中...';
@@ -2357,7 +2754,7 @@ createApp({
         const parseRuleString = (rStr) => {
             if (typeof rStr !== 'string') return null;
             let parts = splitByComma(rStr);
-            
+
             if (['AND', 'OR'].includes(parts[0]) && parts.length === 3) {
                 let logic = parts[0];
                 let innerStr = parts[1].replace(/^\(+|\)+$/g, '');
@@ -2367,16 +2764,16 @@ createApp({
                     let stripped = c.replace(/^\(+|\)+$/g, '');
                     let cParts = splitByComma(stripped);
                     let cNot = false;
-                    if (cParts[0] === 'NOT') { 
-                        cNot = true; 
-                        cParts = splitByComma((cParts[1]||'').replace(/^\(+|\)+$/g, '')); 
+                    if (cParts[0] === 'NOT') {
+                        cNot = true;
+                        cParts = splitByComma((cParts[1]||'').replace(/^\(+|\)+$/g, ''));
                     }
                     let val = (cParts[1]||'').replace(/^"|"$/g, '');
                     return { type: cParts[0], value: val, not: cNot, noResolve: cParts.includes('no-resolve') };
                 });
                 return { logic, not: false, target, conditions };
             }
-            
+
             if (parts[0] === 'NOT' && parts.length === 3) {
                 let innerStr = parts[1].replace(/^\(+|\)+$/g, '');
                 let innerParts = splitByComma(innerStr);
@@ -2390,7 +2787,7 @@ createApp({
                     return { type: cParts[0], value: val, target: parts[2], not: true, noResolve: cParts.includes('no-resolve') };
                 }
             }
-            
+
             if (parts[0] === 'MATCH') return { type: 'MATCH', value: '', target: parts[1] || 'DIRECT', noResolve: false, not: false };
 
             let val = (parts[1]||'').replace(/^"|"$/g, '');
@@ -2400,7 +2797,7 @@ createApp({
         const resolveYamlMergeKeys = (obj) => {
             if (!obj || typeof obj !== 'object') return obj;
             if (Array.isArray(obj)) return obj.map(resolveYamlMergeKeys);
-            
+
             const result = {};
             for (const key in obj) {
                 if (key === '<<' && typeof obj[key] === 'object') {
@@ -2433,12 +2830,12 @@ createApp({
 
         const applyYamlImport = (data) => {
             if (!data) return;
-            
+
             if (data['mixed-port'] !== undefined) config.value['mixed-port'] = data['mixed-port'];
             if (data.port !== undefined) config.value.port = data.port;
             if (data['socks-port'] !== undefined) config.value['socks-port'] = data['socks-port'];
             if (data['redir-port'] !== undefined) config.value['redir-port'] = data['redir-port'];
-            
+
             if (data['tproxy-port'] !== undefined && data['tproxy-port'] > 0) {
                 config.value['tproxy-port'] = data['tproxy-port'];
                 uiState.value.tproxyEnable = true;
@@ -2451,13 +2848,15 @@ createApp({
             if (data['geo-auto-update'] !== undefined) config.value.geo['auto-update'] = data['geo-auto-update'];
             if (data['geo-update-interval'] !== undefined) config.value.geo.interval = data['geo-update-interval'];
 
-            // V16: Hex 路由标记还原逻辑
             if (data['routing-mark'] !== undefined) {
                 config.value['routing-mark'] = data['routing-mark'];
-                uiState.value.nftablesConfig.routeMarkHex = '0x' + data['routing-mark'].toString(16);
+                uiState.value.nftablesConfig.routeMarkHex = String(data['routing-mark']);
             }
 
-            if (data['interface-name'] !== undefined) config.value['interface-name'] = data['interface-name'];
+            if (data['interface-name'] !== undefined) {
+                config.value['interface-name'] = data['interface-name'];
+                if (uiState.value.nftablesConfig) uiState.value.nftablesConfig.egressIface = data['interface-name'] || '';
+            }
             if (data['geodata-mode'] !== undefined) config.value['geodata-mode'] = data['geodata-mode'];
             if (data['unified-delay'] !== undefined) config.value['unified-delay'] = data['unified-delay'];
             if (data['tcp-concurrent'] !== undefined) config.value['tcp-concurrent'] = data['tcp-concurrent'];
@@ -2467,7 +2866,7 @@ createApp({
             if (data.listeners && Array.isArray(data.listeners)) {
                 finalListeners = data.listeners.map(l => ({ ...l }));
             }
-            
+
             const tpIndex = finalListeners.findIndex(l => l.type === 'tproxy');
             if (tpIndex > -1) {
                 const tp = finalListeners[tpIndex];
@@ -2492,10 +2891,19 @@ createApp({
 
             if (data.tun) {
                 config.value.tun = { ...config.value.tun, enable: true, ...data.tun };
-                if (data.tun['dns-hijack'] && Array.isArray(data.tun['dns-hijack'])) {
+                if (data.tun['dns-hijack'] && Array.isArray(data.tun['dns-hijack']) && data.tun['dns-hijack'].length > 0) {
+                    uiState.value.tunDnsHijackEnabled = true;
                     uiState.value.tunDnsHijack = data.tun['dns-hijack'].join('\n');
+                } else if (typeof data.tun['dns-hijack'] === 'string' && data.tun['dns-hijack'].trim()) {
+                    uiState.value.tunDnsHijackEnabled = true;
+                    uiState.value.tunDnsHijack = data.tun['dns-hijack'].trim();
+                } else {
+                    uiState.value.tunDnsHijackEnabled = false;
                 }
-            } else config.value.tun.enable = false;
+            } else {
+                config.value.tun.enable = false;
+                uiState.value.tunDnsHijackEnabled = false;
+            }
 
             if (data.sniffer) {
                 config.value.sniffer.enable = true;
@@ -2520,13 +2928,22 @@ createApp({
                 ['listen', 'ipv6', 'enhanced-mode', 'fake-ip-range', 'fake-ip-filter-mode', 'prefer-h3', 'respect-rules', 'use-hosts', 'use-system-hosts', 'direct-nameserver-follow-policy'].forEach(k => {
                     if (data.dns[k] !== undefined) config.value.dns[k] = data.dns[k];
                 });
+                config.value.dns.listen = String(getListenPort(config.value.dns.listen, 53));
                 if(data.dns['fake-ip-filter']) uiState.value.fakeIpFilter = data.dns['fake-ip-filter'].join('\n');
                 if(data.dns['default-nameserver']) uiState.value.dnsDefaultNameservers = data.dns['default-nameserver'].join('\n');
                 if(data.dns.nameserver) uiState.value.dnsNameservers = data.dns.nameserver.join('\n');
-                if(data.dns.fallback) uiState.value.dnsFallback = data.dns.fallback.join('\n');
+                const importedFallback = Array.isArray(data.dns.fallback)
+                    ? data.dns.fallback
+                    : (typeof data.dns.fallback === 'string' && data.dns.fallback.trim() ? [data.dns.fallback.trim()] : []);
+                if (importedFallback.length > 0) {
+                    uiState.value.enableDnsFallback = true;
+                    uiState.value.dnsFallback = importedFallback.join('\n');
+                } else {
+                    uiState.value.enableDnsFallback = false;
+                }
                 if(data.dns['proxy-server-nameserver']) uiState.value.dnsProxyServerNameservers = data.dns['proxy-server-nameserver'].join('\n');
                 if(data.dns['direct-nameserver']) uiState.value.dnsDirectNameservers = data.dns['direct-nameserver'].join('\n');
-                
+
                 if (data.dns['nameserver-policy']) {
                     uiState.value.dnsNameserverPolicy = Object.keys(data.dns['nameserver-policy']).map(k => `${k}: ${data.dns['nameserver-policy'][k]}`).join('\n');
                 } else {
@@ -2536,20 +2953,30 @@ createApp({
                 if(data.dns['fallback-filter']) {
                     config.value.dns['fallback-filter'].geoip = data.dns['fallback-filter'].geoip !== false;
                     if(data.dns['fallback-filter']['geoip-code']) config.value.dns['fallback-filter']['geoip-code'] = data.dns['fallback-filter']['geoip-code'];
-                    
+
                     if(data.dns['fallback-filter'].geosite) {
                         uiState.value.fallbackFilterGeositeEnable = true;
                         uiState.value.fallbackFilterGeosite = data.dns['fallback-filter'].geosite.join('\n');
                     } else { uiState.value.fallbackFilterGeositeEnable = false; }
-                    
+
                     if(data.dns['fallback-filter'].ipcidr) uiState.value.fallbackFilterIpcidr = data.dns['fallback-filter'].ipcidr.join('\n');
                     if(data.dns['fallback-filter'].domain) uiState.value.fallbackFilterDomain = data.dns['fallback-filter'].domain.join('\n');
                 }
-            } else config.value.dns.enable = false;
-            
+            } else {
+                config.value.dns.enable = false;
+                uiState.value.enableDnsFallback = false;
+            }
+
             if (data.hosts) {
-                uiState.value.hosts = Object.keys(data.hosts).map(k => `${k}: ${data.hosts[k]}`).join('\n');
-            } else { uiState.value.hosts = ''; }
+                uiState.value.hosts = Object.keys(data.hosts)
+                    .map(k => `${k}: ${data.hosts[k]}`)
+                    .join('\n');
+                if (config.value.dns && (!data.dns || data.dns['use-hosts'] === undefined)) {
+                    config.value.dns['use-hosts'] = true;
+                }
+            } else {
+                uiState.value.hosts = '';
+            }
 
             if (data['proxy-providers']) {
                 Object.values(data['proxy-providers']).forEach(p => {
@@ -2572,7 +2999,7 @@ createApp({
                 providersList.value = Object.keys(data['proxy-providers']).map(k => {
                     const p = data['proxy-providers'][k];
                     let prov = { name: k, type: p.type || 'http', overrideDialerProxy: '', inlineProxies: [] };
-                    
+
                     if (prov.type === 'http') {
                         prov.url = p.url || '';
                         prov.interval = p.interval || 3600;
@@ -2600,7 +3027,7 @@ createApp({
                 ruleProvidersList.value = Object.keys(data['rule-providers']).map(k => {
                     const p = data['rule-providers'][k];
                     let rp = { name: k, type: p.type || 'http', behavior: p.behavior || 'domain', format: p.format || 'yaml', interval: p.interval || 86400, autoUrl: false, customUrl: '', path: p.path || '', file: '', payload: '' };
-                    
+
                     if (rp.type === 'http') {
                         rp.customUrl = p.url || '';
                         if (rp.customUrl.includes('meta-rules-dat')) {
@@ -2648,7 +3075,7 @@ createApp({
             } else {
                 uiState.value.rules = [];
             }
-            
+
             scrollToBottom();
         };
 
@@ -2656,8 +3083,8 @@ createApp({
             try {
                 await navigator.clipboard.writeText(fullYaml.value);
                 alert('YAML 已成功复制到剪贴板！');
-            } catch (e) { 
-                alert('复制失败，请在右侧代码框中手动全选复制。'); 
+            } catch (e) {
+                alert('复制失败，请在右侧代码框中手动全选复制。');
             }
         };
 
@@ -2673,14 +3100,22 @@ createApp({
 
         onMounted(() => {
             try {
-                const saved = localStorage.getItem('mihomo_web_config_v16');
+                const saved = localStorage.getItem('mihomo_web_config_v17');
                 if (saved) {
                     const p = JSON.parse(saved);
                     if (p.config) deepMerge(config.value, p.config);
-                    if (p.uiState) deepMerge(uiState.value, p.uiState);
+                    if (p.uiState) {
+                        deepMerge(uiState.value, p.uiState);
+                        if (!Object.prototype.hasOwnProperty.call(p.uiState, 'tunDnsHijackEnabled')) {
+                            uiState.value.tunDnsHijackEnabled = !!String(uiState.value.tunDnsHijack || '').trim();
+                        }
+                        if (!Object.prototype.hasOwnProperty.call(p.uiState, 'enableDnsFallback')) {
+                            uiState.value.enableDnsFallback = !!String(uiState.value.dnsFallback || '').trim();
+                        }
+                    }
                     if (p.providersList) providersList.value = p.providersList;
                     if (p.ruleProvidersList) ruleProvidersList.value = p.ruleProvidersList;
-                    
+
                     if (config.value.proxies && Array.isArray(config.value.proxies)) {
                         config.value.proxies = config.value.proxies.map(px => parseSingleProxyNode(px)).filter(Boolean);
                     }
@@ -2691,27 +3126,34 @@ createApp({
                 console.error("缓存数据解析失败，已跳过:", e);
                 crashError.value = `应用启动崩溃: ${e.message}`;
             }
-            
+
+                uiState.value.nftablesConfig = normalizeNftablesConfig(uiState.value.nftablesConfig, config.value);
+                sanitizeNftMarks();
+                if (config.value && config.value.dns) config.value.dns.listen = String(getListenPort(config.value.dns.listen, 53));
+
             try {
-                buildYaml(); 
+                buildYaml();
             } catch (e) {
                 console.error("初始 YAML 构建异常:", e);
             }
         });
 
-        return { 
-            tabs, currentTab, yamlPreviewBox, fileInput, uiState, config, panels, providersList, ruleProvidersList, 
-            pickPanel, addListener, removeListener, addProvider, removeProvider, addRuleProvider, removeRuleProvider, 
+        return {
+            tabs, currentTab, yamlPreviewBox, fileInput, uiState, config, panels, providersList, ruleProvidersList,
+            pickPanel, addListener, removeListener, addProvider, removeProvider, addRuleProvider, removeRuleProvider,
             getRuleProviderUrl, addManualProxy, addGroup, removeGroup, getAvailableGroupMembers, addRule, addCondition,
-            draggedRuleIndex, onRuleDragStart, onRuleDragEnter, onRuleDrop, onRuleDragEnd, getInlinePayloadPreview, 
-            yamlSections, fullYaml, copyYaml, downloadYaml, clearLists, clearCache, forceClearCache, triggerYamlImport, 
-            handleYamlImport, handleFocus, isLocating, renderStatus, injectRegionGroups, autoCategorizeProxies, 
-            handleTproxyToggle, handleTunToggle, cancelTproxyEnable, resolveTproxyConflicts, routingCommands, 
-            copyCommands, nftablesScript, copyNftables, downloadNftables, systemdService, installScript, 
-            copyInstallScript, updateRuleProviderName, resetGeoUrls, formatConditions, crashError, askConfirm
+            draggedRuleIndex, onRuleDragStart, onRuleDragEnter, onRuleDrop, onRuleDragEnd, getInlinePayloadPreview,
+            yamlSections, fullYaml, copyYaml, downloadYaml, clearLists, forceClearCache, triggerYamlImport,
+            handleYamlImport, handleFocus, isLocating, renderStatus, injectRegionGroups, autoCategorizeProxies,
+            handleTproxyToggle, handleTunToggle, cancelTproxyEnable, resolveTproxyConflicts, nftMarkIssues, sanitizeNftMarks, resetNftMarksSafe, routingCommands,
+            copyCommands, nftablesScript, copyNftables, downloadNftables, systemdService, installScript,
+            copyInstallScript, updateRuleProviderName, resetGeoUrls, formatConditions,
+            dnsListenPort, dnsListenPortInput, normalizeDnsListenInput, showHostsEditor, usingTransparentProxy, dnsHijackEnabled, dnsForwardConflict, dnsLocalForwardNeedsNon53, dnsPathPreview, specifiedPortsContain53,
+            crashError, askConfirm
         };
     }
 }).mount('#app');
 </script>
+
 </body>
 </html>
