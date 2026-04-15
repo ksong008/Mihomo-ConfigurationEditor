@@ -22,6 +22,15 @@
         deepMerge
     } = window.MihomoHelpers;
 
+    if (!window.MihomoFeatureModules
+        || !window.MihomoFeatureModules.createDnsModule
+        || !window.MihomoFeatureModules.createTproxyModule
+        || !window.MihomoFeatureModules.createRulesModule
+        || !window.MihomoFeatureModules.createYamlModule
+    ) {
+        throw new Error('功能模块未加载，请确认先引入 ./mihomo.dns.js ./mihomo.tproxy.js ./mihomo.rules.js ./mihomo.yaml.js');
+    }
+
 createApp({
     setup() {
         const crashError = ref(null);
@@ -149,191 +158,41 @@ createApp({
 
         const resetGeoUrls = () => { uiState.value.useMirrorForGeo = true; config.value.geo.url = { geoip: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat', geosite: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat', mmdb: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb' }; };
 
-        const normalizeDnsListenText = (val, fallback = '53') => {
-            const raw = String(val ?? '').trim();
-            const digits = raw.replace(/[^\d]/g, '');
-            if (!digits) return fallback;
-            let port = Number(digits);
-            if (!Number.isInteger(port) || port < 1) port = 1;
-            if (port > 65535) port = 65535;
-            return String(port);
-        };
-
-        const dnsListenPortInput = computed({
-            get() {
-                return normalizeDnsListenText(config.value.dns && config.value.dns.listen, '53');
-            },
-            set(val) {
-                if (!config.value.dns) config.value.dns = {};
-                const digits = String(val ?? '').replace(/[^\d]/g, '');
-                if (!digits) {
-                    config.value.dns.listen = '';
-                    return;
-                }
-                let port = Number(digits);
-                if (!Number.isInteger(port) || port < 1) port = 1;
-                if (port > 65535) port = 65535;
-                config.value.dns.listen = String(port);
-            }
+        const dnsModule = window.MihomoFeatureModules.createDnsModule({
+            ref, computed, watch, config, uiState
         });
-
-        const normalizeDnsListenInput = () => {
-            if (!config.value.dns) return;
-            config.value.dns.listen = normalizeDnsListenText(config.value.dns.listen, '53');
-        };
-
-        const dnsListenPort = computed(() => getListenPort(config.value.dns && config.value.dns.listen, 53));
-        const showHostsEditor = computed(() => !!(config.value && config.value.dns && config.value.dns['use-hosts']));
-        const usingTransparentProxy = computed(() => !!((config.value.tun && config.value.tun.enable) || uiState.value.tproxyEnable));
-
-        const dnsHijackEnabled = computed(() => {
-            const tunHijack = !!(config.value.tun && config.value.tun.enable && uiState.value.tunDnsHijackEnabled && String(uiState.value.tunDnsHijack || '').trim());
-            const tproxyHijack = !!(uiState.value.tproxyEnable && uiState.value.nftablesConfig && uiState.value.nftablesConfig.hijackDns);
-            return tunHijack || tproxyHijack;
+        const {
+            dnsListenPortInput,
+            normalizeDnsListenInput,
+            dnsListenPort,
+            showHostsEditor,
+            usingTransparentProxy,
+            dnsHijackEnabled,
+            dnsForwardConflict,
+            dnsLocalForwardNeedsNon53,
+            specifiedPortsContain53,
+            dnsPathPreview
+        } = dnsModule;
+        const tproxyModule = window.MihomoFeatureModules.createTproxyModule({
+            watch, computed, config, uiState, dnsListenPort
         });
-
-        const dnsForwardConflict = computed(() => !!(uiState.value.useLocalDns53Forward && dnsHijackEnabled.value));
-        const dnsLocalForwardNeedsNon53 = computed(() => !!(uiState.value.useLocalDns53Forward && dnsListenPort.value === 53));
-
-        const specifiedProxyPortList = computed(() =>
-            parseCommaList((uiState.value.nftablesConfig && uiState.value.nftablesConfig.commonPorts) || '')
-                .map(s => String(s).trim())
-                .filter(Boolean)
-        );
-
-        const specifiedPortsContain53 = computed(() =>
-            !!(uiState.value.nftablesConfig && uiState.value.nftablesConfig.filterPorts && specifiedProxyPortList.value.includes('53'))
-        );
-
-        const dnsPathPreview = computed(() => {
-            const listen = `:${dnsListenPort.value}`;
-
-            if (!(config.value.dns && config.value.dns.enable)) {
-                return {
-                    tone: 'slate',
-                    title: 'DNS 当前未启用',
-                    lines: [
-                        'DNS 未启用，客户端会按系统原始 DNS 设置直接发送。',
-                        '若你准备使用透明代理分流，建议开启内置 DNS。'
-                    ]
-                };
-            }
-
-            if (dnsForwardConflict.value) {
-                return {
-                    tone: 'amber',
-                    title: '检测到 DNS 劫持与本地 53 转发同时开启',
-                    lines: [
-                        '客户端 -> 53 端口请求',
-                        '-> 可能被 TUN / TProxy DNS 劫持接走',
-                        '-> 也可能先到本机 53 前端再转发',
-                        '建议：DNS 劫持 与 本地 53 前端转发 二选一'
-                    ]
-                };
-            }
-
-            if (uiState.value.useLocalDns53Forward) {
-                return {
-                    tone: dnsLocalForwardNeedsNon53.value ? 'amber' : 'emerald',
-                    title: '使用本地 53 端口转发',
-                    lines: [
-                        '客户端 -> 192.168.1.1:53',
-                        '-> 本机 53 前端服务 (dnsmasq / smartdns / AdGuard Home)',
-                        `-> 127.0.0.1:${dnsListenPort.value}`,
-                        '-> Mihomo 内置 DNS'
-                    ]
-                };
-            }
-
-            if (dnsHijackEnabled.value) {
-                const mode = (config.value.tun && config.value.tun.enable) ? 'TUN dns-hijack' : 'TProxy DNS 劫持';
-                return {
-                    tone: 'emerald',
-                    title: `${mode} 已接管 53 端口`,
-                    lines: [
-                        '客户端 -> 任意 DNS:53',
-                        `-> ${mode}`,
-                        `-> ${listen}`,
-                        '-> Mihomo 内置 DNS'
-                    ]
-                };
-            }
-
-            if (usingTransparentProxy.value) {
-                return {
-                    tone: 'amber',
-                    title: '透明代理已开启，但 DNS 未被接管',
-                    lines: [
-                        '客户端 -> 原始 DNS 服务器:53',
-                        '-> 不经过 Mihomo 内置 DNS',
-                        '如需稳定域名分流，请开启 DNS 劫持或使用本地 53 端口转发'
-                    ]
-                };
-            }
-
-            return {
-                tone: 'slate',
-                title: '按客户端原始 DNS 设置发送',
-                lines: [
-                    '当前既未启用透明代理 DNS 劫持，也未使用本地 53 端口转发。',
-                    'DNS 行为取决于客户端自己的 DNS 配置。'
-                ]
-            };
-        });
-
-        const dns53WarnedKey = ref('');
-        watch(
-            () => [
-                config.value.tun && config.value.tun.enable,
-                uiState.value.tproxyEnable,
-                config.value.dns && config.value.dns.enable,
-                config.value.dns && config.value.dns.listen
-            ].join('|'),
-            () => {
-                if (usingTransparentProxy.value && config.value.dns && config.value.dns.enable && dnsListenPort.value === 53) {
-                    const key = [
-                        config.value.tun && config.value.tun.enable ? 'tun' : '',
-                        uiState.value.tproxyEnable ? 'tproxy' : '',
-                        config.value.dns && config.value.dns.listen ? config.value.dns.listen : ':53'
-                    ].join('|');
-
-                    if (dns53WarnedKey.value !== key) {
-                        dns53WarnedKey.value = key;
-                        setTimeout(() => {
-                            alert('检测到已启用 TUN 或 TProxy，而全局 DNS 监听端口仍为 53。\n\n请修改为其它端口，避免与本机 53 端口服务、DNS 劫持或本地 53 端口转发冲突。');
-                        }, 0);
-                    }
-                } else {
-                    dns53WarnedKey.value = '';
-                }
-            },
-            { immediate: true }
-        );
-
-        watch(() => uiState.value.nftablesConfig?.tproxyIpv6, (val) => {
-            if (!uiState.value.nftablesConfig) return;
-            if (val && uiState.value.nftablesConfig.listen === '0.0.0.0') {
-                uiState.value.nftablesConfig.listen = '::';
-            } else if (!val && uiState.value.nftablesConfig.listen === '::') {
-                uiState.value.nftablesConfig.listen = '0.0.0.0';
-            }
-        });
-
-        watch(() => uiState.value.nftablesConfig?.routeMarkHex, (v) => {
-            if (!uiState.value.nftablesConfig) return;
-            config.value['routing-mark'] = parseMarkValue(v, 112);
-        }, { immediate: true });
-
-        watch(() => uiState.value.nftablesConfig?.egressIface, (v) => {
-            if (!uiState.value.nftablesConfig) return;
-            config.value['interface-name'] = (v || '').trim();
-        }, { immediate: true });
-
-        watch(() => config.value['tproxy-port'], (v) => {
-            if (!uiState.value.nftablesConfig) return;
-            uiState.value.nftablesConfig.tproxyPort = v || 7894;
-        }, { immediate: true });
-
+        const {
+            handleTproxyToggle,
+            handleTunToggle,
+            cancelTproxyEnable,
+            resolveTproxyConflicts,
+            nftMarkIssues,
+            sanitizeNftMarks,
+            resetNftMarksSafe,
+            routingCommands,
+            copyCommands,
+            nftablesScript,
+            copyNftables,
+            downloadNftables,
+            systemdService,
+            installScript,
+            copyInstallScript
+        } = tproxyModule;
         const scrollToBottom = () => {
             nextTick(() => {
                 const scrollBox = document.getElementById('main-scroll');
@@ -344,310 +203,20 @@ createApp({
         const addListener = () => { config.value.listeners.push({ name: `listener-${config.value.listeners.length + 1}`, type: 'mixed', port: 7890, listen: '::', udp: true }); };
         const removeListener = (idx) => { config.value.listeners.splice(idx, 1); };
 
-        const handleTproxyToggle = (e) => {
-            if (uiState.value.tproxyEnable) {
-                sanitizeNftMarks();
-                let conflicts = [];
-                if (config.value.tun && config.value.tun.enable) {
-                    conflicts.push({ key: 'tun', desc: 'TUN 透明代理模式已开启 (TUN 与 Tproxy 可能会产生路由循环和冲突)' });
-                }
-                if (conflicts.length > 0) {
-                    uiState.value.tproxyConflicts = conflicts;
-                    uiState.value.pendingAction = 'tproxy';
-                    uiState.value.showTproxyConflict = true;
-                    uiState.value.tproxyEnable = false;
-                }
-            }
-        };
-
-        const handleTunToggle = (e) => {
-            if (config.value.tun && config.value.tun.enable) {
-                let conflicts = [];
-                if (uiState.value.tproxyEnable) {
-                    conflicts.push({ key: 'tproxy', desc: 'Tproxy 透明代理模式已开启 (TUN 与 Tproxy 可能会产生路由循环和冲突)' });
-                }
-                if (conflicts.length > 0) {
-                    uiState.value.tproxyConflicts = conflicts;
-                    uiState.value.pendingAction = 'tun';
-                    uiState.value.showTproxyConflict = true;
-                    config.value.tun.enable = false;
-                }
-            }
-        };
-
-        const cancelTproxyEnable = () => { uiState.value.showTproxyConflict = false; uiState.value.pendingAction = ''; };
-
-        const resolveTproxyConflicts = () => {
-            uiState.value.tproxyConflicts.forEach(c => {
-                if (c.key === 'tun' && config.value.tun) config.value.tun.enable = false;
-                if (c.key === 'tproxy') uiState.value.tproxyEnable = false;
-            });
-            uiState.value.showTproxyConflict = false;
-            if (uiState.value.pendingAction === 'tproxy') {
-                uiState.value.tproxyEnable = true;
-            } else if (uiState.value.pendingAction === 'tun' && config.value.tun) {
-                config.value.tun.enable = true;
-            }
-            uiState.value.pendingAction = '';
-        };
-
-        const RESERVED_ROUTE_TABLES = new Set([0, 253, 254, 255]);
-
-        const nftMarkIssues = computed(() => {
-            if (!uiState.value.nftablesConfig) return [];
-            const issues = [];
-            const proxyMark = parseMarkValue(uiState.value.nftablesConfig.tproxyMarkHex, 111);
-            const routeMark = parseMarkValue(uiState.value.nftablesConfig.routeMarkHex, 112);
-
-            if (RESERVED_ROUTE_TABLES.has(proxyMark)) issues.push(`代理 Mark ${proxyMark} 与保留路由表号冲突`);
-            if (RESERVED_ROUTE_TABLES.has(routeMark)) issues.push(`路由 Mark ${routeMark} 与保留路由表号冲突`);
-            if (proxyMark === routeMark) issues.push('代理 Mark 与路由 Mark 不能相同');
-            return issues;
+        const rulesModule = window.MihomoFeatureModules.createRulesModule({
+            ref, config, uiState, scrollToBottom
         });
-
-        const sanitizeNftMarks = () => {
-            if (!uiState.value.nftablesConfig) return;
-            let proxyMark = parseMarkValue(uiState.value.nftablesConfig.tproxyMarkHex, 111);
-            let routeMark = parseMarkValue(uiState.value.nftablesConfig.routeMarkHex, 112);
-
-            if (RESERVED_ROUTE_TABLES.has(proxyMark)) proxyMark = 111;
-            if (RESERVED_ROUTE_TABLES.has(routeMark)) routeMark = 112;
-            if (proxyMark === routeMark) routeMark = proxyMark === 111 ? 112 : 111;
-
-            uiState.value.nftablesConfig.tproxyMarkHex = String(proxyMark);
-            uiState.value.nftablesConfig.routeMarkHex = String(routeMark);
-        };
-
-        const resetNftMarksSafe = () => {
-            if (!uiState.value.nftablesConfig) return;
-            uiState.value.nftablesConfig.tproxyMarkHex = '111';
-            uiState.value.nftablesConfig.routeMarkHex = '112';
-        };
-
-        const formatConditions = (r) => {
-            if (!r || !r.conditions) return '';
-            return r.conditions.map(c => {
-                if(!c) return '';
-                let res = '';
-                if (c.not) res += 'NOT ';
-                res += c.type || '';
-                if (c.value) res += ',' + c.value;
-                return res;
-            }).join(r.logic === 'AND' ? ' && ' : ' || ');
-        };
-
-        const routingCommands = computed(() => {
-            const proxyMark = parseMarkValue(uiState.value.nftablesConfig?.tproxyMarkHex, 111);
-            const ipv6 = !!uiState.value.nftablesConfig?.tproxyIpv6;
-
-            let cmds = `ip rule add fwmark ${proxyMark} table ${proxyMark}\nip route add local default dev lo table ${proxyMark}`;
-            if (ipv6) {
-                cmds += `\nip -6 rule add fwmark ${proxyMark} table ${proxyMark}\nip -6 route add local default dev lo table ${proxyMark}`;
-            }
-            return cmds;
-        });
-
-        const copyCommands = async () => {
-            try {
-                await navigator.clipboard.writeText(routingCommands.value);
-                alert('路由命令已复制');
-            } catch(e){}
-        };
-
-        const systemdService = computed(() => {
-            const nft = uiState.value.nftablesConfig || {};
-            const nftTable = ((nft.nftTable || 'mihomo').trim() || 'mihomo').replace(/[^\w-]+/g, '_');
-            const proxyMark = parseMarkValue(nft.tproxyMarkHex, 111);
-            const ipv6 = !!nft.tproxyIpv6;
-
-            let script = `[Unit]\nDescription=Mihomo TProxy Routing Rules\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\n\n`;
-            script += `# 启动前删除旧表（忽略不存在错误）\n`;
-            script += `ExecStartPre=-/usr/sbin/nft delete table inet ${nftTable}\n`;
-            script += `ExecStart=/usr/sbin/nft -f /etc/mihomo/tproxy.nft\n`;
-            script += `ExecStart=/sbin/ip rule add fwmark ${proxyMark} table ${proxyMark}\n`;
-            script += `ExecStart=/sbin/ip route add local default dev lo table ${proxyMark}\n`;
-            if (ipv6) {
-                script += `ExecStart=/sbin/ip -6 rule add fwmark ${proxyMark} table ${proxyMark}\n`;
-                script += `ExecStart=/sbin/ip -6 route add local default dev lo table ${proxyMark}\n`;
-            }
-
-            script += `\n# 停止时删除路由与 nft 表（忽略不存在错误）\n`;
-            script += `ExecStop=-/sbin/ip rule del fwmark ${proxyMark} table ${proxyMark}\n`;
-            script += `ExecStop=-/sbin/ip route del local default dev lo table ${proxyMark}\n`;
-            if (ipv6) {
-                script += `ExecStop=-/sbin/ip -6 rule del fwmark ${proxyMark} table ${proxyMark}\n`;
-                script += `ExecStop=-/sbin/ip -6 route del local default dev lo table ${proxyMark}\n`;
-            }
-            script += `ExecStop=-/usr/sbin/nft delete table inet ${nftTable}\n`;
-            script += `\n[Install]\nWantedBy=multi-user.target`;
-            return script;
-        });
-
-        const nftablesScript = computed(() => {
-            const nft = uiState.value.nftablesConfig || {};
-
-            const table = (((nft.nftTable || 'mihomo').trim()) || 'mihomo').replace(/[^\w-]+/g, '_');
-            const tproxyPort = Number(config.value['tproxy-port'] || nft.tproxyPort || 7894);
-            const dnsPort = getListenPort(config.value.dns && config.value.dns.listen, 53);
-
-            const proxyMark = parseMarkValue(nft.tproxyMarkHex, 111);
-            const routeMark = parseMarkValue(nft.routeMarkHex, 112);
-
-            const ingressIface = (nft.ingressIface || '').trim();
-            const egressIface = (nft.egressIface || config.value['interface-name'] || '').trim();
-
-            const proxyUid = String(nft.proxyUid || '').trim();
-            const proxyGid = String(nft.proxyGid || '').trim();
-            const hasUidGid = !!(proxyUid && proxyGid);
-
-            const ipv6 = !!nft.tproxyIpv6;
-            const hijackDns = !!nft.hijackDns;
-            const bypassCnIp = !!nft.bypassCnIp;
-            const filterPorts = !!nft.filterPorts;
-
-            const commonPorts = parseCommaList(nft.commonPorts).join(', ');
-            const fakeIpRange = (config.value.dns && config.value.dns['enhanced-mode'] === 'fake-ip' && config.value.dns['fake-ip-range'])
-                ? config.value.dns['fake-ip-range']
-                : '';
-
-            const private4 = parseLineList(nft.privateIps).filter(cidr => !fakeIpRange || cidr !== fakeIpRange);
-            const private6 = parseLineList(nft.privateIpsV6);
-            const cn4 = parseLineList(nft.cnIps);
-            const cn6 = parseLineList(nft.cnIpsV6);
-
-            const dnsBypassLine = hijackDns
-                ? `        meta l4proto { tcp, udp } th dport 53 accept comment "DNS 交给 NAT/redirect 链处理"\n`
-                : '';
-
-            const portFilterRulesV4 = (filterPorts && commonPorts)
-                ? (
-                    fakeIpRange
-                        ? `        ip daddr != ${fakeIpRange} tcp dport != { ${commonPorts} } accept comment "非 Fake-IP 的非常规 TCP 端口直连"\n        ip daddr != ${fakeIpRange} udp dport != { ${commonPorts} } accept comment "非 Fake-IP 的非常规 UDP 端口直连"\n`
-                        : `        tcp dport != { ${commonPorts} } accept comment "非常规 TCP 端口直连"\n        udp dport != { ${commonPorts} } accept comment "非常规 UDP 端口直连"\n`
-                )
-                : '';
-
-            let script = `#!/usr/sbin/nft -f
-
-# table name: ${table}
-# 若手动重复执行 nft -f 时提示 table already exists，可先执行：
-#   nft delete table inet ${table}
-
-table inet ${table} {
-    set private_ip {
-        type ipv4_addr
-        flags interval
-        elements = { ${private4.length ? private4.join(', ') : '127.0.0.0/8'} }
-    }
-`;
-
-            if (ipv6) {
-                script += `
-    set private_ip6 {
-        type ipv6_addr
-        flags interval
-        elements = { ${private6.length ? private6.join(', ') : '::1/128'} }
-    }
-`;
-            }
-
-            if (bypassCnIp && cn4.length) {
-                script += `
-    set cn_ip {
-        type ipv4_addr
-        flags interval
-        elements = { ${cn4.join(', ')} }
-    }
-`;
-            }
-
-            if (bypassCnIp && ipv6 && cn6.length) {
-                script += `
-    set cn_ip6 {
-        type ipv6_addr
-        flags interval
-        elements = { ${cn6.join(', ')} }
-    }
-`;
-            }
-
-            if (hijackDns) {
-                script += `
-    chain prerouting_dns {
-        type nat hook prerouting priority dstnat; policy accept;
-${ingressIface ? `        iifname != "lo" iifname != "${ingressIface}" accept comment "非指定入口接口放行"\n` : ''}        meta l4proto { tcp, udp } th dport 53 redirect to :${dnsPort} comment "DNS -> Mihomo DNS"
-    }
-
-    chain output_dns {
-        type nat hook output priority dstnat; policy accept;
-${hasUidGid ? `        meta skuid ${proxyUid} meta skgid ${proxyGid} accept comment "Mihomo 自身 DNS 请求放行"\n` : `        oifname "lo" accept comment "缺少 UID/GID 时仅放行 lo，避免最明显的 DNS 回环"\n`}        meta l4proto { tcp, udp } th dport 53 redirect to :${dnsPort} comment "本机 DNS -> Mihomo DNS"
-    }
-`;
-            }
-
-            script += `
-    chain prerouting_tproxy {
-        type filter hook prerouting priority mangle; policy accept;
-${ingressIface ? `        iifname != "lo" iifname != "${ingressIface}" accept comment "非指定入口接口放行"\n` : ''}${dnsBypassLine}        fib daddr type local accept comment "发往本机地址的流量放行"
-        ip daddr @private_ip accept comment "私有 IPv4 放行"
-${bypassCnIp && cn4.length ? `        ip daddr @cn_ip accept comment "大陆 IPv4 放行"\n` : ''}${!ipv6 ? `        meta nfproto ipv6 accept comment "未启用 IPv6 TProxy"\n` : ''}${portFilterRulesV4}        meta l4proto { tcp, udp } th dport ${tproxyPort} reject with icmpx type host-unreachable comment "拒绝外部直接打到 TProxy 端口"
-        meta l4proto tcp socket transparent 1 meta mark set ${proxyMark} accept comment "已由透明 socket 接管的 TCP 流量放行"
-        meta l4proto { tcp, udp } tproxy to :${tproxyPort} meta mark set ${proxyMark} comment "导流到 Mihomo TProxy 端口"
-    }
-
-    chain output_tproxy {
-        type route hook output priority mangle; policy accept;
-${egressIface ? `        oifname != "${egressIface}" accept comment "非指定出口接口放行"\n` : ''}        ct direction reply accept comment "本机服务回包放行"\n        meta mark ${routeMark} accept comment "已打 route mark 的自身流量放行"
-${hasUidGid ? `        meta skuid ${proxyUid} meta skgid ${proxyGid} meta mark set ${routeMark} accept comment "Mihomo 自身流量改打 route mark，避免回环"\n` : ''}${dnsBypassLine}        fib daddr type local accept comment "发往本机地址的流量放行"
-        ip daddr @private_ip accept comment "私有 IPv4 放行"
-${bypassCnIp && cn4.length ? `        ip daddr @cn_ip accept comment "大陆 IPv4 放行"\n` : ''}${!ipv6 ? `        meta nfproto ipv6 accept comment "未启用 IPv6 TProxy"\n` : ''}${portFilterRulesV4}        meta l4proto { tcp, udp } meta mark set ${proxyMark} comment "本机流量打 proxy mark，交给策略路由回注 lo"
-    }
-`;
-
-            if (ipv6) {
-                script += `
-    chain prerouting_tproxy_v6 {
-        type filter hook prerouting priority mangle; policy accept;
-${ingressIface ? `        iifname != "lo" iifname != "${ingressIface}" accept comment "非指定入口接口放行"\n` : ''}${dnsBypassLine}        fib daddr type local accept comment "发往本机 IPv6 的流量放行"
-        ip6 daddr @private_ip6 accept comment "私有 IPv6 放行"
-${bypassCnIp && cn6.length ? `        ip6 daddr @cn_ip6 accept comment "大陆 IPv6 放行"\n` : ''}        meta l4proto { tcp, udp } th dport ${tproxyPort} reject with icmpx type host-unreachable comment "拒绝外部直接打到 TProxy 端口"
-        meta l4proto tcp socket transparent 1 meta mark set ${proxyMark} accept comment "已由透明 socket 接管的 TCP 流量放行"
-        meta l4proto { tcp, udp } tproxy to :${tproxyPort} meta mark set ${proxyMark} comment "导流到 Mihomo TProxy 端口"
-    }
-
-    chain output_tproxy_v6 {
-        type route hook output priority mangle; policy accept;
-${egressIface ? `        oifname != "${egressIface}" accept comment "非指定出口接口放行"\n` : ''}        ct direction reply accept comment "本机服务回包放行"\n        meta mark ${routeMark} accept comment "已打 route mark 的自身流量放行"
-${hasUidGid ? `        meta skuid ${proxyUid} meta skgid ${proxyGid} meta mark set ${routeMark} accept comment "Mihomo 自身流量改打 route mark，避免回环"\n` : ''}${dnsBypassLine}        fib daddr type local accept comment "发往本机 IPv6 的流量放行"
-        ip6 daddr @private_ip6 accept comment "私有 IPv6 放行"
-${bypassCnIp && cn6.length ? `        ip6 daddr @cn_ip6 accept comment "大陆 IPv6 放行"\n` : ''}        meta l4proto { tcp, udp } meta mark set ${proxyMark} comment "本机 IPv6 流量打 proxy mark，交给策略路由回注 lo"
-    }
-`;
-            }
-
-            script += `}\n`;
-            return script;
-        });
-
-        const getCleanNftables = () => { return nftablesScript.value; };
-
-        const installScript = computed(() => {
-            return `#!/bin/bash\n# 一键部署 Mihomo 透明代理持久化环境\nmkdir -p /etc/mihomo\n\n# 1. 写入 nftables 规则\ncat > /etc/mihomo/tproxy.nft << 'EOF'\n${getCleanNftables()}\nEOF\n\n# 2. 写入 Systemd 服务\ncat > /etc/systemd/system/mihomo-tproxy.service << 'EOF'\n${systemdService.value}\nEOF\n\n# 3. 重新加载并启用服务\nsystemctl daemon-reload\nsystemctl enable --now mihomo-tproxy\necho "Mihomo 透明代理规则已持久化部署并启动！"`;
-        });
-
-        const copyNftables = async () => { try { await navigator.clipboard.writeText(getCleanNftables()); alert('nftables 规则已复制'); } catch(e){} };
-                const downloadNftables = () => {
-            const url = URL.createObjectURL(new Blob([getCleanNftables()], { type: 'text/plain' }));
-            const a = document.createElement('a');
-            const fname = ((uiState.value.nftablesConfig?.nftTable || 'mihomo').trim() || 'mihomo').replace(/[^\w.-]+/g, '_');
-            a.href = url;
-            a.download = `${fname}.nft`;
-            a.click();
-            URL.revokeObjectURL(url);
-        };
-        const copyInstallScript = async () => { try { await navigator.clipboard.writeText(installScript.value); alert('部署脚本已复制'); } catch(e){} };
-
-
+        const {
+            formatConditions,
+            addCondition,
+            addRule,
+            draggedRuleIndex,
+            onRuleDragStart,
+            onRuleDragEnter,
+            onRuleDrop,
+            onRuleDragEnd,
+            parseRuleString
+        } = rulesModule;
         const parseSingleProxyNode = (px) => {
             if (!px) return null;
 
@@ -803,26 +372,6 @@ ${bypassCnIp && cn6.length ? `        ip6 daddr @cn_ip6 accept comment "大陆 I
             });
         };
 
-        const addCondition = (r) => {
-            if (!r.conditions) r.conditions = [];
-            r.conditions.push({type:'DOMAIN',value:'',not:false,noResolve:false});
-        };
-
-        const addRule = (kind) => {
-            if (!uiState.value.rules) uiState.value.rules = [];
-            const matchIdx = uiState.value.rules.findIndex(r => r.type === 'MATCH' && !r.logic);
-            let newRule;
-            const fallbackTarget = (config.value['proxy-groups'] && config.value['proxy-groups'][0]) ? config.value['proxy-groups'][0].name : 'DIRECT';
-            if (kind === 'AND' || kind === 'OR') {
-                newRule = { logic: kind, not: false, target: fallbackTarget, conditions: [{ type: 'DOMAIN', value: '', not: false, noResolve: false }] };
-            } else {
-                newRule = { type: 'GEOSITE', value: '', target: fallbackTarget, noResolve: false, not: false };
-            }
-            if (matchIdx !== -1) uiState.value.rules.splice(matchIdx, 0, newRule);
-            else uiState.value.rules.push(newRule);
-            scrollToBottom();
-        };
-
         const pickPanel = (p) => { uiState.value.selectedPanel = p.id; config.value['external-ui-url'] = uiState.value.useMirrorForPanels ? p.mirrorUrl : p.rawUrl; };
         const addProvider = () => { providersList.value.push({ name: `Provider-${(providersList.value||[]).length + 1}`, type: 'http', url: '', interval: 3600, healthUrl: 'https://www.gstatic.com/generate_204', overrideDialerProxy: '', useDownloadProxy: false, downloadProxy: '', inlineProxies: [], lazy: true, healthCheckLazy: true, healthCheckTimeout: 5000 }); scrollToBottom(); };
         const removeProvider = (idx) => providersList.value.splice(idx, 1);
@@ -859,11 +408,6 @@ ${bypassCnIp && cn6.length ? `        ip6 daddr @cn_ip6 accept comment "大陆 I
                 config.value.proxies = []; config.value['proxy-groups'] = []; providersList.value = []; ruleProvidersList.value = []; uiState.value.rules = [];
             }
         };
-        const draggedRuleIndex = ref(null);
-        const onRuleDragStart = (idx, e) => { draggedRuleIndex.value = idx; e.dataTransfer.effectAllowed = 'move'; };
-        const onRuleDragEnter = () => {}; const onRuleDragEnd = () => { draggedRuleIndex.value = null; (uiState.value.rules||[]).forEach(r => r.draggable = false); };
-        const onRuleDrop = (idx) => { const from = draggedRuleIndex.value; if (from !== null && from !== idx && uiState.value.rules) { const item = uiState.value.rules.splice(from, 1)[0]; uiState.value.rules.splice(idx, 0, item); } onRuleDragEnd(); };
-
         const getInlinePayloadPreview = (inlineProxies) => {
             if (!inlineProxies || inlineProxies.length === 0) return '[]';
             const nodes = inlineProxies.map(name => {
@@ -877,320 +421,14 @@ ${bypassCnIp && cn6.length ? `        ip6 daddr @cn_ip6 accept comment "大陆 I
             } catch (e) { return '# Preview Error'; }
         };
 
-        const yamlSections = ref({ general: '', network: '', proxies: '', providers: '', ruleProviders: '', groups: '', rules: '' });
-        const fullYaml = ref('');
-
-        const buildYaml = () => {
-            try {
-                const raw = JSON.parse(JSON.stringify(config.value));
-                const parseText = (text) => text ? (text||'').split('\n').map(s => s.trim()).filter(Boolean) : [];
-                const opts = { indent: 2, lineWidth: -1, noRefs: true, sortKeys: false };
-
-                let outGeneral = {};
-
-                Object.assign(outGeneral, {
-                    'mixed-port': raw['mixed-port'],
-                    port: raw.port,
-                    'socks-port': raw['socks-port'],
-                    'redir-port': raw['redir-port'],
-                    'tproxy-port': uiState.value.tproxyEnable ? (raw['tproxy-port'] || uiState.value.nftablesConfig.tproxyPort || 7894) : raw['tproxy-port'],
-                    'allow-lan': raw['allow-lan'], mode: raw.mode, 'log-level': raw['log-level'], ipv6: raw.ipv6,
-                    'external-controller': raw['external-controller']
-                });
-
-                ['mixed-port', 'port', 'socks-port', 'redir-port', 'tproxy-port'].forEach(k => {
-                    if (!outGeneral[k] && outGeneral[k] !== 0) delete outGeneral[k];
-                });
-
-                if (raw['global-client-fingerprint']) outGeneral['global-client-fingerprint'] = raw['global-client-fingerprint'];
-                if (raw.secret) outGeneral.secret = raw.secret;
-                if (raw['external-ui-url']) { outGeneral['external-ui'] = raw['external-ui']; outGeneral['external-ui-url'] = raw['external-ui-url']; }
-                if (raw['interface-name']) outGeneral['interface-name'] = raw['interface-name'];
-                if (raw['geodata-mode'] !== undefined) outGeneral['geodata-mode'] = raw['geodata-mode'];
-
-                if (raw.geo) {
-                    outGeneral['geo-auto-update'] = raw.geo['auto-update'];
-                    outGeneral['geo-update-interval'] = raw.geo.interval;
-                    outGeneral['geox-url'] = raw.geo.url;
-                }
-
-                if (raw['unified-delay'] !== undefined) outGeneral['unified-delay'] = raw['unified-delay'];
-                if (raw['tcp-concurrent'] !== undefined) outGeneral['tcp-concurrent'] = raw['tcp-concurrent'];
-
-                if (raw.profile && (raw.profile['store-selected'] || raw.profile['store-selected'] === false)) {
-                    outGeneral.profile = raw.profile;
-                }
-                if (raw['find-process-mode'] !== 'always') outGeneral['find-process-mode'] = raw['find-process-mode'];
-
-                let rMarkInt = parseMarkValue(uiState.value.nftablesConfig.routeMarkHex, 112);
-                outGeneral['routing-mark'] = rMarkInt;
-
-                let finalListeners = [];
-                if (raw.listeners && Array.isArray(raw.listeners)) {
-                    finalListeners = JSON.parse(JSON.stringify(raw.listeners));
-                }
-
-                let tpIndex = finalListeners.findIndex(l => l.type === 'tproxy');
-                if (uiState.value.tproxyEnable) {
-                    if (tpIndex > -1) {
-                        finalListeners[tpIndex].port = uiState.value.nftablesConfig.tproxyPort || raw['tproxy-port'] || 7894;
-                        finalListeners[tpIndex].listen = uiState.value.nftablesConfig.listen || '0.0.0.0';
-                        finalListeners[tpIndex].udp = uiState.value.nftablesConfig.udp !== false;
-                    } else {
-                        finalListeners.push({
-                            name: 'tproxy-in',
-                            type: 'tproxy',
-                            port: uiState.value.nftablesConfig.tproxyPort || raw['tproxy-port'] || 7894,
-                            listen: uiState.value.nftablesConfig.listen || '0.0.0.0',
-                            udp: uiState.value.nftablesConfig.udp !== false
-                        });
-                    }
-                } else {
-                    if (tpIndex > -1) finalListeners.splice(tpIndex, 1);
-                }
-
-                if (finalListeners.length > 0) outGeneral.listeners = finalListeners;
-
-                let outNetwork = {};
-                if (raw.tun && raw.tun.enable) {
-                    outNetwork.tun = {
-                        enable: true, stack: raw.tun.stack, 'auto-route': raw.tun['auto-route'], 'auto-detect-interface': raw.tun['auto-detect-interface']
-                    };
-                    if (raw.tun.device && raw.tun.device.trim() !== '') outNetwork.tun.device = raw.tun.device.trim();
-                    if (raw.tun.mtu) outNetwork.tun.mtu = raw.tun.mtu;
-                    if (raw.tun.gso !== undefined) outNetwork.tun.gso = raw.tun.gso;
-                    if (raw.tun.gso && raw.tun['gso-max-size']) outNetwork.tun['gso-max-size'] = raw.tun['gso-max-size'];
-                    if (raw.tun['strict-route'] !== undefined) outNetwork.tun['strict-route'] = raw.tun['strict-route'];
-                    if (raw.tun['endpoint-independent-nat'] !== undefined) outNetwork.tun['endpoint-independent-nat'] = raw.tun['endpoint-independent-nat'];
-
-                    const hijack = uiState.value.tunDnsHijackEnabled
-                        ? (uiState.value.tunDnsHijack||'').split('\n').map(s=>s.trim()).filter(Boolean)
-                        : [];
-                    if (uiState.value.tunDnsHijackEnabled && hijack.length > 0) outNetwork.tun['dns-hijack'] = hijack;
-                }
-
-                if (raw.sniffer && raw.sniffer.enable) {
-                    outNetwork.sniffer = {
-                        enable: true, 'force-dns-mapping': raw.sniffer['force-dns-mapping'], 'parse-pure-ip': raw.sniffer['parse-pure-ip'], 'override-destination': raw.sniffer['override-destination']
-                    };
-
-                    let sHTTP = parsePorts(uiState.value.snifferSniff?.HTTP);
-                    let sTLS = parsePorts(uiState.value.snifferSniff?.TLS);
-                    let sQUIC = parsePorts(uiState.value.snifferSniff?.QUIC);
-                    if (sHTTP.length > 0 || sTLS.length > 0 || sQUIC.length > 0) {
-                        outNetwork.sniffer.sniff = {};
-                        if (sHTTP.length > 0) outNetwork.sniffer.sniff.HTTP = { ports: sHTTP };
-                        if (sTLS.length > 0) outNetwork.sniffer.sniff.TLS = { ports: sTLS };
-                        if (sQUIC.length > 0) outNetwork.sniffer.sniff.QUIC = { ports: sQUIC };
-                    }
-                    const skips = parseText(uiState.value.snifferSkipDomain);
-                    if(skips.length > 0) outNetwork.sniffer['skip-domain'] = skips;
-                    const forces = parseText(uiState.value.snifferForceDomain);
-                    if(forces.length > 0) outNetwork.sniffer['force-domain'] = forces;
-                    const whitelists = parseText(uiState.value.snifferPortWhitelist);
-                    if(whitelists.length > 0) outNetwork.sniffer['port-whitelist'] = whitelists.map(p => isNaN(p) ? p : Number(p));
-                }
-
-                if (raw.dns && raw.dns.enable) {
-                    outNetwork.dns = { ...raw.dns };
-                    const normalizedDnsListen = getListenPort(raw.dns.listen, 53);
-                    outNetwork.dns.listen = `:${normalizedDnsListen}`;
-                    if (outNetwork.dns['enhanced-mode'] === 'fake-ip') {
-                        outNetwork.dns['fake-ip-filter-mode'] = raw.dns['fake-ip-filter-mode'];
-                        const filters = parseText(uiState.value.fakeIpFilter);
-                        if (filters.length > 0) outNetwork.dns['fake-ip-filter'] = filters;
-                    } else { delete outNetwork.dns['fake-ip-range']; delete outNetwork.dns['fake-ip-filter-mode']; }
-
-                    outNetwork.dns['default-nameserver'] = parseText(uiState.value.dnsDefaultNameservers);
-                    outNetwork.dns.nameserver = parseText(uiState.value.dnsNameservers);
-                    if (uiState.value.enableDnsFallback) {
-                        outNetwork.dns.fallback = parseText(uiState.value.dnsFallback);
-                    } else {
-                        delete outNetwork.dns.fallback;
-                    }
-                    outNetwork.dns['proxy-server-nameserver'] = parseText(uiState.value.dnsProxyServerNameservers);
-                    outNetwork.dns['direct-nameserver'] = parseText(uiState.value.dnsDirectNameservers);
-
-                    const parsedPolicy = parseHosts(uiState.value.dnsNameserverPolicy);
-                    if (parsedPolicy) outNetwork.dns['nameserver-policy'] = parsedPolicy;
-
-                    if (uiState.value.enableDnsFallback && outNetwork.dns.fallback && outNetwork.dns.fallback.length > 0) {
-                        if (!outNetwork.dns['fallback-filter']) outNetwork.dns['fallback-filter'] = {};
-
-                        outNetwork.dns['fallback-filter'].geoip = config.value.dns['fallback-filter']?.geoip !== false;
-                        if (outNetwork.dns['fallback-filter'].geoip) {
-                            outNetwork.dns['fallback-filter']['geoip-code'] = config.value.dns['fallback-filter']['geoip-code'] || 'CN';
-                        } else {
-                            delete outNetwork.dns['fallback-filter']['geoip-code'];
-                        }
-
-                        const geosite = parseText(uiState.value.fallbackFilterGeosite);
-                        if (uiState.value.fallbackFilterGeositeEnable && geosite.length > 0) outNetwork.dns['fallback-filter'].geosite = geosite;
-
-                        const ipcidr = parseText(uiState.value.fallbackFilterIpcidr);
-                        const domain = parseText(uiState.value.fallbackFilterDomain);
-                        if (ipcidr.length > 0) outNetwork.dns['fallback-filter'].ipcidr = ipcidr;
-                        if (domain.length > 0) outNetwork.dns['fallback-filter'].domain = domain;
-                    } else {
-                        delete outNetwork.dns.fallback;
-                        delete outNetwork.dns['fallback-filter'];
-                    }
-
-                    ['default-nameserver', 'nameserver', 'fallback', 'proxy-server-nameserver', 'direct-nameserver'].forEach(k => { if (outNetwork.dns[k] && outNetwork.dns[k].length === 0) delete outNetwork.dns[k]; });
-                }
-
-                if (raw.dns && raw.dns['use-hosts']) {
-                    const parsedHosts = parseHosts(uiState.value.hosts);
-                    if (parsedHosts) outNetwork.hosts = parsedHosts;
-                }
-
-                const providerNames = (providersList.value || []).map(p => p.name).filter(Boolean);
-                const groupNames = (raw['proxy-groups'] || []).map(g => g.name).filter(Boolean);
-                const proxyNames = (raw.proxies || []).map(p => p.name).filter(Boolean);
-                const validStaticMembers = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', ...groupNames, ...proxyNames]);
-                const defaultRuleTarget = groupNames[0] || 'DIRECT';
-                const normalizeRuleTarget = (target) => validStaticMembers.has(target) ? target : defaultRuleTarget;
-                const normalizeDialerProxy = (value) => value && validStaticMembers.has(value) ? value : '';
-                let outProxies = {};
-                if (raw.proxies && raw.proxies.length > 0) {
-                    outProxies.proxies = raw.proxies.map(px => parseSingleProxyNode(px)).filter(Boolean);
-                }
-
-                let outProviders = {};
-                if (providersList.value && providersList.value.length > 0) {
-                    outProviders['proxy-providers'] = {};
-                    providersList.value.forEach(p => {
-                        if (p.name) {
-                            let prov = { type: p.type || 'http' };
-                            if (prov.type === 'http') {
-                                if (!p.url) return;
-                                prov.url = p.url;
-                                prov.interval = p.interval || 3600;
-                                if (p.lazy !== undefined) prov.lazy = p.lazy;
-                                prov.path = `./providers/${p.name}.yaml`;
-                                prov['health-check'] = {
-                                    enable: true, interval: 600, url: p.healthUrl || 'https://www.gstatic.com/generate_204',
-                                    lazy: p.healthCheckLazy !== false, timeout: p.healthCheckTimeout || 5000
-                                };
-                                const normalizedDownloadProxy = normalizeDialerProxy(p.downloadProxy);
-                                if (p.useDownloadProxy && normalizedDownloadProxy) prov['dialer-proxy'] = normalizedDownloadProxy;
-                            } else if (prov.type === 'inline') {
-                                let payloadNodes = [];
-                                if (p.inlineProxies && p.inlineProxies.length > 0) {
-                                    payloadNodes = p.inlineProxies.map(pxName => parseSingleProxyNode((raw.proxies||[]).find(x => x.name === pxName))).filter(Boolean);
-                                }
-                                prov.payload = payloadNodes;
-                                const normalizedOverrideDialerProxy = normalizeDialerProxy(p.overrideDialerProxy);
-                                if (normalizedOverrideDialerProxy) prov.override = { 'dialer-proxy': normalizedOverrideDialerProxy };
-                            }
-                            outProviders['proxy-providers'][p.name] = prov;
-                        }
-                    });
-                }
-
-                let outRuleProviders = {};
-                if (ruleProvidersList.value && ruleProvidersList.value.length > 0) {
-                    outRuleProviders['rule-providers'] = {};
-                    ruleProvidersList.value.forEach(rp => {
-                        if (!rp.name) return;
-                        let rProv = { type: rp.type || 'http', behavior: rp.behavior };
-                        if (rp.type !== 'inline') rProv.format = rp.format;
-                        if (rp.type === 'http') {
-                            const url = rp.autoUrl ? getRuleProviderUrl(rp) : rp.customUrl;
-                            if (!url) return;
-                            rProv.path = `./rules/${rp.name}.${rp.format}`;
-                            rProv.url = url;
-                            rProv.interval = rp.interval || 86400;
-                        } else if (rp.type === 'file') {
-                            rProv.path = rp.path || `./rules/${rp.name}.${rp.format}`;
-                        } else if (rp.type === 'inline') {
-                            rProv.payload = parseText(rp.payload);
-                        }
-                        outRuleProviders['rule-providers'][rp.name] = rProv;
-                    });
-                }
-
-                let outGroups = {};
-                if (raw['proxy-groups'] && raw['proxy-groups'].length > 0) {
-                    outGroups['proxy-groups'] = raw['proxy-groups'].map(g => {
-                        let cg = { name: g.name, type: g.type };
-                        if (g['include-all']) cg['include-all'] = true;
-
-                        if(g.type === 'load-balance') cg.strategy = g.strategy || 'consistent-hashing';
-
-                        if(g.type !== 'relay') {
-                            if(!cg['include-all']) {
-                                if(g.proxies && g.proxies.length>0) cg.proxies = g.proxies.filter(name => validStaticMembers.has(name));
-                                if(g.use && g.use.length>0) cg.use = g.use.filter(name => providerNames.includes(name));
-                            }
-                            if(g.filter) cg.filter = g.filter;
-                            if(g['exclude-filter']) cg['exclude-filter'] = g['exclude-filter'];
-                        } else {
-                            if(g.proxies && g.proxies.length>0) cg.proxies = g.proxies;
-                        }
-
-                        if(g.type === 'url-test' || g.type === 'fallback' || g.type === 'load-balance') {
-                            cg.url = g.url || 'https://www.gstatic.com/generate_204';
-                            cg.interval = g.interval || 300;
-                        }
-                        if(g.type === 'url-test' || g.type === 'fallback') {
-                            if (g.timeout > 0) cg.timeout = g.timeout;
-                        }
-                        if(g.type === 'url-test') { cg.tolerance = g.tolerance; cg.lazy = g.lazy; }
-                        const normalizedGroupDialerProxy = normalizeDialerProxy(g['dialer-proxy']);
-                        if(normalizedGroupDialerProxy) cg['dialer-proxy'] = normalizedGroupDialerProxy;
-
-                        if (cg.type === 'relay') {
-                            delete cg.url; delete cg.interval; delete cg.timeout; delete cg.tolerance; delete cg.lazy;
-                        }
-                        return cg;
-                    });
-                } else { outGroups['proxy-groups'] = [{ name: 'Proxy', type: 'select', proxies: ['DIRECT'] }]; }
-
-                let outRules = { rules: [] };
-                if (uiState.value.rules) {
-                    outRules.rules = uiState.value.rules.map(r => {
-                        const ipTypes = ['GEOIP', 'IP-CIDR', 'IP-CIDR6', 'SRC-IP-CIDR', 'IP-SUFFIX', 'IP-ASN', 'SRC-IP-SUFFIX', 'SRC-IP-ASN'];
-                        if (r.logic) {
-                            const parts = (r.conditions||[]).map(c => {
-                                let innerVal = c.type === 'DOMAIN-REGEX' && c.value && c.value.includes(',') ? `"${c.value}"` : c.value;
-                                let inner = `${c.type},${innerVal}`;
-                                if (c.noResolve && ipTypes.includes(c.type)) inner += ',no-resolve';
-                                return c.not ? `NOT,((${inner}))` : `(${inner})`;
-                            });
-                            const body = `${r.logic},(${parts.join(',')})`;
-                            const wrapped = r.not ? `NOT,((${body}))` : body;
-                            return `${wrapped},${normalizeRuleTarget(r.target)}`;
-                        }
-                        if (r.type === 'MATCH') return `MATCH,${normalizeRuleTarget(r.target)}`;
-                        let outerVal = r.type === 'DOMAIN-REGEX' && r.value && r.value.includes(',') ? `"${r.value}"` : r.value;
-                        let inner = `${r.type},${outerVal}`;
-                        if (r.not) {
-                            if (r.noResolve && ipTypes.includes(r.type)) inner += ',no-resolve';
-                            return `NOT,((${inner})),${normalizeRuleTarget(r.target)}`;
-                        } else {
-                            let ruleStr = `${inner},${normalizeRuleTarget(r.target)}`;
-                            if (r.noResolve && ipTypes.includes(r.type)) ruleStr += ',no-resolve';
-                            return ruleStr;
-                        }
-                    });
-                }
-                if (!outRules.rules.some(r => r.startsWith('MATCH'))) outRules.rules.push(`MATCH,${defaultRuleTarget}`);
-
-                const dump = (obj) => Object.keys(obj).length > 0 ? jsyaml.dump(obj, opts) : '';
-
-                yamlSections.value = {
-                    general: dump(outGeneral), network: dump(outNetwork),
-                    proxies: dump(outProxies), providers: dump(outProviders), ruleProviders: dump(outRuleProviders),
-                    groups: dump(outGroups), rules: dump(outRules)
-                };
-
-                fullYaml.value = [yamlSections.value.general, yamlSections.value.network, yamlSections.value.proxies, yamlSections.value.providers, yamlSections.value.ruleProviders, yamlSections.value.groups, yamlSections.value.rules].filter(Boolean).join('');
-            } catch (err) {
-                console.error("YAML 构建遭遇异常:", err);
-            }
-        };
-
+        const yamlModule = window.MihomoFeatureModules.createYamlModule({
+            ref, config, uiState, providersList, ruleProvidersList, parseSingleProxyNode, getRuleProviderUrl
+        });
+        const {
+            yamlSections,
+            fullYaml,
+            buildYaml
+        } = yamlModule;
         let lastTarget = '';
         const handleFocus = (e) => {
             const el = e.target.closest('[data-yaml-target]');
@@ -1251,49 +489,6 @@ ${bypassCnIp && cn6.length ? `        ip6 daddr @cn_ip6 accept comment "大陆 I
                 if (!isLocating.value) renderStatus.value = '实时渲染';
             }, 150);
         }, { deep: true });
-
-        const parseRuleString = (rStr) => {
-            if (typeof rStr !== 'string') return null;
-            let parts = splitByComma(rStr);
-
-            if (['AND', 'OR'].includes(parts[0]) && parts.length === 3) {
-                let logic = parts[0];
-                let innerStr = parts[1].replace(/^\(+|\)+$/g, '');
-                let target = parts[2];
-                let condStrs = splitByComma(innerStr);
-                let conditions = condStrs.map(c => {
-                    let stripped = c.replace(/^\(+|\)+$/g, '');
-                    let cParts = splitByComma(stripped);
-                    let cNot = false;
-                    if (cParts[0] === 'NOT') {
-                        cNot = true;
-                        cParts = splitByComma((cParts[1]||'').replace(/^\(+|\)+$/g, ''));
-                    }
-                    let val = (cParts[1]||'').replace(/^"|"$/g, '');
-                    return { type: cParts[0], value: val, not: cNot, noResolve: cParts.includes('no-resolve') };
-                });
-                return { logic, not: false, target, conditions };
-            }
-
-            if (parts[0] === 'NOT' && parts.length === 3) {
-                let innerStr = parts[1].replace(/^\(+|\)+$/g, '');
-                let innerParts = splitByComma(innerStr);
-                if (['AND', 'OR'].includes(innerParts[0])) {
-                    let logicRule = parseRuleString(`${innerParts[0]},${innerParts[1]},${parts[2]}`);
-                    if (logicRule) logicRule.not = true;
-                    return logicRule;
-                } else {
-                    let cParts = innerParts;
-                    let val = (cParts[1]||'').replace(/^"|"$/g, '');
-                    return { type: cParts[0], value: val, target: parts[2], not: true, noResolve: cParts.includes('no-resolve') };
-                }
-            }
-
-            if (parts[0] === 'MATCH') return { type: 'MATCH', value: '', target: parts[1] || 'DIRECT', noResolve: false, not: false };
-
-            let val = (parts[1]||'').replace(/^"|"$/g, '');
-            return { type: parts[0], value: val, target: parts[2], noResolve: parts.includes('no-resolve'), not: false };
-        };
 
         const resolveYamlMergeKeys = (obj) => {
             if (!obj || typeof obj !== 'object') return obj;
