@@ -43,9 +43,56 @@
         };
 
         const draggedRuleIndex = ref(null);
-        const onRuleDragStart = (idx, e) => { draggedRuleIndex.value = idx; e.dataTransfer.effectAllowed = 'move'; };
-        const onRuleDragEnter = () => {}; const onRuleDragEnd = () => { draggedRuleIndex.value = null; (uiState.value.rules||[]).forEach(r => r.draggable = false); };
-        const onRuleDrop = (idx) => { const from = draggedRuleIndex.value; if (from !== null && from !== idx && uiState.value.rules) { const item = uiState.value.rules.splice(from, 1)[0]; uiState.value.rules.splice(idx, 0, item); } onRuleDragEnd(); };
+        const ruleDragOverIndex = ref(null);
+
+        const onRuleDragStart = (idx, e) => {
+            draggedRuleIndex.value = idx;
+            ruleDragOverIndex.value = idx;
+            if (e && e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                try { e.dataTransfer.setData('text/plain', String(idx)); } catch (err) {}
+            }
+        };
+
+        const onRuleDragEnter = (idx) => {
+            if (draggedRuleIndex.value === null) return;
+            ruleDragOverIndex.value = idx;
+        };
+
+        const onRuleDragEnd = () => {
+            draggedRuleIndex.value = null;
+            ruleDragOverIndex.value = null;
+        };
+
+        const onRuleDrop = (idx) => {
+            const from = draggedRuleIndex.value;
+            if (from === null || !uiState.value.rules) {
+                onRuleDragEnd();
+                return;
+            }
+
+            const list = uiState.value.rules;
+            const to = idx;
+            if (from < 0 || to < 0 || from >= list.length || to >= list.length) {
+                onRuleDragEnd();
+                return;
+            }
+
+            const insertAt = from < to ? to - 1 : to;
+            if (insertAt === from) {
+                onRuleDragEnd();
+                return;
+            }
+
+            const item = list.splice(from, 1)[0];
+            if (item === undefined) {
+                onRuleDragEnd();
+                return;
+            }
+
+            list.splice(insertAt, 0, item);
+            onRuleDragEnd();
+        };
 
         const parseRuleString = (rStr) => {
             if (typeof rStr !== 'string') return null;
@@ -95,6 +142,7 @@
             addCondition,
             addRule,
             draggedRuleIndex,
+            ruleDragOverIndex,
             onRuleDragStart,
             onRuleDragEnter,
             onRuleDrop,

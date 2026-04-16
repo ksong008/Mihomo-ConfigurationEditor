@@ -18,6 +18,8 @@
         DEFAULT_NFT_COMMON_PORTS,
         normalizeNftablesConfig,
         getSanitizedUiStateForSave,
+        parseYamlMapText,
+        formatYamlMapText,
         splitByComma,
         deepMerge
     } = window.MihomoHelpers;
@@ -73,7 +75,7 @@
                 { id: 'general', name: '系统管控', icon: 'fas fa-sliders-h' },
                 { id: 'network', name: '网络解析', icon: 'fas fa-network-wired' },
                 { id: 'providers', name: '订阅/节点', icon: 'fas fa-link' },
-                { id: 'rule-providers', name: '规则集合', icon: 'fas fa-book-open' },
+                { id: 'rule-providers', name: '规则集', icon: 'fas fa-book-open' },
                 { id: 'groups', name: '策略分流', icon: 'fas fa-layer-group' },
                 { id: 'rules', name: '路由规则', icon: 'fas fa-route' },
                 { id: 'tproxy', name: 'Tproxy代理', icon: 'fas fa-project-diagram' }
@@ -134,9 +136,10 @@
                 snifferPortWhitelist: "",
                 fakeIpFilter: "*.lan\n*.local\ntime.*.com\nntp.*.com\n*.msftconnecttest.com",
                 hosts: "",
+                enableNameserverPolicy: false,
                 dnsNameserverPolicy: "",
                 useLocalDns53Forward: false,
-                enableDnsFallback: false,
+                enableDnsFallback: true,
                 dnsDefaultNameservers: "223.5.5.5\n119.29.29.29\n1.1.1.1\n8.8.8.8",
                 dnsNameservers: "https://dns.alidns.com/dns-query\nhttps://doh.pub/dns-query",
                 dnsFallback: "https://dns.google/dns-query\nhttps://cloudflare-dns.com/dns-query",
@@ -261,6 +264,12 @@
                 }
             });
 
+            watch(() => uiState.value.enableNameserverPolicy, (enabled) => {
+                if (!enabled && config.value && config.value.dns) {
+                    config.value.dns['direct-nameserver-follow-policy'] = false;
+                }
+            });
+
             const resetGeoUrls = () => {
                 uiState.value.useMirrorForGeo = true;
                 config.value.geo.url = {
@@ -348,6 +357,7 @@
                 addCondition,
                 addRule,
                 draggedRuleIndex,
+                ruleDragOverIndex,
                 onRuleDragStart,
                 onRuleDragEnter,
                 onRuleDrop,
@@ -722,13 +732,19 @@
                     return;
                 }
 
+                const insertAt = from < to ? to - 1 : to;
+                if (insertAt === from) {
+                    onProxyGroupDragEnd();
+                    return;
+                }
+
                 const moved = groups.splice(from, 1)[0];
                 if (moved === undefined) {
                     onProxyGroupDragEnd();
                     return;
                 }
 
-                groups.splice(to, 0, moved);
+                groups.splice(insertAt, 0, moved);
                 onProxyGroupDragEnd();
             };
 
@@ -1069,13 +1085,19 @@
                     return;
                 }
 
+                const insertAt = from < to ? to - 1 : to;
+                if (insertAt === from) {
+                    onRuleProviderDragEnd();
+                    return;
+                }
+
                 const moved = list.splice(from, 1)[0];
                 if (moved === undefined) {
                     onRuleProviderDragEnd();
                     return;
                 }
 
-                list.splice(to, 0, moved);
+                list.splice(insertAt, 0, moved);
                 onRuleProviderDragEnd();
             };
 
@@ -1101,7 +1123,7 @@
                 const trimmedNext = nextName.trim();
 
                 if (trimmedNext && hasDuplicateRuleProviderName(trimmedNext, rp)) {
-                    window.alert(`规则集合名称重复：${trimmedNext}`);
+                    window.alert(`规则集名称重复：${trimmedNext}`);
                     if (e && e.target) e.target.value = oldName;
                     return;
                 }
@@ -1665,12 +1687,9 @@
                     }
 
                     if (data.dns['nameserver-policy'] !== undefined && !isPlainObject(data.dns['nameserver-policy'])) {
-                        const policy = {};
-                        ensureStringArray(data.dns['nameserver-policy']).forEach((line) => {
-                            const [key, val] = splitConfigLine(line);
-                            if (key && val) policy[key] = val;
-                        });
-                        data.dns['nameserver-policy'] = policy;
+                        const normalizedPolicyText = ensureStringArray(data.dns['nameserver-policy']).join('\n');
+                        const parsedPolicy = parseYamlMapText(normalizedPolicyText);
+                        data.dns['nameserver-policy'] = parsedPolicy || {};
                     }
                 }
 
@@ -1963,10 +1982,11 @@
                     if (data.dns['direct-nameserver']) uiState.value.dnsDirectNameservers = data.dns['direct-nameserver'].join('\n');
 
                     if (data.dns['nameserver-policy']) {
-                        uiState.value.dnsNameserverPolicy = Object.keys(data.dns['nameserver-policy'])
-                            .map(k => `${k}: ${data.dns['nameserver-policy'][k]}`)
-                            .join('\n');
+                        uiState.value.enableNameserverPolicy = true;
+                        uiState.value.dnsNameserverPolicy = formatYamlMapText(data.dns['nameserver-policy']);
                     } else {
+                        uiState.value.enableNameserverPolicy = false;
+                        config.value.dns['direct-nameserver-follow-policy'] = false;
                         uiState.value.dnsNameserverPolicy = '';
                     }
 
@@ -2168,6 +2188,12 @@
                     if (!Object.prototype.hasOwnProperty.call(payload.uiState, 'enableDnsFallback')) {
                         uiState.value.enableDnsFallback = !!String(uiState.value.dnsFallback || '').trim();
                     }
+                    if (!Object.prototype.hasOwnProperty.call(payload.uiState, 'enableNameserverPolicy')) {
+                        uiState.value.enableNameserverPolicy = !!String(uiState.value.dnsNameserverPolicy || '').trim();
+                        if (!uiState.value.enableNameserverPolicy && config.value && config.value.dns) {
+                            config.value.dns['direct-nameserver-follow-policy'] = false;
+                        }
+                    }
                 }
 
                 providersList.value = payload.providersList
@@ -2321,6 +2347,7 @@
                 addRule,
                 addCondition,
                 draggedRuleIndex,
+                ruleDragOverIndex,
                 onRuleDragStart,
                 onRuleDragEnter,
                 onRuleDrop,
