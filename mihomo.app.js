@@ -25,13 +25,17 @@
     } = window.MihomoHelpers;
 
     if (
+        !window.MihomoCore ||
+        !window.MihomoCore.createStateModule ||
+        !window.MihomoCore.createProvidersModule ||
+        !window.MihomoCore.createImportExportModule ||
         !window.MihomoFeatureModules ||
         !window.MihomoFeatureModules.createDnsModule ||
         !window.MihomoFeatureModules.createTproxyModule ||
         !window.MihomoFeatureModules.createRulesModule ||
         !window.MihomoFeatureModules.createYamlModule
     ) {
-        throw new Error('功能模块未加载，请确认先引入 ./mihomo.dns.js ./mihomo.tproxy.js ./mihomo.rules.js ./mihomo.yaml.js');
+        throw new Error('功能模块未加载，请确认先引入 ./core/state.js ./core/providers.js ./core/import-export.js ./modules/dns.js ./modules/tproxy.js ./modules/rules.js ./modules/yaml.js');
     }
 
     const STORAGE_VERSION = 19;
@@ -72,15 +76,12 @@
                 return window.confirm(msg);
             };
 
-            const tabs = [
-                { id: 'general', name: '系统管控', icon: 'fas fa-sliders-h' },
-                { id: 'network', name: '网络解析', icon: 'fas fa-network-wired' },
-                { id: 'providers', name: '订阅/节点', icon: 'fas fa-link' },
-                { id: 'rule-providers', name: '规则集', icon: 'fas fa-book-open' },
-                { id: 'groups', name: '策略分流', icon: 'fas fa-layer-group' },
-                { id: 'rules', name: '路由规则', icon: 'fas fa-route' },
-                { id: 'tproxy', name: 'Tproxy代理', icon: 'fas fa-project-diagram' }
-            ];
+            const {
+                tabs,
+                panels,
+                getDefaultUiState,
+                getDefaultConfig
+            } = window.MihomoCore.createStateModule();
             const currentTab = ref('general');
             const yamlPreviewBox = ref(null);
             const fileInput = ref(null);
@@ -89,154 +90,7 @@
             const isLocating = ref(false);
             let scrollTimeout = null;
 
-            const panels = [
-                { id: 'zashboard', name: 'Zashboard', icon: 'fas fa-tachometer-alt', rawUrl: 'https://github.com/Zephyruso/zashboard/releases/latest/download/dist-cdn-fonts.zip', mirrorUrl: 'https://fastly.jsdelivr.net/gh/Zephyruso/zashboard@gh-pages/dist-cdn-fonts.zip' },
-                { id: 'metacubexd', name: 'MetaCubeX-D', icon: 'fas fa-cube', rawUrl: 'https://github.com/MetaCubeX/metacubexd/archive/gh-pages.zip', mirrorUrl: 'https://fastly.jsdelivr.net/gh/MetaCubeX/metacubexd@gh-pages/metacubexd-gh-pages.zip' },
-                { id: 'yacd-meta', name: 'Yacd-meta', icon: 'fas fa-chart-bar', rawUrl: 'https://github.com/MetaCubeX/Yacd-meta/archive/gh-pages.zip', mirrorUrl: 'https://fastly.jsdelivr.net/gh/MetaCubeX/Yacd-meta@gh-pages/Yacd-meta-gh-pages.zip' },
-                { id: 'custom', name: '自定义', icon: 'fas fa-link', rawUrl: '', mirrorUrl: '' }
-            ];
-
-            const uiState = ref({
-                useMirrorForPanels: true,
-                selectedPanel: '',
-                useMirrorForGeo: true,
-                useMirrorForRuleProviders: true,
-                showInstallScript: false,
-                showSystemdService: false,
-                downloadFileName: 'config.yaml',
-                tunDnsHijackEnabled: true,
-                tunDnsHijack: "any:53\ntcp://any:53",
-                tproxyEnable: false,
-                showTproxyConflict: false,
-                tproxyConflicts: [],
-                pendingAction: '',
-                nftablesConfig: {
-                    nftTable: 'mihomo',
-                    tproxyPort: 7894,
-                    listen: '0.0.0.0',
-                    udp: true,
-                    tproxyIpv6: false,
-                    ingressIface: '',
-                    egressIface: '',
-                    routeMarkHex: '112',
-                    tproxyMarkHex: '111',
-                    proxyUid: '',
-                    proxyGid: '',
-                    hijackDns: true,
-                    privateIps: "0.0.0.0/8\n10.0.0.0/8\n100.64.0.0/10\n127.0.0.0/8\n169.254.0.0/16\n172.16.0.0/12\n192.0.0.0/24\n192.0.2.0/24\n192.88.99.0/24\n192.168.0.0/16\n198.51.100.0/24\n203.0.113.0/24\n224.0.0.0/4\n240.0.0.0/4",
-                    privateIpsV6: "::/128\n::1/128\nfc00::/7\nfe80::/10\n2001:db8::/32\n64:ff9b::/96\n100::/64\nff00::/8",
-                    bypassCnIp: false,
-                    cnIps: '',
-                    cnIpsV6: '',
-                    filterPorts: false,
-                    commonPorts: '22,587,465,995,993,143,80,443,853,9418'
-                },
-                snifferSniff: { HTTP: "80, 8080-8880", TLS: "443, 8443", QUIC: "443, 8443" },
-                snifferSkipDomain: "Mijia Cloud\n*.apple.com",
-                snifferForceDomain: "",
-                snifferPortWhitelist: "",
-                fakeIpFilter: "*.lan\n*.local\ntime.*.com\nntp.*.com\n*.msftconnecttest.com",
-                hosts: "",
-                enableNameserverPolicy: false,
-                dnsNameserverPolicy: "",
-                useLocalDns53Forward: false,
-                enableDnsFallback: true,
-                dnsDefaultNameservers: "223.5.5.5\n119.29.29.29\n1.1.1.1\n8.8.8.8",
-                dnsNameservers: "https://dns.alidns.com/dns-query\nhttps://doh.pub/dns-query",
-                dnsFallback: "https://dns.google/dns-query\nhttps://cloudflare-dns.com/dns-query",
-                dnsProxyServerNameservers: "https://dns.alidns.com/dns-query\nhttps://doh.pub/dns-query",
-                dnsDirectNameservers: "https://dns.alidns.com/dns-query\nhttps://doh.pub/dns-query",
-                fallbackFilterGeositeEnable: true,
-                fallbackFilterGeosite: "gfw",
-                fallbackFilterIpcidr: "240.0.0.0/4\n0.0.0.0/32",
-                fallbackFilterDomain: "+.google.com\n+.facebook.com",
-                rules: [
-                    { type: 'GEOSITE', value: 'category-ads-all', target: 'REJECT', noResolve: false, not: false },
-                    { type: 'GEOSITE', value: 'google', target: 'Proxy', noResolve: false, not: false },
-                    { type: 'GEOIP', value: 'cn', target: 'DIRECT', noResolve: true, not: false },
-                    { type: 'MATCH', value: '', target: 'Proxy', noResolve: false, not: false }
-                ]
-            });
-
-            const getDefaultConfig = () => ({
-                'mixed-port': 7890,
-                port: 7891,
-                'socks-port': 7892,
-                'redir-port': 7893,
-                'tproxy-port': 7894,
-                listeners: [],
-                'routing-mark': 112,
-                'allow-lan': true,
-                mode: 'rule',
-                'log-level': 'info',
-                ipv6: false,
-                'global-client-fingerprint': '',
-                'find-process-mode': 'strict',
-                profile: { 'store-selected': true, 'store-fake-ip': true },
-                'external-controller': '127.0.0.1:9090',
-                secret: '',
-                'external-ui': 'ui',
-                'external-ui-url': '',
-                'interface-name': '',
-                'geodata-mode': true,
-                'unified-delay': true,
-                'tcp-concurrent': true,
-                tun: {
-                    enable: false,
-                    stack: 'system',
-                    device: '',
-                    mtu: 1500,
-                    gso: false,
-                    'gso-max-size': 65536,
-                    'auto-route': true,
-                    'strict-route': true,
-                    'auto-detect-interface': true,
-                    'endpoint-independent-nat': false,
-                    'dns-hijack': ['any:53', 'tcp://any:53']
-                },
-                sniffer: {
-                    enable: false,
-                    'force-dns-mapping': true,
-                    'parse-pure-ip': true,
-                    'override-destination': false
-                },
-                dns: {
-                    enable: true,
-                    listen: '53',
-                    ipv6: false,
-                    'enhanced-mode': 'redir-host',
-                    'fake-ip-range': '198.18.0.1/16',
-                    'fake-ip-filter-mode': 'blacklist',
-                    'prefer-h3': false,
-                    'respect-rules': false,
-                    'use-hosts': false,
-                    'use-system-hosts': false,
-                    'direct-nameserver-follow-policy': false,
-                    'fallback-filter': { geoip: true, 'geoip-code': 'CN' }
-                },
-                geo: {
-                    'auto-update': true,
-                    interval: 24,
-                    url: {
-                        geoip: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat',
-                        geosite: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat',
-                        mmdb: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb'
-                    }
-                },
-                proxies: [],
-                'proxy-groups': [
-                    { name: 'Proxy', type: 'select', proxies: ['自动选择', '香港节点', '台湾节点', '韩国节点', '日本节点', '新加坡节点', '美国节点', '其他国家', 'DIRECT'], use: [], filter: '', 'exclude-filter': '', url: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50, lazy: false, 'dialer-proxy': '', 'include-all': false },
-                    { name: '自动选择', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: [], filter: '', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
-                    { name: '香港节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: [], filter: '(?i)港|hk|hongkong|hong kong', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
-                    { name: '台湾节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: [], filter: '(?i)台|tw|taiwan', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
-                    { name: '韩国节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: [], filter: '(?i)韩|kr|korea|south korea', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
-                    { name: '日本节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: [], filter: '(?i)日|jp|japan', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
-                    { name: '新加坡节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: [], filter: '(?i)新|sg|singapore', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
-                    { name: '美国节点', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: [], filter: '(?i)美|us|united states|america', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false },
-                    { name: '其他国家', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, timeout: 0, proxies: [], use: [], filter: '(?i)^(?!.*(?:港|hk|台|tw|韩|kr|日|jp|新|sg|美|us)).*$', 'exclude-filter': '', tolerance: 50, lazy: true, 'dialer-proxy': '', 'include-all': false }
-                ]
-            });
-
+            const uiState = ref(getDefaultUiState());
             const config = ref(getDefaultConfig());
             const providersList = ref([]);
             const ruleProvidersList = ref([]);
@@ -474,850 +328,72 @@
                 return base;
             };
 
-            const addManualProxy = () => {
-                config.value.proxies.push(parseSingleProxyNode({ type: 'vless' }));
-                scrollToBottom();
-            };
-
-            const addGroup = () => {
-                config.value['proxy-groups'].push({
-                    name: `Group-${(config.value['proxy-groups'] || []).length + 1}`,
-                    type: 'select',
-                    proxies: [],
-                    use: [],
-                    filter: '',
-                    'exclude-filter': '',
-                    url: 'https://www.gstatic.com/generate_204',
-                    interval: 300,
-                    tolerance: 50,
-                    timeout: 0,
-                    lazy: false,
-                    'dialer-proxy': '',
-                    strategy: 'consistent-hashing',
-                    'include-all': false,
-                    _collapsed: true
-                });
-                scrollToBottom();
-            };
-
-            const removeGroup = (idx) => {
-                config.value['proxy-groups'].splice(idx, 1);
-            };
-
-            const groupProxyDrag = ref({ groupName: '', fromIndex: -1 });
-
-            const toggleGroupCollapse = (g) => {
-                if (!g) return;
-                g._collapsed = !g._collapsed;
-            };
-
-            const collapseAllGroups = () => {
-                (config.value['proxy-groups'] || []).forEach((g) => {
-                    if (g) g._collapsed = true;
-                });
-            };
-
-            const expandAllGroups = () => {
-                (config.value['proxy-groups'] || []).forEach((g) => {
-                    if (g) g._collapsed = false;
-                });
-            };
-
-            const ensureGroupCollapseState = (forceCollapse = false) => {
-                const groups = config.value['proxy-groups'];
-                if (!Array.isArray(groups)) return;
-
-                groups.forEach((g) => {
-                    if (!g || typeof g !== 'object') return;
-                    if (forceCollapse) {
-                        g._collapsed = true;
-                    } else if (typeof g._collapsed !== 'boolean') {
-                        g._collapsed = true;
-                    }
-                });
-            };
-
-            watch(
-                [
-                    () => config.value['proxy-groups'],
-                    () => (config.value['proxy-groups'] || []).length
-                ],
-                () => {
-                    ensureGroupCollapseState(false);
-                },
-                { immediate: true, flush: 'sync' }
-            );
-
-            const removeGroupProxyMember = (g, idx) => {
-                if (!g || !Array.isArray(g.proxies)) return;
-                g.proxies.splice(idx, 1);
-            };
-
-            const getOrderedAvailableGroupMembers = (g) => {
-                const available = getAvailableGroupMembers(g && g.name);
-                if (!g || !Array.isArray(g.proxies) || g.proxies.length === 0) return available;
-
-                const availableMap = new Map(available.map((name) => [String(name || '').trim(), name]));
-                const selected = [];
-                const selectedSet = new Set();
-
-                g.proxies.forEach((name) => {
-                    const key = String(name || '').trim();
-                    if (!key || selectedSet.has(key) || !availableMap.has(key)) return;
-                    selectedSet.add(key);
-                    selected.push(availableMap.get(key));
-                });
-
-                const rest = available.filter((name) => !selectedSet.has(String(name || '').trim()));
-                return [...selected, ...rest];
-            };
-
-            const onInlineGroupMemberDragStart = (g, name, e) => {
-                if (!g || g['include-all'] || !Array.isArray(g.proxies)) return;
-                const idx = g.proxies.indexOf(name);
-                if (idx < 0) return;
-
-                if (e && e.currentTarget && e.currentTarget.classList) {
-                    e.currentTarget.classList.add('dragging');
-                }
-
-                onGroupProxyDragStart(g, idx, e);
-            };
-
-            const onInlineGroupMemberDragOver = (g, name, e) => {
-                if (!g || g['include-all'] || !Array.isArray(g.proxies)) return;
-                if (!g.proxies.includes(name)) return;
-
-                if (e && e.dataTransfer) {
-                    e.dataTransfer.dropEffect = 'move';
-                }
-            };
-
-            const onInlineGroupMemberDrop = (g, name, e) => {
-                if (!g || g['include-all'] || !Array.isArray(g.proxies)) {
-                    onGroupProxyDragEnd();
-                    return;
-                }
-
-                const idx = g.proxies.indexOf(name);
-                if (idx < 0) {
-                    onGroupProxyDragEnd();
-                    return;
-                }
-
-                onGroupProxyDrop(g, idx);
-
-                if (e && e.currentTarget && e.currentTarget.classList) {
-                    e.currentTarget.classList.remove('dragging');
-                }
-            };
-
-            const onGroupProxyDragStart = (g, idx, e) => {
-                if (!g || !Array.isArray(g.proxies)) return;
-                groupProxyDrag.value = { groupName: g.name, fromIndex: idx };
-                if (e && e.dataTransfer) {
-                    e.dataTransfer.effectAllowed = 'move';
-                    try { e.dataTransfer.setData('text/plain', String(idx)); } catch (err) {}
-                }
-            };
-
-            const onGroupProxyDrop = (g, idx) => {
-                if (!g || !Array.isArray(g.proxies)) return;
-                const drag = groupProxyDrag.value;
-                if (!drag || drag.groupName !== g.name) return;
-
-                const from = drag.fromIndex;
-                const to = idx;
-                if (from < 0 || to < 0 || from === to) {
-                    onGroupProxyDragEnd();
-                    return;
-                }
-
-                const moved = g.proxies.splice(from, 1)[0];
-                if (moved === undefined) {
-                    onGroupProxyDragEnd();
-                    return;
-                }
-
-                g.proxies.splice(to, 0, moved);
-                onGroupProxyDragEnd();
-            };
-
-            const onGroupProxyDragEnd = () => {
-                groupProxyDrag.value = { groupName: '', fromIndex: -1 };
-                document.querySelectorAll('[data-group-member-draggable="1"].dragging').forEach((el) => el.classList.remove('dragging'));
-            };
-
-            const groupUseDrag = ref({ groupName: '', fromIndex: -1 });
-
-            const onGroupUseDragStart = (g, name, e) => {
-                if (!g || g['include-all'] || !Array.isArray(g.use)) return;
-                const idx = g.use.indexOf(name);
-                if (idx < 0) return;
-
-                groupUseDrag.value = { groupName: g.name, fromIndex: idx };
-
-                if (e && e.dataTransfer) {
-                    e.dataTransfer.effectAllowed = 'move';
-                    try { e.dataTransfer.setData('text/plain', String(idx)); } catch (err) {}
-                }
-            };
-
-            const onGroupUseDragOver = (g, name, e) => {
-                if (!g || g['include-all'] || !Array.isArray(g.use)) return;
-                if (!g.use.includes(name)) return;
-
-                if (e && e.dataTransfer) {
-                    e.dataTransfer.dropEffect = 'move';
-                }
-            };
-
-            const onGroupUseDrop = (g, name) => {
-                if (!g || g['include-all'] || !Array.isArray(g.use)) {
-                    onGroupUseDragEnd();
-                    return;
-                }
-
-                const drag = groupUseDrag.value;
-                if (!drag || drag.groupName !== g.name) return;
-
-                const from = drag.fromIndex;
-                const to = g.use.indexOf(name);
-
-                if (from < 0 || to < 0 || from === to) {
-                    onGroupUseDragEnd();
-                    return;
-                }
-
-                const moved = g.use.splice(from, 1)[0];
-                if (moved === undefined) {
-                    onGroupUseDragEnd();
-                    return;
-                }
-
-                g.use.splice(to, 0, moved);
-                onGroupUseDragEnd();
-            };
-
-            const onGroupUseDragEnd = () => {
-                groupUseDrag.value = { groupName: '', fromIndex: -1 };
-                document.querySelectorAll('[data-group-use-draggable="1"].dragging').forEach((el) => el.classList.remove('dragging'));
-            };
-
-            const proxyGroupDrag = ref({ fromIndex: -1, overIndex: -1 });
-
-            const onProxyGroupDragStart = (idx, e) => {
-                const groups = config.value['proxy-groups'] || [];
-                if (idx < 0 || idx >= groups.length) return;
-
-                proxyGroupDrag.value = { fromIndex: idx, overIndex: idx };
-
-                if (e && e.dataTransfer) {
-                    e.dataTransfer.effectAllowed = 'move';
-                    try { e.dataTransfer.setData('text/plain', String(idx)); } catch (err) {}
-                }
-            };
-
-            const onProxyGroupDragOver = (idx) => {
-                if (proxyGroupDrag.value.fromIndex < 0) return;
-                proxyGroupDrag.value.overIndex = idx;
-            };
-
-            const onProxyGroupDrop = (idx) => {
-                const groups = config.value['proxy-groups'];
-                if (!Array.isArray(groups)) return;
-
-                const from = proxyGroupDrag.value.fromIndex;
-                const to = idx;
-
-                if (from < 0 || to < 0 || from === to || from >= groups.length || to >= groups.length) {
-                    onProxyGroupDragEnd();
-                    return;
-                }
-
-                const insertAt = from < to ? to - 1 : to;
-                if (insertAt === from) {
-                    onProxyGroupDragEnd();
-                    return;
-                }
-
-                const moved = groups.splice(from, 1)[0];
-                if (moved === undefined) {
-                    onProxyGroupDragEnd();
-                    return;
-                }
-
-                groups.splice(insertAt, 0, moved);
-                onProxyGroupDragEnd();
-            };
-
-            const onProxyGroupDragEnd = () => {
-                proxyGroupDrag.value = { fromIndex: -1, overIndex: -1 };
-            };
-
-            const getValidStaticGroupMemberNames = (currentGroupName = '') => {
-                const names = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE']);
-
-                (config.value.proxies || []).forEach((p) => {
-                    const name = String(p?.name || '').trim();
-                    if (name) names.add(name);
-                });
-
-                (config.value['proxy-groups'] || []).forEach((group) => {
-                    const name = String(group?.name || '').trim();
-                    if (name && name !== currentGroupName) names.add(name);
-                });
-
-                return names;
-            };
-
-            const pruneInvalidGroupProxyMembers = () => {
-                const groups = config.value['proxy-groups'];
-                if (!Array.isArray(groups)) return;
-
-                groups.forEach((g) => {
-                    if (!Array.isArray(g.proxies)) {
-                        g.proxies = [];
-                        return;
-                    }
-
-                    const validNames = getValidStaticGroupMemberNames(g.name);
-                    const next = g.proxies.filter((name) => validNames.has(String(name || '').trim()));
-
-                    if (next.length !== g.proxies.length) {
-                        g.proxies = next;
-                    }
-                });
-            };
-
-            watch(
-                [
-                    () => config.value.proxies,
-                    () => config.value['proxy-groups'],
-                    () => (config.value.proxies || []).length,
-                    () => (config.value['proxy-groups'] || []).length
-                ],
-                () => {
-                    pruneInvalidGroupProxyMembers();
-                },
-                { immediate: true, flush: 'sync' }
-            );
-
-            const getAvailableGroupMembers = (currentGroupName) => {
-                let groups = (config.value['proxy-groups'] || []).map(g => g.name);
-                if (currentGroupName) groups = groups.filter(n => n !== currentGroupName);
-                return ['DIRECT', 'REJECT', ...groups, ...(config.value.proxies || []).map(p => p.name)];
-            };
-
-            const getOrderedGroupUseProviders = (g) => {
-                const available = (providersList.value || []).map((p) => p && p.name).filter(Boolean);
-                if (!g || !Array.isArray(g.use) || g.use.length === 0) return available;
-
-                const availableMap = new Map(available.map((name) => [String(name || '').trim(), name]));
-                const selected = [];
-                const selectedSet = new Set();
-
-                g.use.forEach((name) => {
-                    const key = String(name || '').trim();
-                    if (!key || selectedSet.has(key) || !availableMap.has(key)) return;
-                    selectedSet.add(key);
-                    selected.push(availableMap.get(key));
-                });
-
-                const rest = available.filter((name) => !selectedSet.has(String(name || '').trim()));
-                return [...selected, ...rest];
-            };
-
-            const pruneInvalidGroupUseMembers = () => {
-                const groups = config.value['proxy-groups'];
-                if (!Array.isArray(groups)) return;
-
-                const validProviders = new Set(
-                    (providersList.value || [])
-                        .map((p) => String((p && p.name) || '').trim())
-                        .filter(Boolean)
-                );
-
-                groups.forEach((g) => {
-                    if (!Array.isArray(g.use)) {
-                        g.use = [];
-                        return;
-                    }
-
-                    const next = g.use.filter((name) => validProviders.has(String(name || '').trim()));
-                    if (next.length !== g.use.length) {
-                        g.use = next;
-                    }
-                });
-            };
-
-            watch(
-                [
-                    () => providersList.value,
-                    () => config.value['proxy-groups'],
-                    () => (providersList.value || []).length,
-                    () => (config.value['proxy-groups'] || []).length
-                ],
-                () => {
-                    pruneInvalidGroupUseMembers();
-                },
-                { immediate: true, flush: 'sync' }
-            );
-
-            const injectRegionGroups = () => {
-                if (!config.value['proxy-groups']) config.value['proxy-groups'] = [];
-                const regions = [
-                    { name: '香港节点', filter: '(?i)港|hk|hongkong|hong kong' },
-                    { name: '台湾节点', filter: '(?i)台|tw|taiwan' },
-                    { name: '韩国节点', filter: '(?i)韩|kr|korea|south korea' },
-                    { name: '日本节点', filter: '(?i)日|jp|japan' },
-                    { name: '新加坡节点', filter: '(?i)新|sg|singapore' },
-                    { name: '美国节点', filter: '(?i)美|us|united states|america' },
-                    { name: '其他国家', filter: '(?i)^(?!.*(?:港|hk|台|tw|韩|kr|日|jp|新|sg|美|us)).*$' }
-                ];
-
-                let mainGroup = config.value['proxy-groups'].find(g => g.name === 'Proxy');
-                if (!mainGroup) {
-                    mainGroup = {
-                        name: 'Proxy',
-                        type: 'select',
-                        proxies: ['自动选择', 'DIRECT'],
-                        use: [],
-                        filter: '',
-                        'exclude-filter': '',
-                        url: 'https://www.gstatic.com/generate_204',
-                        interval: 300,
-                        tolerance: 50,
-                        timeout: 0,
-                        lazy: false,
-                        'dialer-proxy': '',
-                        strategy: 'consistent-hashing',
-                        'include-all': false
-                    };
-                    config.value['proxy-groups'].unshift(mainGroup);
-                }
-                let autoGroup = config.value['proxy-groups'].find(g => g.name === '自动选择');
-                if (!autoGroup) {
-                    autoGroup = {
-                        name: '自动选择',
-                        type: 'url-test',
-                        proxies: [],
-                        use: (providersList.value || []).map(p => p.name),
-                        filter: '',
-                        'exclude-filter': '',
-                        url: 'https://www.gstatic.com/generate_204',
-                        interval: 300,
-                        tolerance: 50,
-                        timeout: 0,
-                        lazy: true,
-                        'dialer-proxy': '',
-                        strategy: 'consistent-hashing',
-                        'include-all': false
-                    };
-                    config.value['proxy-groups'].splice(1, 0, autoGroup);
-                }
-
-                regions.forEach(r => {
-                    if (!config.value['proxy-groups'].find(g => g.name === r.name)) {
-                        config.value['proxy-groups'].push({
-                            name: r.name,
-                            type: 'url-test',
-                            proxies: [],
-                            use: (providersList.value || []).map(p => p.name),
-                            filter: r.filter,
-                            'exclude-filter': '',
-                            url: 'https://www.gstatic.com/generate_204',
-                            interval: 300,
-                            tolerance: 50,
-                            timeout: 0,
-                            lazy: true,
-                            'dialer-proxy': '',
-                            strategy: 'consistent-hashing',
-                            'include-all': false
-                        });
-                    }
-                    if (!mainGroup.proxies.includes(r.name)) mainGroup.proxies.push(r.name);
-                });
-
-                autoCategorizeProxies();
-            };
-
-            const autoCategorizeProxies = () => {
-                if (!config.value['proxy-groups'] || !config.value.proxies) return;
-                config.value['proxy-groups'].forEach(g => {
-                    if (g.filter && g.filter.trim() !== '') {
-                        try {
-                            let jsPattern = g.filter;
-                            let flags = '';
-                            if (jsPattern.startsWith('(?i)')) {
-                                jsPattern = jsPattern.substring(4);
-                                flags = 'i';
-                            }
-                            const regex = new RegExp(jsPattern, flags);
-
-                            const matched = config.value.proxies
-                                .filter(px => regex.test(px.name))
-                                .map(px => px.name);
-
-                            matched.forEach(name => {
-                                if (!g.proxies) g.proxies = [];
-                                if (!g.proxies.includes(name)) g.proxies.push(name);
-                            });
-
-                            (providersList.value || []).forEach(prov => {
-                                if (!g.use) g.use = [];
-                                if (prov.name && !g.use.includes(prov.name)) g.use.push(prov.name);
-                            });
-                        } catch (e) {}
-                    }
-                });
-            };
-
-            const pickPanel = (p) => {
-                uiState.value.selectedPanel = p.id;
-                config.value['external-ui-url'] = uiState.value.useMirrorForPanels ? p.mirrorUrl : p.rawUrl;
-            };
-
-            const addProvider = () => {
-                providersList.value.push({
-                    name: `Provider-${(providersList.value || []).length + 1}`,
-                    type: 'http',
-                    url: '',
-                    interval: 3600,
-                    healthUrl: 'https://www.gstatic.com/generate_204',
-                    overrideDialerProxy: '',
-                    useDownloadProxy: false,
-                    downloadProxy: '',
-                    inlineProxies: [],
-                    lazy: true,
-                    healthCheckLazy: true,
-                    healthCheckTimeout: 5000
-                });
-                scrollToBottom();
-            };
-
-            const removeProvider = (idx) => providersList.value.splice(idx, 1);
-
-            const addRuleProvider = () => {
-                ruleProvidersList.value.push({
-                    name: '',
-                    type: 'http',
-                    file: '',
-                    behavior: 'domain',
-                    format: 'yaml',
-                    interval: 86400,
-                    autoUrl: true,
-                    customUrl: '',
-                    path: '',
-                    payload: '',
-                    _collapsed: false
-                });
-                scrollToBottom();
-            };
-
-            const removeRuleProvider = (idx) => ruleProvidersList.value.splice(idx, 1);
-
-            const ruleProviderDrag = ref({ fromIndex: -1, overIndex: -1 });
-
-            const toggleRuleProviderCollapse = (rp) => {
-                if (!rp) return;
-                rp._collapsed = !rp._collapsed;
-            };
-
-            const collapseAllRuleProviders = () => {
-                (ruleProvidersList.value || []).forEach((rp) => {
-                    if (rp) rp._collapsed = true;
-                });
-            };
-
-            const expandAllRuleProviders = () => {
-                (ruleProvidersList.value || []).forEach((rp) => {
-                    if (rp) rp._collapsed = false;
-                });
-            };
-
-            const ensureRuleProviderCollapseState = () => {
-                const list = ruleProvidersList.value;
-                if (!Array.isArray(list)) return;
-
-                list.forEach((rp) => {
-                    if (!rp || typeof rp !== 'object') return;
-                    if (typeof rp._collapsed !== 'boolean') {
-                        rp._collapsed = false;
-                    }
-                });
-            };
-
-            watch(
-                [
-                    () => ruleProvidersList.value,
-                    () => (ruleProvidersList.value || []).length
-                ],
-                () => {
-                    ensureRuleProviderCollapseState();
-                },
-                { immediate: true, flush: 'sync' }
-            );
-
-            const onRuleProviderDragStart = (idx, e) => {
-                const list = ruleProvidersList.value || [];
-                if (idx < 0 || idx >= list.length) return;
-
-                ruleProviderDrag.value = { fromIndex: idx, overIndex: idx };
-
-                if (e && e.dataTransfer) {
-                    e.dataTransfer.effectAllowed = 'move';
-                    try { e.dataTransfer.setData('text/plain', String(idx)); } catch (err) {}
-                }
-            };
-
-            const onRuleProviderDragOver = (idx) => {
-                if (ruleProviderDrag.value.fromIndex < 0) return;
-                ruleProviderDrag.value.overIndex = idx;
-            };
-
-            const onRuleProviderDrop = (idx) => {
-                const list = ruleProvidersList.value;
-                if (!Array.isArray(list)) return;
-
-                const from = ruleProviderDrag.value.fromIndex;
-                const to = idx;
-
-                if (from < 0 || to < 0 || from === to || from >= list.length || to >= list.length) {
-                    onRuleProviderDragEnd();
-                    return;
-                }
-
-                const insertAt = from < to ? to - 1 : to;
-                if (insertAt === from) {
-                    onRuleProviderDragEnd();
-                    return;
-                }
-
-                const moved = list.splice(from, 1)[0];
-                if (moved === undefined) {
-                    onRuleProviderDragEnd();
-                    return;
-                }
-
-                list.splice(insertAt, 0, moved);
-                onRuleProviderDragEnd();
-            };
-
-            const onRuleProviderDragEnd = () => {
-                ruleProviderDrag.value = { fromIndex: -1, overIndex: -1 };
-            };
-
-            const hasDuplicateRuleProviderName = (name, currentItem = null) => {
-                const target = String(name || '').trim();
-                if (!target) return false;
-
-                return (ruleProvidersList.value || []).some((item) => {
-                    if (!item || item === currentItem) return false;
-                    return String(item.name || '').trim() === target;
-                });
-            };
-
-            const updateRuleProviderName = (rp, newName, e = null) => {
-                if (!rp || typeof rp !== 'object') return;
-
-                const oldName = String(rp.name || '');
-                const nextName = String(newName ?? '');
-                const trimmedNext = nextName.trim();
-
-                if (trimmedNext && hasDuplicateRuleProviderName(trimmedNext, rp)) {
-                    window.alert(`规则集名称重复：${trimmedNext}`);
-                    if (e && e.target) e.target.value = oldName;
-                    return;
-                }
-
-                rp.name = nextName;
-                if (oldName && oldName !== nextName) {
-                    (uiState.value.rules || []).forEach(r => {
-                        if (r.type === 'RULE-SET' && r.value === oldName) r.value = nextName;
-                        if (r.logic && r.conditions) {
-                            r.conditions.forEach(cond => {
-                                if (cond.type === 'RULE-SET' && cond.value === oldName) cond.value = nextName;
-                            });
-                        }
-                    });
-                }
-            };
-
-            const providerNameSnapshots = new WeakMap();
-            const proxyNameSnapshots = new WeakMap();
-            const groupNameSnapshots = new WeakMap();
-
-            const ensureRenameSnapshots = () => {
-                (providersList.value || []).forEach((p) => {
-                    if (p && typeof p === 'object' && !providerNameSnapshots.has(p)) {
-                        providerNameSnapshots.set(p, String(p.name || ''));
-                    }
-                });
-
-                (config.value.proxies || []).forEach((px) => {
-                    if (px && typeof px === 'object' && !proxyNameSnapshots.has(px)) {
-                        proxyNameSnapshots.set(px, String(px.name || ''));
-                    }
-                });
-
-                (config.value['proxy-groups'] || []).forEach((g) => {
-                    if (g && typeof g === 'object' && !groupNameSnapshots.has(g)) {
-                        groupNameSnapshots.set(g, String(g.name || ''));
-                    }
-                });
-            };
-
-            watch(
-                [
-                    () => providersList.value,
-                    () => config.value.proxies,
-                    () => config.value['proxy-groups'],
-                    () => (providersList.value || []).length,
-                    () => (config.value.proxies || []).length,
-                    () => (config.value['proxy-groups'] || []).length
-                ],
-                () => {
-                    ensureRenameSnapshots();
-                },
-                { immediate: true, flush: 'sync' }
-            );
-
-            const replaceNameInList = (list, oldName, newName) => {
-                if (!Array.isArray(list) || oldName === newName) return;
-                for (let i = 0; i < list.length; i++) {
-                    if (list[i] === oldName) list[i] = newName;
-                }
-            };
-
-            const replaceDialerProxyName = (target, oldName, newName, key = 'dialer-proxy') => {
-                if (!target || typeof target !== 'object' || oldName === newName) return;
-                if (target[key] === oldName) target[key] = newName;
-            };
-
-            const replaceProviderDialerRefs = (oldName, newName) => {
-                (providersList.value || []).forEach((p) => {
-                    if (!p || typeof p !== 'object') return;
-                    if (p.downloadProxy === oldName) p.downloadProxy = newName;
-                    if (p.overrideDialerProxy === oldName) p.overrideDialerProxy = newName;
-                });
-            };
-
-            const replaceProviderInlineProxyRefs = (oldName, newName) => {
-                (providersList.value || []).forEach((p) => {
-                    if (!p || typeof p !== 'object') return;
-                    replaceNameInList(p.inlineProxies, oldName, newName);
-                });
-            };
-
-            const replaceRuleTargets = (oldName, newName) => {
-                (uiState.value.rules || []).forEach((r) => {
-                    if (r && r.target === oldName) r.target = newName;
-                });
-            };
-
-            const updateProviderName = (p, newName) => {
-                if (!p || typeof p !== 'object') return;
-                const oldName = providerNameSnapshots.has(p) ? providerNameSnapshots.get(p) : String(p.name || '');
-                p.name = newName;
-
-                if (oldName === newName) return;
-
-                (config.value['proxy-groups'] || []).forEach((g) => {
-                    replaceNameInList(g.use, oldName, newName);
-                });
-
-                providerNameSnapshots.set(p, String(newName || ''));
-            };
-
-            const updateProxyName = (px, newName) => {
-                if (!px || typeof px !== 'object') return;
-                const oldName = proxyNameSnapshots.has(px) ? proxyNameSnapshots.get(px) : String(px.name || '');
-                px.name = newName;
-
-                if (oldName === newName) return;
-
-                (config.value['proxy-groups'] || []).forEach((g) => {
-                    replaceNameInList(g.proxies, oldName, newName);
-                    replaceDialerProxyName(g, oldName, newName);
-                });
-
-                replaceProviderDialerRefs(oldName, newName);
-                replaceProviderInlineProxyRefs(oldName, newName);
-
-                (config.value.proxies || []).forEach((item) => {
-                    if (item !== px) replaceDialerProxyName(item, oldName, newName);
-                });
-
-                replaceRuleTargets(oldName, newName);
-                proxyNameSnapshots.set(px, String(newName || ''));
-            };
-
-            const updateGroupName = (g, newName) => {
-                if (!g || typeof g !== 'object') return;
-                const oldName = groupNameSnapshots.has(g) ? groupNameSnapshots.get(g) : String(g.name || '');
-                g.name = newName;
-
-                if (oldName === newName) return;
-
-                (config.value['proxy-groups'] || []).forEach((item) => {
-                    replaceNameInList(item.proxies, oldName, newName);
-                    replaceDialerProxyName(item, oldName, newName);
-                });
-
-                replaceProviderDialerRefs(oldName, newName);
-
-                (config.value.proxies || []).forEach((px) => {
-                    replaceDialerProxyName(px, oldName, newName);
-                });
-
-                replaceRuleTargets(oldName, newName);
-
-                if (Array.isArray(g.proxies)) {
-                    g.proxies = g.proxies.filter((name) => String(name || '').trim() !== String(g.name || '').trim());
-                }
-                if (g['dialer-proxy'] === g.name) {
-                    g['dialer-proxy'] = '';
-                }
-
-                groupNameSnapshots.set(g, String(newName || ''));
-            };
-
-            const getRuleProviderUrl = (rp) => {
-                if (!rp.autoUrl) return rp.customUrl;
-                const targetName = rp.file ? rp.file.trim() : '';
-                if (!targetName) return '';
-                const base = uiState.value.useMirrorForRuleProviders
-                    ? 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo'
-                    : 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo';
-                const folder = rp.behavior === 'ipcidr' ? 'geoip' : 'geosite';
-                return `${base}/${folder}/${targetName}.${rp.format}`;
-            };
-
-            const clearLists = () => {
-                if (askConfirm('确定要清空所有的节点、订阅和规则列表吗？')) {
-                    config.value.proxies = [];
-                    config.value['proxy-groups'] = [];
-                    providersList.value = [];
-                    ruleProvidersList.value = [];
-                    uiState.value.rules = [];
-                }
-            };
-
-            const getInlinePayloadPreview = (inlineProxies) => {
-                if (!inlineProxies || inlineProxies.length === 0) return '[]';
-                const nodes = inlineProxies.map(name => {
-                    const px = (config.value.proxies || []).find(x => x.name === name);
-                    if (!px) return null;
-                    const cleanPx = JSON.parse(JSON.stringify(parseSingleProxyNode(px)));
-                    return cleanPx;
-                }).filter(Boolean);
-                try {
-                    return jsyaml.dump(nodes, { indent: 2, lineWidth: -1, sortKeys: false });
-                } catch (e) {
-                    return '# Preview Error';
-                }
-            };
+            const providersModule = window.MihomoCore.createProvidersModule({
+                ref,
+                watch,
+                config,
+                uiState,
+                providersList,
+                ruleProvidersList,
+                scrollToBottom,
+                parseSingleProxyNode,
+                askConfirm
+            });
+            const {
+                pickPanel,
+                addManualProxy,
+                addGroup,
+                removeGroup,
+                toggleGroupCollapse,
+                collapseAllGroups,
+                expandAllGroups,
+                ensureGroupCollapseState,
+                removeGroupProxyMember,
+                getAvailableGroupMembers,
+                getOrderedAvailableGroupMembers,
+                onInlineGroupMemberDragStart,
+                onInlineGroupMemberDragOver,
+                onInlineGroupMemberDrop,
+                onGroupProxyDragStart,
+                onGroupProxyDrop,
+                onGroupProxyDragEnd,
+                groupProxyDrag,
+                getOrderedGroupUseProviders,
+                onGroupUseDragStart,
+                onGroupUseDragOver,
+                onGroupUseDrop,
+                onGroupUseDragEnd,
+                groupUseDrag,
+                onProxyGroupDragStart,
+                onProxyGroupDragOver,
+                onProxyGroupDrop,
+                onProxyGroupDragEnd,
+                proxyGroupDrag,
+                pruneInvalidGroupProxyMembers,
+                pruneInvalidGroupUseMembers,
+                injectRegionGroups,
+                autoCategorizeProxies,
+                addProvider,
+                removeProvider,
+                addRuleProvider,
+                removeRuleProvider,
+                toggleRuleProviderCollapse,
+                collapseAllRuleProviders,
+                expandAllRuleProviders,
+                ensureRuleProviderCollapseState,
+                onRuleProviderDragStart,
+                onRuleProviderDragOver,
+                onRuleProviderDrop,
+                onRuleProviderDragEnd,
+                ruleProviderDrag,
+                updateRuleProviderName,
+                updateProviderName,
+                updateProxyName,
+                updateGroupName,
+                getRuleProviderUrl,
+                clearLists,
+                getInlinePayloadPreview
+            } = providersModule;
 
             const yamlModule = window.MihomoFeatureModules.createYamlModule({
                 ref,
