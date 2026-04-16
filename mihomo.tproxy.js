@@ -7,8 +7,8 @@
 
     window.MihomoFeatureModules = window.MihomoFeatureModules || {};
     window.MihomoFeatureModules.createTproxyModule = function (ctx) {
-        const { watch, computed, config, uiState, dnsListenPort } = ctx;
-        const { parseMarkValue, parseLineList, parseCommaList } = window.MihomoHelpers;
+        const { watch, computed, config, uiState, dnsListenPort, ensureSafeDnsListenPortForTransparentProxy } = ctx;
+        const { parseMarkValue, parseLineList, parseCommaList, getListenPort } = window.MihomoHelpers;
 
         watch(() => uiState.value.nftablesConfig?.tproxyIpv6, (val) => {
             if (!uiState.value.nftablesConfig) return;
@@ -34,6 +34,20 @@
             uiState.value.nftablesConfig.tproxyPort = v || 7894;
         }, { immediate: true });
 
+        const maybeAdjustDnsListenPortForTransparentProxy = (modeLabel) => {
+            try {
+                if (typeof ensureSafeDnsListenPortForTransparentProxy !== 'function') return;
+                const changed = ensureSafeDnsListenPortForTransparentProxy();
+                if (!changed) return;
+
+                setTimeout(() => {
+                    window.alert(`检测到已开启 ${modeLabel}，而全局 DNS 监听端口仍为 53。\n\n为避免与本机 53 端口服务、DNS 劫持或本地 53 端口转发冲突，已自动改为 1053。`);
+                }, 0);
+            } catch (err) {
+                console.error('自动调整 DNS 监听端口失败:', err);
+            }
+        };
+
         const handleTproxyToggle = (e) => {
             if (uiState.value.tproxyEnable) {
                 sanitizeNftMarks();
@@ -46,7 +60,10 @@
                     uiState.value.pendingAction = 'tproxy';
                     uiState.value.showTproxyConflict = true;
                     uiState.value.tproxyEnable = false;
+                    return;
                 }
+
+                maybeAdjustDnsListenPortForTransparentProxy('TProxy');
             }
         };
 
@@ -61,7 +78,10 @@
                     uiState.value.pendingAction = 'tun';
                     uiState.value.showTproxyConflict = true;
                     config.value.tun.enable = false;
+                    return;
                 }
+
+                maybeAdjustDnsListenPortForTransparentProxy('TUN');
             }
         };
 
@@ -72,13 +92,17 @@
                 if (c.key === 'tun' && config.value.tun) config.value.tun.enable = false;
                 if (c.key === 'tproxy') uiState.value.tproxyEnable = false;
             });
+            const action = uiState.value.pendingAction;
             uiState.value.showTproxyConflict = false;
-            if (uiState.value.pendingAction === 'tproxy') {
-                uiState.value.tproxyEnable = true;
-            } else if (uiState.value.pendingAction === 'tun' && config.value.tun) {
-                config.value.tun.enable = true;
-            }
             uiState.value.pendingAction = '';
+
+            if (action === 'tproxy') {
+                uiState.value.tproxyEnable = true;
+                maybeAdjustDnsListenPortForTransparentProxy('TProxy');
+            } else if (action === 'tun' && config.value.tun) {
+                config.value.tun.enable = true;
+                maybeAdjustDnsListenPortForTransparentProxy('TUN');
+            }
         };
 
         const RESERVED_ROUTE_TABLES = new Set([0, 253, 254, 255]);

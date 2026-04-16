@@ -34,18 +34,19 @@
         throw new Error('功能模块未加载，请确认先引入 ./mihomo.dns.js ./mihomo.tproxy.js ./mihomo.rules.js ./mihomo.yaml.js');
     }
 
-    const STORAGE_VERSION = 18;
+    const STORAGE_VERSION = 19;
     const STORAGE_KEY_PREFIX = 'mihomo_web_config';
     const STORAGE_KEY = `${STORAGE_KEY_PREFIX}_v${STORAGE_VERSION}`;
     const STORAGE_BACKUP_KEY = `${STORAGE_KEY}_backup`;
-    const LEGACY_STORAGE_KEYS = ['mihomo_web_config_v17'];
+    const RESTORE_LEGACY_STORAGE_KEYS = ['mihomo_web_config_v17'];
+    const CLEANUP_STORAGE_KEYS = ['mihomo_web_config_v17', 'mihomo_web_config_v18', 'mihomo_web_config_v18_backup'];
 
     createApp({
         setup() {
             const crashError = ref(null);
             const clearPersistedStorage = (includeLegacy = true) => {
                 const keys = [STORAGE_KEY, STORAGE_BACKUP_KEY];
-                if (includeLegacy) keys.push(...LEGACY_STORAGE_KEYS);
+                if (includeLegacy) keys.push(...CLEANUP_STORAGE_KEYS);
 
                 keys.forEach((key) => {
                     try {
@@ -296,7 +297,8 @@
                 dnsForwardConflict,
                 dnsLocalForwardNeedsNon53,
                 specifiedPortsContain53,
-                dnsPathPreview
+                dnsPathPreview,
+                ensureSafeDnsListenPortForTransparentProxy
             } = dnsModule;
 
             const tproxyModule = window.MihomoFeatureModules.createTproxyModule({
@@ -304,7 +306,8 @@
                 computed,
                 config,
                 uiState,
-                dnsListenPort
+                dnsListenPort,
+                ensureSafeDnsListenPortForTransparentProxy
             });
             const {
                 handleTproxyToggle,
@@ -2221,7 +2224,7 @@
             };
 
             const restorePersistedState = () => {
-                const candidates = [STORAGE_KEY, STORAGE_BACKUP_KEY, ...LEGACY_STORAGE_KEYS];
+                const candidates = [STORAGE_KEY, STORAGE_BACKUP_KEY, ...RESTORE_LEGACY_STORAGE_KEYS];
                 let sawPersistedState = false;
 
                 for (const key of candidates) {

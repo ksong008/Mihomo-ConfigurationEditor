@@ -142,34 +142,13 @@
             };
         });
 
-        const dns53WarnedKey = ref('');
-        watch(
-            () => [
-                config.value.tun && config.value.tun.enable,
-                uiState.value.tproxyEnable,
-                config.value.dns && config.value.dns.enable,
-                config.value.dns && config.value.dns.listen
-            ].join('|'),
-            () => {
-                if (usingTransparentProxy.value && config.value.dns && config.value.dns.enable && dnsListenPort.value === 53) {
-                    const key = [
-                        config.value.tun && config.value.tun.enable ? 'tun' : '',
-                        uiState.value.tproxyEnable ? 'tproxy' : '',
-                        config.value.dns && config.value.dns.listen ? config.value.dns.listen : ':53'
-                    ].join('|');
+        const ensureSafeDnsListenPortForTransparentProxy = () => {
+            if (!(config.value.dns && config.value.dns.enable)) return false;
+            if (dnsListenPort.value !== 53) return false;
 
-                    if (dns53WarnedKey.value !== key) {
-                        dns53WarnedKey.value = key;
-                        setTimeout(() => {
-                            alert('检测到已启用 TUN 或 TProxy，而全局 DNS 监听端口仍为 53。\n\n请修改为其它端口，避免与本机 53 端口服务、DNS 劫持或本地 53 端口转发冲突。');
-                        }, 0);
-                    }
-                } else {
-                    dns53WarnedKey.value = '';
-                }
-            },
-            { immediate: true }
-        );
+            config.value.dns.listen = '1053';
+            return true;
+        };
 
         return {
             dnsListenPortInput,
@@ -181,7 +160,8 @@
             dnsForwardConflict,
             dnsLocalForwardNeedsNon53,
             specifiedPortsContain53,
-            dnsPathPreview
+            dnsPathPreview,
+            ensureSafeDnsListenPortForTransparentProxy
         };
     };
 })(window);
