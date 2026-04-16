@@ -8,7 +8,7 @@
     window.MihomoFeatureModules = window.MihomoFeatureModules || {};
     window.MihomoFeatureModules.createYamlModule = function (ctx) {
         const { ref, config, uiState, providersList, ruleProvidersList, parseSingleProxyNode, getRuleProviderUrl } = ctx;
-        const { parsePorts, parseHosts, parseMarkValue, getListenPort } = window.MihomoHelpers;
+        const { parsePorts, parseHosts, parseYamlMapText, parseMarkValue, getListenPort } = window.MihomoHelpers;
 
         const yamlSections = ref({ general: '', network: '', proxies: '', providers: '', ruleProviders: '', groups: '', rules: '' });
         const fullYaml = ref('');
@@ -144,8 +144,10 @@
                     outNetwork.dns['proxy-server-nameserver'] = parseText(uiState.value.dnsProxyServerNameservers);
                     outNetwork.dns['direct-nameserver'] = parseText(uiState.value.dnsDirectNameservers);
 
-                    const parsedPolicy = parseHosts(uiState.value.dnsNameserverPolicy);
-                    if (parsedPolicy) outNetwork.dns['nameserver-policy'] = parsedPolicy;
+                    if (uiState.value.enableNameserverPolicy) {
+                        const parsedPolicy = parseYamlMapText(uiState.value.dnsNameserverPolicy);
+                        if (parsedPolicy) outNetwork.dns['nameserver-policy'] = parsedPolicy;
+                    }
 
                     if (uiState.value.enableDnsFallback && outNetwork.dns.fallback && outNetwork.dns.fallback.length > 0) {
                         if (!outNetwork.dns['fallback-filter']) outNetwork.dns['fallback-filter'] = {};

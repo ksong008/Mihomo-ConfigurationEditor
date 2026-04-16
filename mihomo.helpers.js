@@ -27,6 +27,60 @@ function parseHosts(str) {
     return Object.keys(obj).length > 0 ? obj : undefined;
 }
 
+function parseYamlMapText(str) {
+    const text = String(str || '').trim();
+    if (!text) return undefined;
+    if (!window.jsyaml || typeof window.jsyaml.load !== 'function') {
+        throw new Error('js-yaml 未加载，无法解析 YAML 映射');
+    }
+
+    const parsed = window.jsyaml.load(text);
+    if (parsed === undefined || parsed === null || parsed === '') return undefined;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('请输入 YAML 映射对象，例如 key: value');
+    }
+
+    const result = {};
+    Object.keys(parsed).forEach((rawKey) => {
+        const key = String(rawKey ?? '').trim();
+        if (!key) return;
+
+        const value = parsed[rawKey];
+        if (Array.isArray(value)) {
+            const list = value
+                .map((item) => String(item ?? '').trim())
+                .filter(Boolean);
+            if (list.length > 0) result[key] = list;
+            return;
+        }
+
+        if (value === undefined || value === null || value === '') return;
+        if (typeof value === 'object') {
+            throw new Error(`YAML 映射值仅支持字符串或列表: ${key}`);
+        }
+
+        result[key] = String(value).trim();
+    });
+
+    return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function formatYamlMapText(map) {
+    if (!map || typeof map !== 'object' || Array.isArray(map) || Object.keys(map).length === 0) return '';
+    if (!window.jsyaml || typeof window.jsyaml.dump !== 'function') {
+        return Object.keys(map)
+            .map((key) => `${key}: ${Array.isArray(map[key]) ? map[key].join(', ') : map[key]}`)
+            .join('\n');
+    }
+
+    return window.jsyaml.dump(map, {
+        indent: 2,
+        lineWidth: -1,
+        noRefs: true,
+        sortKeys: false
+    }).trim();
+}
+
 function parseMarkValue(val, fallback = 111) {
     const s = String(val ?? '').trim();
     if (!s) return fallback;
@@ -170,6 +224,8 @@ const deepMerge = (target, source) => {
         DEFAULT_NFT_COMMON_PORTS,
         normalizeNftablesConfig,
         getSanitizedUiStateForSave,
+        parseYamlMapText,
+        formatYamlMapText,
         splitByComma,
         deepMerge
     };

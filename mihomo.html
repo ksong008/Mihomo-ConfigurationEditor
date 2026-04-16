@@ -272,7 +272,8 @@
                                                 <label class="sm:col-span-2 flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.dns['respect-rules']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-600">遵守路由规则 (respect-rules)</span></label>
                                                 <label class="sm:col-span-2 flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.dns['use-hosts']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-600">使用内置 Hosts</span></label>
                                                 <label class="sm:col-span-3 flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.dns['use-system-hosts']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-600">读取系统 Hosts</span></label>
-                                                <label class="sm:col-span-3 flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="config.dns['direct-nameserver-follow-policy']" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-600">直连 DNS 遵循策略</span></label>
+                                                <label class="sm:col-span-3 flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="uiState.enableNameserverPolicy" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-600">启用指定规则 DNS (nameserver-policy)</span></label>
+                                                <label class="sm:col-span-3 flex items-center gap-2 cursor-pointer" :class="{ 'opacity-50': !uiState.enableNameserverPolicy }"><input type="checkbox" v-model="config.dns['direct-nameserver-follow-policy']" :disabled="!uiState.enableNameserverPolicy" class="w-4 h-4 text-sky-600 rounded"><span class="text-xs font-bold text-slate-600">直连 DNS 遵循 nameserver-policy</span></label>
                                             </div>
                                         </div>
                                     </div>
@@ -363,9 +364,10 @@
                                     <div v-if="uiState"><label class="block text-[10px] font-bold text-orange-600 uppercase mb-1">过滤列表 (fake-ip-filter)</label><textarea v-model="uiState.fakeIpFilter" rows="4" class="w-full px-3 py-2 bg-white border border-orange-300 rounded-md text-xs font-mono resize-none outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"></textarea></div>
                                 </div>
 
-                                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200" data-yaml-target="nameserver-policy:" v-if="uiState">
+                                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200" data-yaml-target="nameserver-policy:" v-if="uiState && uiState.enableNameserverPolicy">
                                     <div class="flex items-center gap-2 mb-3"><i class="fas fa-map-signs text-slate-500"></i><span class="text-sm font-bold text-slate-700 uppercase">指定规则 DNS (nameserver-policy)</span></div>
-                                    <textarea v-model="uiState.dnsNameserverPolicy" rows="3" placeholder="geosite:cn: 114.114.114.114&#10;'rule-set:apple': https://doh.pub/dns-query" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea>
+                                    <textarea v-model="uiState.dnsNameserverPolicy" rows="4" placeholder="'geosite:cn,private':&#10;  - https://dns.alidns.com/dns-query&#10;'rule-set:apple': https://dns.google/dns-query" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea>
+                                    <p class="mt-2 text-[11px] text-slate-500 leading-5">按 YAML 映射填写。键名里带冒号时，建议加单引号。</p>
                                 </div>
 
                                 <div class="bg-slate-50 p-4 rounded-xl border border-slate-200" data-yaml-target="hosts:" v-if="uiState && showHostsEditor">
@@ -374,23 +376,24 @@
                                 </div>
 
                                 <div class="grid grid-cols-2 gap-4" v-if="uiState">
-                                    <div class="col-span-2 md:col-span-1" data-yaml-target="default-nameserver:"><label class="block text-xs font-bold text-slate-700 mb-1.5"><i class="fas fa-flag mr-1.5 text-slate-500"></i>Bootstrap DNS (Default Nameserver)</label><textarea v-model="uiState.dnsDefaultNameservers" rows="3" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea></div>
-                                    <div class="col-span-2 md:col-span-1" data-yaml-target="nameserver:"><label class="block text-xs font-bold text-slate-700 mb-1.5"><i class="fas fa-server mr-1.5 text-emerald-500"></i>默认/国外DNS(Nameserver)</label><textarea v-model="uiState.dnsNameservers" rows="3" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea></div>
+                                    <div class="col-span-2 md:col-span-1" data-yaml-target="default-nameserver:"><label class="block text-xs font-bold text-slate-700 mb-1.5"><i class="fas fa-flag mr-1.5 text-slate-500"></i>Bootstrap DNS (default-nameserver，仅支持 IP)</label><textarea v-model="uiState.dnsDefaultNameservers" rows="3" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea><p class="mt-1.5 text-[11px] text-slate-500 leading-5">用于解析上游 DNS 自身的域名地址，建议填写纯 IP。</p></div>
+                                    <div class="col-span-2 md:col-span-1" data-yaml-target="nameserver:"><label class="block text-xs font-bold text-slate-700 mb-1.5"><i class="fas fa-server mr-1.5 text-emerald-500"></i>主 DNS (nameserver)</label><textarea v-model="uiState.dnsNameservers" rows="3" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea><p class="mt-1.5 text-[11px] text-slate-500 leading-5">常规解析默认使用的上游 DNS，不是“国外 DNS”专用位。</p></div>
                                                                         <div class="col-span-2 md:col-span-1" data-yaml-target="fallback:">
                                         <div class="flex items-center flex-wrap gap-2 mb-1.5">
-                                            <label class="block text-xs font-bold text-slate-700 mb-0"><i class="fas fa-globe mr-1.5 text-sky-500"></i>Fallback DNS (Fallback)</label>
+                                            <label class="block text-xs font-bold text-slate-700 mb-0"><i class="fas fa-globe mr-1.5 text-sky-500"></i>境外 DNS (fallback)</label>
                                             <label class="flex items-center gap-1.5 cursor-pointer text-[11px] font-bold text-slate-600">
                                                 <input type="checkbox" v-model="uiState.enableDnsFallback" class="w-4 h-4 text-sky-600 rounded">
                                                 <span>是否启用</span>
                                             </label>
                                         </div>
                                         <textarea v-if="uiState.enableDnsFallback" v-model="uiState.dnsFallback" rows="3" placeholder="https://1.0.0.1/dns-query" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea>
+                                        <p v-if="uiState.enableDnsFallback" class="mt-1.5 text-[11px] text-slate-500 leading-5">建议填写境外或抗污染 DNS，配合下方 fallback-filter 使用。</p>
                                         <div v-else class="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-md text-xs text-slate-400">
                                             未启用时不生成 fallback 配置
                                         </div>
                                     </div>
                                     <div class="col-span-2 md:col-span-1" data-yaml-target="proxy-server-nameserver:"><label class="block text-xs font-bold text-slate-700 mb-1.5"><i class="fas fa-route mr-1.5 text-indigo-500"></i>节点订阅DNS(proxy-server-nameserver)</label><textarea v-model="uiState.dnsProxyServerNameservers" rows="3" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea></div>
-                                    <div class="col-span-2" data-yaml-target="direct-nameserver:"><label class="block text-[10px] font-bold text-slate-700 mb-1.5"><i class="fas fa-location-arrow mr-1.5 text-teal-500"></i>国内/直连DNS(direct-nameserver)</label><textarea v-model="uiState.dnsDirectNameservers" rows="2" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea></div>
+                                    <div class="col-span-2" data-yaml-target="direct-nameserver:"><label class="block text-[10px] font-bold text-slate-700 mb-1.5"><i class="fas fa-location-arrow mr-1.5 text-teal-500"></i>直连出口 DNS (direct-nameserver)</label><textarea v-model="uiState.dnsDirectNameservers" rows="2" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-xs font-mono resize-none outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"></textarea><p class="mt-1.5 text-[11px] text-slate-500 leading-5">仅用于直连流量的域名重解析，不会替代全部主 DNS 请求。</p></div>
                                 </div>
 
                                 <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200" data-yaml-target="fallback-filter:" v-if="uiState.enableDnsFallback && config.dns['fallback-filter'] && uiState">
@@ -723,7 +726,7 @@
                         <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-rose-500" data-yaml-target="rule-providers:">
                             <div class="flex justify-between items-center mb-4 sticky top-0 z-20 bg-white/90 backdrop-blur-sm pb-3 pt-4 -mt-4 border-b border-slate-100">
                                 <div>
-                                    <div class="stitle mb-0 !border-l-0 !pl-0 text-rose-700">规则集合 (rule-providers)</div>
+                                    <div class="stitle mb-0 !border-l-0 !pl-0 text-rose-700">规则集 (rule-providers)</div>
                                     <p class="text-xs text-slate-500 mt-1">创建统一资源池供「路由规则」动态引用。智能补全 MetaRules 生态链接。</p>
                                 </div>
                                                                 <div class="flex items-center gap-1.5 flex-nowrap overflow-x-auto shrink-0" v-if="uiState">
@@ -742,17 +745,17 @@
                                      @dragenter.prevent="onRuleProviderDragOver(idx)"
                                      @dragover.prevent="onRuleProviderDragOver(idx)"
                                      @drop="onRuleProviderDrop(idx)">
+                                    <button type="button" draggable="true" @dragstart="onRuleProviderDragStart(idx, $event)" @dragend="onRuleProviderDragEnd" class="section-drag-handle section-drag-handle-rose absolute left-3 top-3 z-10" :class="{ 'is-dragging': ruleProviderDrag.fromIndex === idx }" title="拖动排序规则集">
+                                        <i class="fas fa-grip-vertical text-sm"></i>
+                                    </button>
                                     <div class="absolute top-2 right-2 flex items-center gap-2 z-10">
-                                        <button type="button" draggable="true" @dragstart="onRuleProviderDragStart(idx, $event)" @dragend="onRuleProviderDragEnd" class="rule-provider-drag-handle" :class="{ 'is-dragging': ruleProviderDrag.fromIndex === idx }" title="拖动排序规则集合">
-                                            <i class="fas fa-grip-vertical text-xs"></i>
-                                        </button>
                                         <button @click="toggleRuleProviderCollapse(rp)" class="text-slate-400 hover:bg-slate-200 hover:text-slate-700 w-6 h-6 rounded flex items-center justify-center transition" :title="rp._collapsed ? '展开' : '折叠'">
                                             <i class="fas text-xs" :class="rp._collapsed ? 'fa-chevron-down' : 'fa-chevron-up'"></i>
                                         </button>
-                                        <button @click="askConfirm('确定删除此规则集合？') && removeRuleProvider(idx)" class="text-red-400 hover:bg-red-500 hover:text-white w-6 h-6 rounded flex items-center justify-center transition z-10"><i class="fas fa-trash text-xs"></i></button>
+                                        <button @click="askConfirm('确定删除此规则集？') && removeRuleProvider(idx)" class="text-red-400 hover:bg-red-500 hover:text-white w-6 h-6 rounded flex items-center justify-center transition z-10"><i class="fas fa-trash text-xs"></i></button>
                                     </div>
 
-                                    <div>
+                                    <div class="pl-11">
                                         <div class="grid grid-cols-12 gap-3 pr-24 mb-3">
                                         <div class="col-span-3">
                                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider" title="在路由规则中将被引用的唯一标识名">标识名 (Name)</label>
@@ -786,7 +789,7 @@
                                             </select>
                                         </div>
                                         <div class="col-span-2" v-if="rp.type === 'http' && !rp._collapsed">
-                                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">间隔</label>
+                                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">更新间隔 (秒)</label>
                                             <input type="number" v-model.number="rp.interval" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400">
                                         </div>
                                     </div>
@@ -844,10 +847,10 @@
                                      @dragenter.prevent="onProxyGroupDragOver(idx)"
                                      @dragover.prevent="onProxyGroupDragOver(idx)"
                                      @drop="onProxyGroupDrop(idx)">
+                                    <button type="button" draggable="true" @dragstart="onProxyGroupDragStart(idx, $event)" @dragend="onProxyGroupDragEnd" class="section-drag-handle section-drag-handle-teal absolute left-3 top-3 z-10" :class="{ 'is-dragging': proxyGroupDrag.fromIndex === idx }" title="拖动排序策略组">
+                                        <i class="fas fa-grip-vertical text-sm"></i>
+                                    </button>
                                     <div class="absolute top-2 right-2 flex items-center gap-2 z-10">
-                                        <button type="button" draggable="true" @dragstart="onProxyGroupDragStart(idx, $event)" @dragend="onProxyGroupDragEnd" class="proxy-group-drag-handle" :class="{ 'is-dragging': proxyGroupDrag.fromIndex === idx }" title="拖动排序策略组">
-                                            <i class="fas fa-grip-vertical text-xs"></i>
-                                        </button>
                                         <button @click="toggleGroupCollapse(g)" class="text-slate-400 hover:bg-slate-200 hover:text-slate-700 w-6 h-6 rounded flex items-center justify-center transition" :title="g._collapsed ? '展开' : '折叠'">
                                             <i class="fas text-xs" :class="g._collapsed ? 'fa-chevron-down' : 'fa-chevron-up'"></i>
                                         </button>
@@ -856,7 +859,7 @@
                                         </button>
                                     </div>
 
-                                    <div class="grid grid-cols-12 gap-3 mb-3 pr-6">
+                                    <div class="grid grid-cols-12 gap-3 mb-3 pr-6 pl-11">
                                         <div class="col-span-3">
                                             <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">组名称</label>
                                             <input type="text" :value="g.name" @input="updateGroupName(g, $event.target.value)" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm font-bold text-teal-700 outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400">
@@ -889,11 +892,11 @@
                                         </div>
                                     </div>
 
-                                    <div v-if="g._collapsed" class="mb-3 px-3 py-2 bg-white border border-slate-200 rounded-lg text-[11px] text-slate-500 font-bold">
+                                    <div v-if="g._collapsed" class="mb-3 ml-11 px-3 py-2 bg-white border border-slate-200 rounded-lg text-[11px] text-slate-500 font-bold">
                                         已折叠 · 静态成员 {{ (g.proxies || []).length }} 个 · 订阅集合 {{ (g.use || []).length }} 个
                                     </div>
 
-                                    <div v-show="!g._collapsed" class="grid grid-cols-12 gap-3 bg-white p-3 rounded-lg border border-slate-200 mb-3" v-if="['url-test', 'fallback', 'load-balance'].includes(g.type)">
+                                    <div v-show="!g._collapsed" class="grid grid-cols-12 gap-3 bg-white p-3 rounded-lg border border-slate-200 mb-3 ml-11" v-if="['url-test', 'fallback', 'load-balance'].includes(g.type)">
                                         <div class="col-span-5"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">测速 URL (url)</label><input type="text" v-model="g.url" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-mono outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"></div>
                                         <div class="col-span-2"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">间隔 (interval)</label><input type="number" v-model.number="g.interval" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"></div>
                                         <template v-if="['url-test', 'fallback'].includes(g.type)">
@@ -905,7 +908,7 @@
                                         </template>
                                     </div>
 
-                                    <div v-show="!g._collapsed" class="bg-white p-4 rounded-lg border border-slate-200 flex flex-col gap-4">
+                                    <div v-show="!g._collapsed" class="bg-white p-4 rounded-lg border border-slate-200 flex flex-col gap-4 ml-11">
                                         <div class="grid grid-cols-12 gap-3 mb-1">
                                             <div class="col-span-6">
                                                 <label class="block text-[10px] font-bold text-indigo-500 uppercase mb-1 tracking-wider" title="整个策略组的出站流量都会强制经过这个前置节点">Dialer-Proxy (策略组链式前置)</label>
@@ -1008,29 +1011,25 @@
                             </div>
                         </div>
 
-                        <div class="space-y-2">
+                            <div class="space-y-2">
                             <div v-for="(r, idx) in uiState.rules" :key="idx"
                                  :data-yaml-target="r.logic ? r.logic + ',' : (r.type + (r.value ? ',' + r.value : ''))"
-                                 :draggable="r.draggable || false"
-                                 @dragstart="onRuleDragStart(idx, $event)"
                                  @dragenter.prevent="onRuleDragEnter(idx)"
-                                 @dragover.prevent
+                                 @dragover.prevent="onRuleDragEnter(idx)"
                                  @drop="onRuleDrop(idx)"
-                                 @dragend="onRuleDragEnd"
                                  :class="{
                                     'opacity-40 border-dashed': draggedRuleIndex === idx,
+                                    'drag-insert-strong drag-insert-indigo': ruleDragOverIndex === idx && draggedRuleIndex !== null && draggedRuleIndex !== idx,
                                     'border-l-emerald-400 bg-emerald-50/60': r.logic === 'AND',
                                     'border-l-violet-400 bg-violet-50/60': r.logic === 'OR',
                                     'bg-slate-50': !r.logic
                                  }"
-                                 class="border border-slate-200 rounded-xl border-l-4 transition-colors hover:border-slate-300 hover:shadow-sm">
+                                class="border border-slate-200 rounded-xl border-l-4 transition-colors hover:border-slate-300 hover:shadow-sm">
 
                                 <div class="flex items-center gap-2 p-2.5">
-                                    <div class="cursor-move text-slate-400 px-2 py-1 hover:text-indigo-600 transition rounded bg-white border border-slate-200 shadow-sm shrink-0"
-                                         @mouseenter="r.draggable=true" @mouseleave="r.draggable=false"
-                                         @mousedown="r.draggable=true" @mouseup="r.draggable=false" title="按住拖拽排序">
-                                        <i class="fas fa-grip-vertical text-xs"></i>
-                                    </div>
+                                    <button type="button" draggable="true" @dragstart="onRuleDragStart(idx, $event)" @dragend="onRuleDragEnd" class="section-drag-handle section-drag-handle-indigo shrink-0" :class="{ 'is-dragging': draggedRuleIndex === idx }" title="拖动排序路由规则">
+                                        <i class="fas fa-grip-vertical text-sm"></i>
+                                    </button>
 
                                     <span v-if="r.logic === 'AND'" class="shrink-0 text-[10px] font-black px-2 py-0.5 rounded bg-emerald-500 text-white tracking-widest">AND</span>
                                     <span v-else-if="r.logic === 'OR'" class="shrink-0 text-[10px] font-black px-2 py-0.5 rounded bg-violet-500 text-white tracking-widest">OR</span>
