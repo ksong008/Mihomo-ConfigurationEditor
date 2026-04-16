@@ -32,11 +32,27 @@
         throw new Error('功能模块未加载，请确认先引入 ./mihomo.dns.js ./mihomo.tproxy.js ./mihomo.rules.js ./mihomo.yaml.js');
     }
 
-    const STORAGE_KEY = 'mihomo_web_config_v17';
+    const STORAGE_VERSION = 18;
+    const STORAGE_KEY_PREFIX = 'mihomo_web_config';
+    const STORAGE_KEY = `${STORAGE_KEY_PREFIX}_v${STORAGE_VERSION}`;
+    const STORAGE_BACKUP_KEY = `${STORAGE_KEY}_backup`;
+    const LEGACY_STORAGE_KEYS = ['mihomo_web_config_v17'];
 
     createApp({
         setup() {
             const crashError = ref(null);
+            const clearPersistedStorage = (includeLegacy = true) => {
+                const keys = [STORAGE_KEY, STORAGE_BACKUP_KEY];
+                if (includeLegacy) keys.push(...LEGACY_STORAGE_KEYS);
+
+                keys.forEach((key) => {
+                    try {
+                        localStorage.removeItem(key);
+                    } catch (err) {
+                        console.warn('清理本地缓存失败:', key, err);
+                    }
+                });
+            };
 
             onErrorCaptured((err, instance, info) => {
                 console.error('UI渲染层捕获到异常，已自动拦截以防止白屏:', err, info);
@@ -45,7 +61,7 @@
             });
 
             const forceClearCache = () => {
-                localStorage.removeItem(STORAGE_KEY);
+                clearPersistedStorage();
                 location.reload();
             };
 
@@ -220,6 +236,9 @@
             const config = ref(getDefaultConfig());
             const providersList = ref([]);
             const ruleProvidersList = ref([]);
+            const defaultConfigSnapshot = JSON.parse(JSON.stringify(config.value));
+            const defaultUiStateSnapshot = JSON.parse(JSON.stringify(uiState.value));
+            let suspendPersistence = false;
 
             watch(() => uiState.value.useMirrorForPanels, (n) => {
                 const p = panels.find(x => x.id === uiState.value.selectedPanel);
@@ -1362,19 +1381,14 @@
             let buildTimeout;
             watch([config, uiState, providersList, ruleProvidersList], () => {
                 clearTimeout(buildTimeout);
+                if (suspendPersistence) return;
                 if (!isLocating.value) renderStatus.value = '实时渲染中...';
 
                 buildTimeout = setTimeout(() => {
                     const ok = safeBuildYaml('state watcher');
                     if (!ok) return;
 
-                    const sanitizedUiState = getSanitizedUiStateForSave(uiState.value, config.value);
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                        config: config.value,
-                        uiState: sanitizedUiState,
-                        providersList: providersList.value,
-                        ruleProvidersList: ruleProvidersList.value
-                    }));
+                    writePersistedState();
                 }, 150);
             }, { deep: true });
 
@@ -1386,6 +1400,69 @@
                 } catch (err) {
                     return fallback;
                 }
+            };
+
+            const unwrapPersistedPayload = (raw) => {
+                if (!raw) return null;
+
+                let parsed;
+                try {
+                    parsed = JSON.parse(raw);
+                } catch (err) {
+                    return null;
+                }
+
+                if (!isPlainObject(parsed)) return null;
+
+                if (Number(parsed.version) === STORAGE_VERSION && isPlainObject(parsed.data)) {
+                    return parsed.data;
+                }
+
+                if (
+                    parsed.config !== undefined
+                    || parsed.uiState !== undefined
+                    || parsed.providersList !== undefined
+                    || parsed.ruleProvidersList !== undefined
+                ) {
+                    return parsed;
+                }
+
+                return null;
+            };
+
+            const capturePersistedState = () => ({
+                config: safeJsonClone(config.value, {}),
+                uiState: getSanitizedUiStateForSave(uiState.value, config.value),
+                providersList: safeJsonClone(providersList.value, []),
+                ruleProvidersList: safeJsonClone(ruleProvidersList.value, [])
+            });
+
+            const writePersistedState = ({ replaceBackup = false } = {}) => {
+                const payload = {
+                    version: STORAGE_VERSION,
+                    savedAt: new Date().toISOString(),
+                    data: capturePersistedState()
+                };
+
+                try {
+                    const serialized = JSON.stringify(payload);
+                    const previous = localStorage.getItem(STORAGE_KEY);
+                    if (replaceBackup) {
+                        localStorage.setItem(STORAGE_BACKUP_KEY, serialized);
+                    } else if (previous && previous !== serialized) {
+                        localStorage.setItem(STORAGE_BACKUP_KEY, previous);
+                    }
+                    localStorage.setItem(STORAGE_KEY, serialized);
+                } catch (err) {
+                    console.warn('本地缓存写入失败，已跳过持久化:', err);
+                }
+            };
+
+            const resetStateToDefaults = () => {
+                config.value = safeJsonClone(defaultConfigSnapshot, getDefaultConfig());
+                uiState.value = safeJsonClone(defaultUiStateSnapshot, {});
+                providersList.value = [];
+                ruleProvidersList.value = [];
             };
 
             const splitConfigLine = (line) => {
@@ -2075,33 +2152,35 @@
                 downloadYaml(input);
             };
 
-            onMounted(() => {
-                try {
-                    const saved = localStorage.getItem(STORAGE_KEY);
-                    if (saved) {
-                        const p = JSON.parse(saved);
-                        if (p.config) deepMerge(config.value, normalizeImportedConfigData(p.config));
-                        if (p.uiState) {
-                            deepMerge(uiState.value, p.uiState);
-                            if (!Object.prototype.hasOwnProperty.call(p.uiState, 'tunDnsHijackEnabled')) {
-                                uiState.value.tunDnsHijackEnabled = !!String(uiState.value.tunDnsHijack || '').trim();
-                            }
-                            if (!Object.prototype.hasOwnProperty.call(p.uiState, 'enableDnsFallback')) {
-                                uiState.value.enableDnsFallback = !!String(uiState.value.dnsFallback || '').trim();
-                            }
-                        }
-                        if (p.providersList) providersList.value = ensureArray(p.providersList).filter(isPlainObject);
-                        if (p.ruleProvidersList) ruleProvidersList.value = ensureArray(p.ruleProvidersList).filter(isPlainObject);
+            const applyPersistedPayload = (payload) => {
+                resetStateToDefaults();
 
-                        if (config.value.proxies && Array.isArray(config.value.proxies)) {
-                            config.value.proxies = config.value.proxies.map(px => parseSingleProxyNode(px)).filter(Boolean);
-                        }
-                    } else {
-                        injectRegionGroups();
+                if (payload.config) {
+                    deepMerge(config.value, normalizeImportedConfigData(payload.config));
+                }
+
+                if (isPlainObject(payload.uiState)) {
+                    deepMerge(uiState.value, payload.uiState);
+
+                    if (!Object.prototype.hasOwnProperty.call(payload.uiState, 'tunDnsHijackEnabled')) {
+                        uiState.value.tunDnsHijackEnabled = !!String(uiState.value.tunDnsHijack || '').trim();
                     }
-                } catch (e) {
-                    console.error("缓存数据解析失败，已跳过:", e);
-                    crashError.value = `应用启动崩溃: ${e.message}`;
+                    if (!Object.prototype.hasOwnProperty.call(payload.uiState, 'enableDnsFallback')) {
+                        uiState.value.enableDnsFallback = !!String(uiState.value.dnsFallback || '').trim();
+                    }
+                }
+
+                providersList.value = payload.providersList
+                    ? ensureArray(payload.providersList).filter(isPlainObject)
+                    : [];
+                ruleProvidersList.value = payload.ruleProvidersList
+                    ? ensureArray(payload.ruleProvidersList).filter(isPlainObject)
+                    : [];
+            };
+
+            const finalizeHydratedState = () => {
+                if (config.value.proxies && Array.isArray(config.value.proxies)) {
+                    config.value.proxies = config.value.proxies.map(px => parseSingleProxyNode(px)).filter(Boolean);
                 }
 
                 ensureGroupCollapseState();
@@ -2109,9 +2188,78 @@
 
                 uiState.value.nftablesConfig = normalizeNftablesConfig(uiState.value.nftablesConfig, config.value);
                 sanitizeNftMarks();
-                if (config.value && config.value.dns) config.value.dns.listen = String(getListenPort(config.value.dns.listen, 53));
 
-                safeBuildYaml('initial mount');
+                if (config.value && config.value.dns) {
+                    config.value.dns.listen = String(getListenPort(config.value.dns.listen, 53));
+                }
+            };
+
+            const restorePersistedState = () => {
+                const candidates = [STORAGE_KEY, STORAGE_BACKUP_KEY, ...LEGACY_STORAGE_KEYS];
+                let sawPersistedState = false;
+
+                for (const key of candidates) {
+                    let raw = null;
+                    try {
+                        raw = localStorage.getItem(key);
+                    } catch (err) {
+                        console.warn('读取本地缓存失败，已跳过:', key, err);
+                        continue;
+                    }
+
+                    if (!raw) continue;
+                    sawPersistedState = true;
+
+                    const payload = unwrapPersistedPayload(raw);
+                    if (!payload) {
+                        console.warn('本地缓存格式无效，已跳过:', key);
+                        continue;
+                    }
+
+                    try {
+                        applyPersistedPayload(payload);
+                        finalizeHydratedState();
+
+                        if (safeBuildYaml(`restore cache ${key}`)) {
+                            if (key !== STORAGE_KEY) {
+                                writePersistedState({ replaceBackup: true });
+                            }
+                            return true;
+                        }
+                    } catch (err) {
+                        console.warn('本地缓存恢复失败，已跳过:', key, err);
+                    }
+                }
+
+                resetStateToDefaults();
+                injectRegionGroups();
+                finalizeHydratedState();
+
+                if (sawPersistedState) {
+                    console.warn('所有本地缓存均恢复失败，已回退到默认配置并清理缓存。');
+                    clearPersistedStorage();
+                }
+
+                safeBuildYaml(sawPersistedState ? 'cache fallback to defaults' : 'initial mount');
+                writePersistedState({ replaceBackup: sawPersistedState });
+                return false;
+            };
+
+            onMounted(() => {
+                suspendPersistence = true;
+                try {
+                    restorePersistedState();
+                } catch (e) {
+                    console.error('应用启动恢复失败，已回退默认配置:', e);
+                    resetStateToDefaults();
+                    injectRegionGroups();
+                    finalizeHydratedState();
+                    clearPersistedStorage();
+                    safeBuildYaml('startup fallback');
+                    writePersistedState({ replaceBackup: true });
+                } finally {
+                    suspendPersistence = false;
+                }
             });
 
             return {
