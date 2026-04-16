@@ -110,6 +110,13 @@ function normalizeNftablesConfig(nft, cfg) {
 
 function getSanitizedUiStateForSave(state, cfg) {
     const cloned = JSON.parse(JSON.stringify(state || {}));
+    Object.keys(cloned).forEach((key) => {
+        if (/^show[A-Z]/.test(key)) {
+            delete cloned[key];
+        }
+    });
+    delete cloned.pendingAction;
+    delete cloned.tproxyConflicts;
     cloned.nftablesConfig = normalizeNftablesConfig(cloned.nftablesConfig, cfg);
     return cloned;
 }
