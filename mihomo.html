@@ -41,7 +41,7 @@
                 <button @click="clearLists" class="bg-white border border-red-200 hover:bg-red-50 text-red-600 px-4 py-2 rounded-xl font-bold transition shadow-sm text-sm"><i class="fas fa-trash-alt mr-1.5"></i>清空列表</button>
                 <button @click="forceClearCache" class="bg-white border border-orange-200 hover:bg-orange-50 text-orange-600 px-4 py-2 rounded-xl font-bold transition shadow-sm text-sm"><i class="fas fa-eraser mr-1.5"></i>清理缓存</button>
                 <button @click="copyYaml" class="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-xl font-bold transition shadow-md text-sm"><i class="fas fa-copy mr-1.5"></i>复制 YAML</button>
-                <button @click="downloadYaml" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl font-bold transition shadow-md text-sm"><i class="fas fa-download mr-1.5"></i>下载</button>
+                <button @click="downloadYamlWithRename" title="下载前可重命名" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl font-bold transition shadow-md text-sm"><i class="fas fa-download mr-1.5"></i>下载</button>
             </div>
         </header>
 
@@ -426,7 +426,7 @@
                                     <button @click="askConfirm('确定删除此代理集合？') && removeProvider(idx)" class="absolute top-2 right-2 text-red-400 hover:bg-red-500 hover:text-white w-6 h-6 rounded flex items-center justify-center transition z-10"><i class="fas fa-trash text-xs"></i></button>
 
                                     <div class="grid grid-cols-12 gap-3 pr-6 mb-3">
-                                        <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">名称</label><input type="text" v-model="p.name" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold text-amber-700 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"></div>
+                                        <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">名称</label><input type="text" :value="p.name" @input="updateProviderName(p, $event.target.value)" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold text-amber-700 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"></div>
                                         <div class="col-span-3">
                                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">类型 (Type)</label>
                                             <select v-model="p.type" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold text-amber-700 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400">
@@ -505,7 +505,7 @@
                                     <button @click="askConfirm('确定删除此节点？') && config.proxies.splice(idx,1)" class="absolute top-2 right-2 text-red-400 hover:bg-red-500 hover:text-white w-6 h-6 rounded flex items-center justify-center transition z-10"><i class="fas fa-trash text-xs"></i></button>
 
                                     <div class="grid grid-cols-12 gap-3 mb-3 pr-8">
-                                        <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">节点名称</label><input type="text" v-model="px.name" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold text-emerald-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"></div>
+                                        <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">节点名称</label><input type="text" :value="px.name" @input="updateProxyName(px, $event.target.value)" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold text-emerald-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"></div>
                                         <div class="col-span-2"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">协议架构</label>
                                             <select v-model="px.type" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold text-emerald-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400">
                                                 <optgroup label="Modern (支持Network)"><option value="vless">VLESS</option><option value="vmess">VMess</option><option value="trojan">Trojan</option><option value="ss">Shadowsocks</option></optgroup>
@@ -726,22 +726,37 @@
                                     <div class="stitle mb-0 !border-l-0 !pl-0 text-rose-700">规则集合 (rule-providers)</div>
                                     <p class="text-xs text-slate-500 mt-1">创建统一资源池供「路由规则」动态引用。智能补全 MetaRules 生态链接。</p>
                                 </div>
-                                <div class="flex items-center gap-3" v-if="uiState">
-                                    <label class="flex items-center gap-2 cursor-pointer bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200 shadow-sm transition hover:bg-rose-100">
-                                        <input type="checkbox" v-model="uiState.useMirrorForRuleProviders" class="w-4 h-4 text-rose-600 rounded"><span class="text-xs font-bold text-rose-800">jsDelivr 加速</span>
+                                                                <div class="flex items-center gap-1.5 flex-nowrap overflow-x-auto shrink-0" v-if="uiState">
+                                    <label class="flex items-center gap-1.5 cursor-pointer bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 shadow-sm transition hover:bg-rose-100 whitespace-nowrap">
+                                        <input type="checkbox" v-model="uiState.useMirrorForRuleProviders" class="w-3.5 h-3.5 text-rose-600 rounded"><span class="text-[11px] font-bold text-rose-800">jsDelivr 加速</span>
                                     </label>
-                                    <button @click="addRuleProvider" class="bg-rose-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-rose-500 transition shadow-sm"><i class="fas fa-plus mr-1"></i>添加规则源</button>
+                                    <button @click="addRuleProvider" class="bg-rose-600 text-white px-2.5 py-1 rounded-lg text-[11px] font-bold hover:bg-rose-500 transition shadow-sm whitespace-nowrap"><i class="fas fa-plus mr-1"></i>添加规则源</button>
+                                    <button @click="expandAllRuleProviders" class="bg-white text-slate-700 border border-slate-200 px-2 py-1 rounded-lg text-[11px] font-bold hover:bg-slate-50 transition shadow-sm whitespace-nowrap"><i class="fas fa-angle-double-down mr-1"></i>全部展开</button>
+                                    <button @click="collapseAllRuleProviders" class="bg-slate-200 text-slate-700 px-2 py-1 rounded-lg text-[11px] font-bold hover:bg-slate-300 transition shadow-sm whitespace-nowrap"><i class="fas fa-angle-double-up mr-1"></i>全部折叠</button>
                                 </div>
                             </div>
 
                             <div class="space-y-4">
-                                <div v-for="(rp, idx) in (ruleProvidersList || [])" :key="idx" :data-yaml-target="'  ' + (rp.name||'') + ':'" class="bg-slate-50 p-4 rounded-xl border border-slate-200 relative group shadow-sm hover:border-rose-300 transition-colors">
-                                    <button @click="askConfirm('确定删除此规则集合？') && removeRuleProvider(idx)" class="absolute top-2 right-2 text-red-400 hover:bg-red-500 hover:text-white w-6 h-6 rounded flex items-center justify-center transition z-10"><i class="fas fa-trash text-xs"></i></button>
+                                <div v-for="(rp, idx) in (ruleProvidersList || [])" :key="idx" :data-yaml-target="'  ' + (rp.name||'') + ':'" class="bg-slate-50 p-4 rounded-xl border border-slate-200 relative group shadow-sm hover:border-rose-300 transition-colors"
+                                     :class="{ 'drag-insert-strong drag-insert-rose': ruleProviderDrag.overIndex === idx && ruleProviderDrag.fromIndex !== -1 && ruleProviderDrag.fromIndex !== idx }"
+                                     @dragenter.prevent="onRuleProviderDragOver(idx)"
+                                     @dragover.prevent="onRuleProviderDragOver(idx)"
+                                     @drop="onRuleProviderDrop(idx)">
+                                    <div class="absolute top-2 right-2 flex items-center gap-2 z-10">
+                                        <button type="button" draggable="true" @dragstart="onRuleProviderDragStart(idx, $event)" @dragend="onRuleProviderDragEnd" class="rule-provider-drag-handle" :class="{ 'is-dragging': ruleProviderDrag.fromIndex === idx }" title="拖动排序规则集合">
+                                            <i class="fas fa-grip-vertical text-xs"></i>
+                                        </button>
+                                        <button @click="toggleRuleProviderCollapse(rp)" class="text-slate-400 hover:bg-slate-200 hover:text-slate-700 w-6 h-6 rounded flex items-center justify-center transition" :title="rp._collapsed ? '展开' : '折叠'">
+                                            <i class="fas text-xs" :class="rp._collapsed ? 'fa-chevron-down' : 'fa-chevron-up'"></i>
+                                        </button>
+                                        <button @click="askConfirm('确定删除此规则集合？') && removeRuleProvider(idx)" class="text-red-400 hover:bg-red-500 hover:text-white w-6 h-6 rounded flex items-center justify-center transition z-10"><i class="fas fa-trash text-xs"></i></button>
+                                    </div>
 
-                                    <div class="grid grid-cols-12 gap-3 pr-8 mb-3">
+                                    <div>
+                                        <div class="grid grid-cols-12 gap-3 pr-24 mb-3">
                                         <div class="col-span-3">
                                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider" title="在路由规则中将被引用的唯一标识名">标识名 (Name)</label>
-                                            <input type="text" :value="rp.name" @input="updateRuleProviderName(rp, $event.target.value)" placeholder="如: apple-domain" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold text-rose-700 outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400">
+                                            <input type="text" :value="rp.name" @input="updateRuleProviderName(rp, $event.target.value, $event)" placeholder="如: apple-domain" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold text-rose-700 outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400">
                                         </div>
                                         <div class="col-span-2">
                                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">类型</label>
@@ -770,14 +785,14 @@
                                                 <option value="mrs">MRS</option>
                                             </select>
                                         </div>
-                                        <div class="col-span-2" v-if="rp.type === 'http'">
+                                        <div class="col-span-2" v-if="rp.type === 'http' && !rp._collapsed">
                                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider">间隔</label>
                                             <input type="number" v-model.number="rp.interval" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400">
                                         </div>
                                     </div>
 
                                     <div class="grid grid-cols-12 gap-3">
-                                        <div class="col-span-12 flex flex-col" v-if="rp.type === 'http'">
+                                        <div class="col-span-12 flex flex-col" v-if="rp.type === 'http' && !rp._collapsed">
                                             <div class="flex items-center justify-between mb-1">
                                                 <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">下载链接 (URL)</label>
                                                 <label class="flex items-center gap-1.5 cursor-pointer" v-if="rp.behavior !== 'classical'">
@@ -800,6 +815,7 @@
                                         </div>
                                     </div>
                                 </div>
+                            </div>
 
                                 <div v-if="(ruleProvidersList || []).length===0" class="text-center py-4 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-sm font-bold">暂无统一规则源，请先添加</div>
 
@@ -814,20 +830,36 @@
                         <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-teal-500" v-if="config['proxy-groups']">
                             <div class="flex justify-between items-center mb-4 sticky top-0 z-20 bg-white/90 backdrop-blur-sm pb-3 pt-4 -mt-4 border-b border-slate-100">
                                 <div><div class="stitle mb-0 !border-l-0 !pl-0 text-teal-700">策略组 (proxy-groups)</div><p class="text-xs text-slate-500 mt-1">内置地区组一键生成，支持根据正则智能归类已有节点与订阅。</p></div>
-                                <div class="flex gap-2">
-                                    <button @click="injectRegionGroups" class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-500 transition shadow-sm"><i class="fas fa-globe mr-1"></i>注入地区组</button>
-                                    <button @click="autoCategorizeProxies" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-500 transition shadow-sm"><i class="fas fa-magic mr-1"></i>智能正则归类</button>
-                                    <button @click="addGroup" class="bg-teal-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-teal-500 transition shadow-sm"><i class="fas fa-plus mr-1"></i>新建组</button>
+                                <div class="flex gap-1.5 items-center flex-nowrap overflow-x-auto shrink-0">
+                                    <button @click="injectRegionGroups" class="bg-indigo-600 text-white px-2.5 py-1 rounded-lg text-[11px] font-bold hover:bg-indigo-500 transition shadow-sm whitespace-nowrap"><i class="fas fa-globe mr-1"></i>注入地区组</button>
+                                    <button @click="autoCategorizeProxies" class="bg-blue-600 text-white px-2.5 py-1 rounded-lg text-[11px] font-bold hover:bg-blue-500 transition shadow-sm whitespace-nowrap"><i class="fas fa-magic mr-1"></i>智能正则归类</button>
+                                    <button @click="addGroup" class="bg-teal-600 text-white px-2.5 py-1 rounded-lg text-[11px] font-bold hover:bg-teal-500 transition shadow-sm whitespace-nowrap"><i class="fas fa-plus mr-1"></i>新建组</button>
+                                    <button @click="collapseAllGroups" class="bg-slate-200 text-slate-700 px-2 py-1 rounded-lg text-[11px] font-bold hover:bg-slate-300 transition shadow-sm whitespace-nowrap"><i class="fas fa-angle-double-up mr-1"></i>全部折叠</button>
+                                    <button @click="expandAllGroups" class="bg-white text-slate-700 border border-slate-200 px-2 py-1 rounded-lg text-[11px] font-bold hover:bg-slate-50 transition shadow-sm whitespace-nowrap"><i class="fas fa-angle-double-down mr-1"></i>全部展开</button>
                                 </div>
                             </div>
                             <div class="space-y-4">
-                                <div v-for="(g, idx) in config['proxy-groups']" :key="idx" :data-yaml-target="'- name: ' + g.name" class="bg-slate-50 p-4 rounded-xl border border-slate-200 relative hover:border-teal-300 transition-colors">
-                                    <button @click="askConfirm('确定删除此策略组？') && removeGroup(idx)" class="absolute top-2 right-2 text-red-400 hover:bg-red-500 hover:text-white w-6 h-6 rounded flex items-center justify-center transition-colors z-10"><i class="fas fa-trash text-xs"></i></button>
+                                <div v-for="(g, idx) in config['proxy-groups']" :key="idx" :data-yaml-target="'- name: ' + g.name" class="bg-slate-50 p-4 rounded-xl border border-slate-200 relative hover:border-teal-300 transition-colors"
+                                     :class="{ 'drag-insert-strong drag-insert-teal': proxyGroupDrag.overIndex === idx && proxyGroupDrag.fromIndex !== -1 && proxyGroupDrag.fromIndex !== idx }"
+                                     @dragenter.prevent="onProxyGroupDragOver(idx)"
+                                     @dragover.prevent="onProxyGroupDragOver(idx)"
+                                     @drop="onProxyGroupDrop(idx)">
+                                    <div class="absolute top-2 right-2 flex items-center gap-2 z-10">
+                                        <button type="button" draggable="true" @dragstart="onProxyGroupDragStart(idx, $event)" @dragend="onProxyGroupDragEnd" class="proxy-group-drag-handle" :class="{ 'is-dragging': proxyGroupDrag.fromIndex === idx }" title="拖动排序策略组">
+                                            <i class="fas fa-grip-vertical text-xs"></i>
+                                        </button>
+                                        <button @click="toggleGroupCollapse(g)" class="text-slate-400 hover:bg-slate-200 hover:text-slate-700 w-6 h-6 rounded flex items-center justify-center transition" :title="g._collapsed ? '展开' : '折叠'">
+                                            <i class="fas text-xs" :class="g._collapsed ? 'fa-chevron-down' : 'fa-chevron-up'"></i>
+                                        </button>
+                                        <button @click="askConfirm('确定删除此策略组？') && removeGroup(idx)" class="text-red-400 hover:bg-red-500 hover:text-white w-6 h-6 rounded flex items-center justify-center transition-colors">
+                                            <i class="fas fa-trash text-xs"></i>
+                                        </button>
+                                    </div>
 
                                     <div class="grid grid-cols-12 gap-3 mb-3 pr-6">
                                         <div class="col-span-3">
                                             <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">组名称</label>
-                                            <input type="text" v-model="g.name" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm font-bold text-teal-700 outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400">
+                                            <input type="text" :value="g.name" @input="updateGroupName(g, $event.target.value)" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm font-bold text-teal-700 outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400">
                                         </div>
                                         <div class="col-span-2">
                                             <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">策略类型</label>
@@ -857,7 +889,11 @@
                                         </div>
                                     </div>
 
-                                    <div class="grid grid-cols-12 gap-3 bg-white p-3 rounded-lg border border-slate-200 mb-3" v-if="['url-test', 'fallback', 'load-balance'].includes(g.type)">
+                                    <div v-if="g._collapsed" class="mb-3 px-3 py-2 bg-white border border-slate-200 rounded-lg text-[11px] text-slate-500 font-bold">
+                                        已折叠 · 静态成员 {{ (g.proxies || []).length }} 个 · 订阅集合 {{ (g.use || []).length }} 个
+                                    </div>
+
+                                    <div v-show="!g._collapsed" class="grid grid-cols-12 gap-3 bg-white p-3 rounded-lg border border-slate-200 mb-3" v-if="['url-test', 'fallback', 'load-balance'].includes(g.type)">
                                         <div class="col-span-5"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">测速 URL (url)</label><input type="text" v-model="g.url" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-mono outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"></div>
                                         <div class="col-span-2"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">间隔 (interval)</label><input type="number" v-model.number="g.interval" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"></div>
                                         <template v-if="['url-test', 'fallback'].includes(g.type)">
@@ -869,7 +905,7 @@
                                         </template>
                                     </div>
 
-                                    <div class="bg-white p-4 rounded-lg border border-slate-200 flex flex-col gap-4">
+                                    <div v-show="!g._collapsed" class="bg-white p-4 rounded-lg border border-slate-200 flex flex-col gap-4">
                                         <div class="grid grid-cols-12 gap-3 mb-1">
                                             <div class="col-span-6">
                                                 <label class="block text-[10px] font-bold text-indigo-500 uppercase mb-1 tracking-wider" title="整个策略组的出站流量都会强制经过这个前置节点">Dialer-Proxy (策略组链式前置)</label>
@@ -889,8 +925,23 @@
                                         <div class="pt-3 border-t border-slate-100 transition-opacity" :class="g['include-all'] ? 'opacity-30 pointer-events-none' : 'opacity-100'">
                                             <label class="flex items-center text-[10px] font-bold text-slate-400 uppercase mb-2">引用静态成员 (proxies)</label>
                                             <div class="flex flex-wrap gap-2">
-                                                <label v-for="tag in getAvailableGroupMembers(g.name)" :key="tag" class="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:border-teal-300 transition-colors shadow-sm" :class="{'!bg-teal-50 !border-teal-400': (g.proxies || []).includes(tag)}">
-                                                    <input type="checkbox" :value="tag" v-model="g.proxies" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300"><span class="text-xs font-bold" :class="(g.proxies || []).includes(tag) ? 'text-teal-700' : 'text-slate-600'">{{ tag }}</span>
+                                                <label
+                                                    v-for="tag in getOrderedAvailableGroupMembers(g)"
+                                                    :key="tag"
+                                                    data-group-member-draggable="1"
+                                                    :draggable="!g['include-all'] && (g.proxies || []).includes(tag)"
+                                                    @dragstart="onInlineGroupMemberDragStart(g, tag, $event)"
+                                                    @dragover.prevent="onInlineGroupMemberDragOver(g, tag, $event)"
+                                                    @drop.prevent="onInlineGroupMemberDrop(g, tag, $event)"
+                                                    @dragend="onGroupProxyDragEnd"
+                                                    class="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:border-teal-300 transition-colors shadow-sm"
+                                                    :class="{
+                                                        '!bg-teal-50 !border-teal-400': (g.proxies || []).includes(tag),
+                                                        'dragging': groupProxyDrag.groupName === g.name && (g.proxies || [])[groupProxyDrag.fromIndex] === tag
+                                                    }">
+                                                    <input type="checkbox" :value="tag" v-model="g.proxies" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300">
+                                                    <span v-if="(g.proxies || []).includes(tag)" class="group-inline-member-handle"><i class="fas fa-grip-vertical"></i></span>
+                                                    <span class="text-xs font-bold" :class="(g.proxies || []).includes(tag) ? 'text-teal-700' : 'text-slate-600'">{{ tag }}</span>
                                                 </label>
                                             </div>
                                         </div>
@@ -898,8 +949,23 @@
                                         <div class="transition-opacity" :class="g['include-all'] ? 'opacity-30 pointer-events-none' : 'opacity-100'" v-if="g.type !== 'relay'">
                                             <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">引用订阅集合 (use)</label>
                                             <div class="flex flex-wrap gap-2">
-                                                <label v-for="prov in providersList" :key="prov.name" class="flex items-center gap-1.5 px-2.5 py-1.5 bg-sky-50 border border-sky-200 rounded-lg cursor-pointer hover:border-sky-300 transition-colors shadow-sm" :class="{'!bg-sky-100 !border-sky-400': (g.use || []).includes(prov.name)}">
-                                                    <input type="checkbox" :value="prov.name" v-model="g.use" class="w-3.5 h-3.5 text-sky-600 rounded border-sky-300"><span class="text-xs font-bold" :class="(g.use || []).includes(prov.name) ? 'text-sky-800' : 'text-slate-600'">{{ prov.name }}</span>
+                                                <label
+                                                    v-for="provName in getOrderedGroupUseProviders(g)"
+                                                    :key="provName"
+                                                    data-group-use-draggable="1"
+                                                    :draggable="!g['include-all'] && (g.use || []).includes(provName)"
+                                                    @dragstart="onGroupUseDragStart(g, provName, $event)"
+                                                    @dragover.prevent="onGroupUseDragOver(g, provName, $event)"
+                                                    @drop.prevent="onGroupUseDrop(g, provName, $event)"
+                                                    @dragend="onGroupUseDragEnd"
+                                                    class="flex items-center gap-1.5 px-2.5 py-1.5 bg-sky-50 border border-sky-200 rounded-lg cursor-pointer hover:border-sky-300 transition-colors shadow-sm"
+                                                    :class="{
+                                                        '!bg-sky-100 !border-sky-400': (g.use || []).includes(provName),
+                                                        'dragging': groupUseDrag.groupName === g.name && (g.use || [])[groupUseDrag.fromIndex] === provName
+                                                    }">
+                                                    <input type="checkbox" :value="provName" v-model="g.use" class="w-3.5 h-3.5 text-sky-600 rounded border-sky-300">
+                                                    <span v-if="(g.use || []).includes(provName)" class="group-inline-member-handle"><i class="fas fa-grip-vertical"></i></span>
+                                                    <span class="text-xs font-bold" :class="(g.use || []).includes(provName) ? 'text-sky-800' : 'text-slate-600'">{{ provName }}</span>
                                                 </label>
                                             </div>
                                         </div>
