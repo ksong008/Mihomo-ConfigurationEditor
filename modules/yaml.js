@@ -7,16 +7,361 @@
 
     window.MihomoFeatureModules = window.MihomoFeatureModules || {};
     window.MihomoFeatureModules.createYamlModule = function (ctx) {
-        const { ref, config, uiState, providersList, ruleProvidersList, parseSingleProxyNode, getRuleProviderUrl } = ctx;
-        const { parsePorts, parseHosts, parseYamlMapText, parseMarkValue, getListenPort } = window.MihomoHelpers;
+        const { ref, config, uiState, providersList, ruleProvidersList, parseSingleProxyNode, getRuleProviderUrl, getDefaultConfig } = ctx;
+        const { parsePorts, parseHosts, parseYamlMapText, parseYamlSequenceText, parseYamlObjectText, parseMarkValue, getListenPort } = window.MihomoHelpers;
 
-        const yamlSections = ref({ general: '', network: '', proxies: '', providers: '', ruleProviders: '', groups: '', rules: '' });
+        const yamlSections = ref({ general: '', experimental: '', network: '', proxies: '', providers: '', ruleProviders: '', groups: '', subRules: '', rules: '' });
         const fullYaml = ref('');
+        const getRuleProviderPathExt = (format) => format === 'text' ? 'list' : (format || 'mrs');
+        const parseProxyNameOverride = (text) => parseYamlSequenceText(text, (item, index) => {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+                throw new Error(`override.proxy-name 第 ${index + 1} 项必须是映射对象`);
+            }
+
+            const pattern = String(item.pattern ?? '').trim();
+            const target = String(item.target ?? '').trim();
+            if (!pattern || !target) {
+                throw new Error(`override.proxy-name 第 ${index + 1} 项必须同时包含 pattern 和 target`);
+            }
+
+            return { pattern, target };
+        });
+        const parseListenerUsersText = (text) => {
+            const rawText = String(text || '').trim();
+            if (!rawText) return undefined;
+
+            try {
+                const parsedList = parseYamlSequenceText(rawText, (item) => item);
+                if (parsedList && parsedList.every((item) => item && typeof item === 'object' && !Array.isArray(item))) {
+                    return parsedList;
+                }
+            } catch (err) {}
+
+            const parsedObject = parseYamlObjectText(rawText);
+            if (parsedObject && typeof parsedObject === 'object' && !Array.isArray(parsedObject)) {
+                return [parsedObject];
+            }
+
+            throw new Error('users 请输入 YAML 列表、JSON 数组，或单个 JSON/YAML 对象');
+        };
+        const parseLineListText = (text) => String(text || '')
+            .split(/\r?\n|,/)
+            .map((item) => String(item || '').trim())
+            .filter(Boolean);
+        const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+        const deepEqual = (a, b) => {
+            if (a === b) return true;
+            if (Array.isArray(a) && Array.isArray(b)) {
+                if (a.length !== b.length) return false;
+                return a.every((item, index) => deepEqual(item, b[index]));
+            }
+            if (isPlainObject(a) && isPlainObject(b)) {
+                const aKeys = Object.keys(a);
+                const bKeys = Object.keys(b);
+                if (aKeys.length !== bKeys.length) return false;
+                return aKeys.every((key) => deepEqual(a[key], b[key]));
+            }
+            return false;
+        };
+        const pruneEmptyYamlValue = (value) => {
+            if (value === undefined || value === null) return undefined;
+            if (typeof value === 'string') return value.trim() === '' ? undefined : value;
+            if (Array.isArray(value)) {
+                const next = value
+                    .map((item) => pruneEmptyYamlValue(item))
+                    .filter((item) => item !== undefined);
+                return next.length > 0 ? next : undefined;
+            }
+            if (isPlainObject(value)) {
+                const next = {};
+                Object.keys(value).forEach((key) => {
+                    if (key.startsWith('_')) return;
+                    const pruned = pruneEmptyYamlValue(value[key]);
+                    if (pruned !== undefined) next[key] = pruned;
+                });
+                return Object.keys(next).length > 0 ? next : undefined;
+            }
+            return value;
+        };
+        const compactWithDefaults = (value, defaults, alwaysKeepKeys = new Set()) => {
+            if (Array.isArray(value)) {
+                if (Array.isArray(defaults) && deepEqual(value, defaults)) return undefined;
+                const next = value
+                    .map((item, index) => compactWithDefaults(item, Array.isArray(defaults) ? defaults[index] : undefined, alwaysKeepKeys))
+                    .filter((item) => item !== undefined);
+                return next.length > 0 ? next : undefined;
+            }
+            if (isPlainObject(value)) {
+                const next = {};
+                Object.keys(value).forEach((key) => {
+                    if (key.startsWith('_')) return;
+                    if (alwaysKeepKeys.has(key)) {
+                        const kept = pruneEmptyYamlValue(value[key]);
+                        if (kept !== undefined) next[key] = kept;
+                        return;
+                    }
+                    const compacted = compactWithDefaults(value[key], defaults && defaults[key], alwaysKeepKeys);
+                    if (compacted !== undefined) next[key] = compacted;
+                });
+                return Object.keys(next).length > 0 ? next : undefined;
+            }
+            if (defaults !== undefined && deepEqual(value, defaults)) return undefined;
+            return pruneEmptyYamlValue(value);
+        };
+        const stripDefaultFalseFlags = (value, defaults) => {
+            if (value === undefined || value === null) return value;
+            if (value === false && defaults === false) return undefined;
+
+            if (Array.isArray(value)) {
+                const next = value
+                    .map((item, index) => stripDefaultFalseFlags(item, Array.isArray(defaults) ? defaults[index] : undefined))
+                    .filter((item) => item !== undefined);
+                return next.length > 0 ? next : undefined;
+            }
+
+            if (isPlainObject(value)) {
+                const next = {};
+                Object.keys(value).forEach((key) => {
+                    if (key.startsWith('_')) return;
+                    const stripped = stripDefaultFalseFlags(value[key], defaults && defaults[key]);
+                    if (stripped !== undefined) next[key] = stripped;
+                });
+                return Object.keys(next).length > 0 ? next : undefined;
+            }
+
+            return value;
+        };
+        const sanitizeListenerForYaml = (listener) => {
+            const type = String(listener.type || '').trim();
+            const nextListener = {
+                name: String(listener.name || '').trim(),
+                type,
+                listen: String(listener.listen || '').trim(),
+                port: listener.port
+            };
+            if (['mixed', 'socks', 'tproxy'].includes(type) && listener.udp !== undefined) nextListener.udp = listener.udp;
+            if (listener.proxy) nextListener.proxy = String(listener.proxy).trim();
+            if (listener.rule) nextListener.rule = String(listener.rule).trim();
+            if (listener.token) nextListener.token = String(listener.token).trim();
+
+            if (['mixed', 'http', 'socks'].includes(type)) {
+                if (typeof listener._usersText === 'string' && listener._usersText.trim()) {
+                    nextListener.users = parseListenerUsersText(listener._usersText);
+                } else if (Array.isArray(listener.users) && listener.users.length > 0) {
+                    nextListener.users = listener.users;
+                }
+                if (listener.certificate) nextListener.certificate = String(listener.certificate).trim();
+                if (listener['private-key']) nextListener['private-key'] = String(listener['private-key']).trim();
+                if (listener['client-auth-type']) nextListener['client-auth-type'] = String(listener['client-auth-type']).trim();
+                if (listener['client-auth-cert']) nextListener['client-auth-cert'] = String(listener['client-auth-cert']).trim();
+                if (listener['ech-key']) nextListener['ech-key'] = String(listener['ech-key']).trim();
+                if (listener['ech-cert']) nextListener['ech-cert'] = String(listener['ech-cert']).trim();
+            }
+            return pruneEmptyYamlValue(nextListener);
+        };
+        const sanitizeProxyForYaml = (proxy) => {
+            const parsed = parseSingleProxyNode(proxy);
+            const defaults = parseSingleProxyNode({ type: parsed.type });
+            const next = compactWithDefaults(parsed, defaults, new Set(['name', 'type', 'server', 'port'])) || {};
+            const implicitTlsTypes = new Set(['hysteria2', 'hysteria', 'tuic', 'masque', 'anytls']);
+            const tlsToggleTypes = new Set(['vless', 'vmess', 'trojan', 'ss', 'http', 'socks5', 'sudoku']);
+            const allowedNetworksByType = {
+                vless: new Set(['tcp', 'ws', 'grpc', 'h2', 'http', 'xhttp']),
+                vmess: new Set(['tcp', 'ws', 'grpc', 'h2', 'http']),
+                trojan: new Set(['tcp', 'ws', 'grpc']),
+                masque: new Set(['quic', 'h2'])
+            };
+            const realityEnabled = !!proxy.reality;
+            const echEnabled = !!proxy['ech-opts']?.enable;
+            const smuxEnabled = !!proxy.smux?.enabled;
+            const brutalEnabled = !!proxy.smux?.['brutal-opts']?.enabled;
+            const obfsEnabled = !!String(proxy.obfs || '').trim();
+            const tlsSectionEnabled = !!proxy.tls || !!proxy.reality || implicitTlsTypes.has(parsed.type);
+            const currentNetwork = String(proxy.network || parsed.network || 'tcp').trim() || 'tcp';
+            const allowedNetworks = allowedNetworksByType[parsed.type] || new Set(['tcp']);
+            const effectiveNetwork = allowedNetworks.has(currentNetwork) ? currentNetwork : 'tcp';
+
+            delete next.reality;
+            if (effectiveNetwork === 'tcp') delete next.network;
+            if (parsed.type === 'http') {
+                const proxyHeaders = parseYamlMapText(proxy._proxyHeadersText);
+                if (proxyHeaders) next.headers = proxyHeaders;
+                else delete next.headers;
+            } else {
+                delete next.headers;
+            }
+            if (!parsed.plugin) {
+                delete next.plugin;
+                delete next['plugin-opts'];
+                delete next['kcptun-opts'];
+            } else if (parsed.plugin !== 'kcptun') {
+                delete next['kcptun-opts'];
+            }
+            if (next['ws-opts']) {
+                const wsHeaders = parseYamlMapText(proxy._wsHeadersText);
+                if (wsHeaders) next['ws-opts'].headers = wsHeaders;
+                else delete next['ws-opts'].headers;
+            }
+            if (next['http-opts']) {
+                const httpHeaders = parseYamlMapText(proxy._httpHeadersText);
+                if (httpHeaders) next['http-opts'].headers = httpHeaders;
+                else delete next['http-opts'].headers;
+            }
+            if (next['xhttp-opts']) {
+                const xhttpHeaders = parseYamlMapText(proxy._xhttpHeadersText);
+                if (xhttpHeaders) next['xhttp-opts'].headers = xhttpHeaders;
+                else delete next['xhttp-opts'].headers;
+            }
+            if (effectiveNetwork !== 'ws') delete next['ws-opts'];
+            if (effectiveNetwork !== 'grpc') delete next['grpc-opts'];
+            if (effectiveNetwork !== 'h2') delete next['h2-opts'];
+            if (parsed.network !== 'httpupgrade') delete next['httpupgrade-opts'];
+            if (effectiveNetwork !== 'http') delete next['http-opts'];
+            if (effectiveNetwork !== 'xhttp') delete next['xhttp-opts'];
+            if (!['vless', 'vmess'].includes(parsed.type)) delete next['packet-encoding'];
+            if (parsed.type !== 'vless') delete next.encryption;
+            if (parsed.type !== 'vmess') {
+                delete next['global-padding'];
+                delete next['authenticated-length'];
+            }
+            if (parsed.type !== 'trojan' || !proxy['ss-opts']?.enabled) delete next['ss-opts'];
+            if (parsed.type !== 'ss' || !proxy['udp-over-tcp']) delete next['udp-over-tcp-version'];
+            if (parsed.type !== 'wireguard') {
+                delete next.ipv6;
+                delete next['allowed-ips'];
+                delete next['persistent-keepalive'];
+                delete next['remote-dns-resolve'];
+                delete next.dns;
+                delete next['amnezia-wg-option'];
+            } else {
+                const allowedIps = parseLineListText(proxy['allowed-ips']);
+                if (allowedIps.length > 0) next['allowed-ips'] = allowedIps;
+                else delete next['allowed-ips'];
+
+                if (proxy['remote-dns-resolve']) {
+                    const wireguardDns = parseLineListText(proxy.dns);
+                    if (wireguardDns.length > 0) next.dns = wireguardDns;
+                    else delete next.dns;
+                } else {
+                    delete next.dns;
+                }
+
+                const amneziaWgOption = parseYamlObjectText(proxy._amneziaWgOptionText);
+                if (amneziaWgOption) next['amnezia-wg-option'] = amneziaWgOption;
+                else delete next['amnezia-wg-option'];
+
+                delete next['wg-dns'];
+            }
+            if (parsed.type !== 'masque') {
+                delete next.ip;
+                delete next.ipv6;
+                delete next['remote-dns-resolve'];
+                delete next.dns;
+            } else {
+                if (proxy['remote-dns-resolve']) {
+                    next['remote-dns-resolve'] = true;
+                    const masqueDns = parseLineListText(proxy.dns);
+                    if (masqueDns.length > 0) next.dns = masqueDns;
+                    else delete next.dns;
+                } else {
+                    delete next['remote-dns-resolve'];
+                    delete next.dns;
+                }
+            }
+            if (!['tuic'].includes(parsed.type)) {
+                delete next.token;
+                delete next['heartbeat-interval'];
+                delete next['disable-sni'];
+                delete next['max-udp-relay-packet-size'];
+                delete next['max-open-streams'];
+            }
+            if (!['hysteria', 'hysteria2'].includes(parsed.type)) {
+                delete next['recv-window-conn'];
+                delete next['recv-window'];
+                delete next.disable_mtu_discovery;
+            }
+            if (!['tuic', 'hysteria'].includes(parsed.type)) {
+                delete next['fast-open'];
+            }
+            if (!['hysteria2', 'tuic', 'masque', 'trusttunnel'].includes(parsed.type)) delete next['bbr-profile'];
+            if (parsed.type !== 'ssh') {
+                delete next['private-key-passphrase'];
+                delete next['host-key'];
+                delete next['host-key-algorithms'];
+            } else {
+                const hostKey = parseLineListText(proxy['host-key']);
+                const hostKeyAlgorithms = parseLineListText(proxy['host-key-algorithms']);
+                if (hostKey.length > 0) next['host-key'] = hostKey;
+                else delete next['host-key'];
+                if (hostKeyAlgorithms.length > 0) next['host-key-algorithms'] = hostKeyAlgorithms;
+                else delete next['host-key-algorithms'];
+            }
+            if (parsed.type !== 'mieru') {
+                delete next['port-range'];
+                delete next['traffic-pattern'];
+                delete next.transport;
+                delete next.multiplexing;
+            }
+            if (parsed.type !== 'trusttunnel') {
+                delete next.quic;
+                delete next['max-connections'];
+                delete next['min-streams'];
+                delete next['max-streams'];
+            } else if (!proxy.quic) {
+                delete next['max-connections'];
+                delete next['min-streams'];
+                delete next['max-streams'];
+                delete next['bbr-profile'];
+            }
+            if (parsed.type !== 'sudoku') {
+                delete next.key;
+                delete next['aead-method'];
+                delete next['padding-min'];
+                delete next['padding-max'];
+                delete next['table-type'];
+                delete next['custom-table'];
+                delete next['custom-tables'];
+                delete next.httpmask;
+                delete next['enable-pure-downlink'];
+            } else {
+                const customTables = parseLineListText(proxy['custom-tables']);
+                if (customTables.length > 0) next['custom-tables'] = customTables;
+                else delete next['custom-tables'];
+
+                const httpmask = parseYamlObjectText(proxy._sudokuHttpmaskText);
+                if (httpmask) next.httpmask = httpmask;
+                else delete next.httpmask;
+            }
+            if (!obfsEnabled) {
+                delete next['obfs-password'];
+                delete next['obfs-host'];
+                delete next['obfs-param'];
+            }
+            if (!realityEnabled) delete next['reality-opts'];
+            if (!tlsSectionEnabled) {
+                delete next.servername;
+                delete next.certificate;
+                delete next.fingerprint;
+                delete next['client-fingerprint'];
+                delete next.alpn;
+                delete next['skip-cert-verify'];
+                delete next['ech-opts'];
+                if (tlsToggleTypes.has(parsed.type)) delete next['private-key'];
+            }
+            if (!echEnabled) delete next['ech-opts'];
+            if (!smuxEnabled) delete next.smux;
+            if (next.smux && !brutalEnabled) delete next.smux['brutal-opts'];
+            if (next['xhttp-opts'] && !Object.keys(next['xhttp-opts']['reuse-settings'] || {}).length) delete next['xhttp-opts']['reuse-settings'];
+
+            return pruneEmptyYamlValue(next);
+        };
 
         const buildYaml = () => {
             try {
                 const raw = JSON.parse(JSON.stringify(config.value));
+                const defaultConfig = typeof getDefaultConfig === 'function' ? getDefaultConfig() : {};
                 const parseText = (text) => text ? (text||'').split('\n').map(s => s.trim()).filter(Boolean) : [];
+                const parseNumberishText = (text) => parseText(text).map((item) => (/^\d+$/.test(item) ? Number(item) : item));
                 const opts = { indent: 2, lineWidth: -1, noRefs: true, sortKeys: false };
 
                 let outGeneral = {};
@@ -36,10 +381,39 @@
                 });
 
                 if (raw['global-client-fingerprint']) outGeneral['global-client-fingerprint'] = raw['global-client-fingerprint'];
+                if (raw['bind-address']) outGeneral['bind-address'] = raw['bind-address'];
                 if (raw.secret) outGeneral.secret = raw.secret;
-                if (raw['external-ui-url']) { outGeneral['external-ui'] = raw['external-ui']; outGeneral['external-ui-url'] = raw['external-ui-url']; }
+                if (raw['keep-alive-interval'] !== '' && raw['keep-alive-interval'] !== undefined) outGeneral['keep-alive-interval'] = raw['keep-alive-interval'];
+                if (raw['keep-alive-idle'] !== '' && raw['keep-alive-idle'] !== undefined) outGeneral['keep-alive-idle'] = raw['keep-alive-idle'];
+                if (raw['disable-keep-alive'] !== undefined) outGeneral['disable-keep-alive'] = raw['disable-keep-alive'];
+                if (raw['external-ui']) outGeneral['external-ui'] = raw['external-ui'];
+                if (raw['external-ui-name']) outGeneral['external-ui-name'] = raw['external-ui-name'];
+                if (raw['external-ui-url']) outGeneral['external-ui-url'] = raw['external-ui-url'];
                 if (raw['interface-name']) outGeneral['interface-name'] = raw['interface-name'];
                 if (raw['geodata-mode'] !== undefined) outGeneral['geodata-mode'] = raw['geodata-mode'];
+                if (raw['geodata-loader'] && raw['geodata-loader'] !== defaultConfig['geodata-loader']) {
+                    outGeneral['geodata-loader'] = raw['geodata-loader'];
+                }
+                if (raw['global-ua']) outGeneral['global-ua'] = raw['global-ua'];
+                if (raw['etag-support'] !== undefined && raw['etag-support'] !== defaultConfig['etag-support']) {
+                    outGeneral['etag-support'] = raw['etag-support'];
+                }
+                if (raw['external-controller-unix']) outGeneral['external-controller-unix'] = raw['external-controller-unix'];
+                if (raw['external-controller-pipe']) outGeneral['external-controller-pipe'] = raw['external-controller-pipe'];
+                if (raw['external-controller-tls']) outGeneral['external-controller-tls'] = raw['external-controller-tls'];
+
+                const lanAllowedIps = parseText(uiState.value.generalLanAllowedIps);
+                if (lanAllowedIps.length > 0) outGeneral['lan-allowed-ips'] = lanAllowedIps;
+                const lanDisallowedIps = parseText(uiState.value.generalLanDisallowedIps);
+                if (lanDisallowedIps.length > 0) outGeneral['lan-disallowed-ips'] = lanDisallowedIps;
+                const authentication = parseText(uiState.value.generalAuthentication);
+                if (authentication.length > 0) outGeneral.authentication = authentication;
+                const skipAuthPrefixes = parseText(uiState.value.generalSkipAuthPrefixes);
+                if (skipAuthPrefixes.length > 0) outGeneral['skip-auth-prefixes'] = skipAuthPrefixes;
+                const parsedCors = parseYamlMapText(uiState.value.externalControllerCorsText);
+                if (parsedCors) outGeneral['external-controller-cors'] = parsedCors;
+                const parsedTls = parseYamlMapText(uiState.value.tlsConfigText);
+                if (parsedTls) outGeneral.tls = parsedTls;
 
                 if (raw.geo) {
                     outGeneral['geo-auto-update'] = raw.geo['auto-update'];
@@ -47,8 +421,12 @@
                     outGeneral['geox-url'] = raw.geo.url;
                 }
 
-                if (raw['unified-delay'] !== undefined) outGeneral['unified-delay'] = raw['unified-delay'];
-                if (raw['tcp-concurrent'] !== undefined) outGeneral['tcp-concurrent'] = raw['tcp-concurrent'];
+                if (raw['unified-delay'] !== undefined && raw['unified-delay'] !== defaultConfig['unified-delay']) {
+                    outGeneral['unified-delay'] = raw['unified-delay'];
+                }
+                if (raw['tcp-concurrent'] !== undefined && raw['tcp-concurrent'] !== defaultConfig['tcp-concurrent']) {
+                    outGeneral['tcp-concurrent'] = raw['tcp-concurrent'];
+                }
 
                 if (raw.profile && (raw.profile['store-selected'] || raw.profile['store-selected'] === false)) {
                     outGeneral.profile = raw.profile;
@@ -82,24 +460,78 @@
                     if (tpIndex > -1) finalListeners.splice(tpIndex, 1);
                 }
 
+                finalListeners = finalListeners
+                    .map((listener) => sanitizeListenerForYaml(listener))
+                    .filter(Boolean);
+
                 if (finalListeners.length > 0) outGeneral.listeners = finalListeners;
+
+                let outExperimental = {};
+                if (raw.experimental && typeof raw.experimental === 'object' && !Array.isArray(raw.experimental)) {
+                    Object.keys(raw.experimental).forEach((key) => {
+                        const value = raw.experimental[key];
+                        if (typeof value === 'boolean') {
+                            if (value) outExperimental[key] = true;
+                            return;
+                        }
+                        if (value !== undefined && value !== null && value !== '') outExperimental[key] = value;
+                    });
+                }
+                if (Object.keys(outExperimental).length > 0) {
+                    outExperimental = { experimental: outExperimental };
+                }
 
                 let outNetwork = {};
                 if (raw.tun && raw.tun.enable) {
                     outNetwork.tun = {
-                        enable: true, stack: raw.tun.stack, 'auto-route': raw.tun['auto-route'], 'auto-detect-interface': raw.tun['auto-detect-interface']
+                        enable: true,
+                        stack: raw.tun.stack,
+                        'auto-route': raw.tun['auto-route'],
+                        'auto-redirect': raw.tun['auto-redirect'],
+                        'auto-detect-interface': raw.tun['auto-detect-interface']
                     };
                     if (raw.tun.device && raw.tun.device.trim() !== '') outNetwork.tun.device = raw.tun.device.trim();
                     if (raw.tun.mtu) outNetwork.tun.mtu = raw.tun.mtu;
                     if (raw.tun.gso !== undefined) outNetwork.tun.gso = raw.tun.gso;
                     if (raw.tun.gso && raw.tun['gso-max-size']) outNetwork.tun['gso-max-size'] = raw.tun['gso-max-size'];
                     if (raw.tun['strict-route'] !== undefined) outNetwork.tun['strict-route'] = raw.tun['strict-route'];
+                    if (raw.tun['udp-timeout'] !== undefined && raw.tun['udp-timeout'] !== '') outNetwork.tun['udp-timeout'] = raw.tun['udp-timeout'];
+                    if (raw.tun['iproute2-table-index'] !== undefined && raw.tun['iproute2-table-index'] !== '') outNetwork.tun['iproute2-table-index'] = raw.tun['iproute2-table-index'];
+                    if (raw.tun['iproute2-rule-index'] !== undefined && raw.tun['iproute2-rule-index'] !== '') outNetwork.tun['iproute2-rule-index'] = raw.tun['iproute2-rule-index'];
                     if (raw.tun['endpoint-independent-nat'] !== undefined) outNetwork.tun['endpoint-independent-nat'] = raw.tun['endpoint-independent-nat'];
 
                     const hijack = uiState.value.tunDnsHijackEnabled
                         ? (uiState.value.tunDnsHijack||'').split('\n').map(s=>s.trim()).filter(Boolean)
                         : [];
                     if (uiState.value.tunDnsHijackEnabled && hijack.length > 0) outNetwork.tun['dns-hijack'] = hijack;
+
+                    const routeAddressSet = parseText(uiState.value.tunRouteAddressSet);
+                    const routeExcludeAddressSet = parseText(uiState.value.tunRouteExcludeAddressSet);
+                    const routeAddress = parseText(uiState.value.tunRouteAddress);
+                    const routeExcludeAddress = parseText(uiState.value.tunRouteExcludeAddress);
+                    const includeInterface = parseText(uiState.value.tunIncludeInterface);
+                    const excludeInterface = parseText(uiState.value.tunExcludeInterface);
+                    const includeUid = parseNumberishText(uiState.value.tunIncludeUid);
+                    const includeUidRange = parseText(uiState.value.tunIncludeUidRange);
+                    const excludeUid = parseNumberishText(uiState.value.tunExcludeUid);
+                    const excludeUidRange = parseText(uiState.value.tunExcludeUidRange);
+                    const includeAndroidUser = parseNumberishText(uiState.value.tunIncludeAndroidUser);
+                    const includePackage = parseText(uiState.value.tunIncludePackage);
+                    const excludePackage = parseText(uiState.value.tunExcludePackage);
+
+                    if (routeAddressSet.length > 0) outNetwork.tun['route-address-set'] = routeAddressSet;
+                    if (routeExcludeAddressSet.length > 0) outNetwork.tun['route-exclude-address-set'] = routeExcludeAddressSet;
+                    if (routeAddress.length > 0) outNetwork.tun['route-address'] = routeAddress;
+                    if (routeExcludeAddress.length > 0) outNetwork.tun['route-exclude-address'] = routeExcludeAddress;
+                    if (includeInterface.length > 0) outNetwork.tun['include-interface'] = includeInterface;
+                    if (excludeInterface.length > 0) outNetwork.tun['exclude-interface'] = excludeInterface;
+                    if (includeUid.length > 0) outNetwork.tun['include-uid'] = includeUid;
+                    if (includeUidRange.length > 0) outNetwork.tun['include-uid-range'] = includeUidRange;
+                    if (excludeUid.length > 0) outNetwork.tun['exclude-uid'] = excludeUid;
+                    if (excludeUidRange.length > 0) outNetwork.tun['exclude-uid-range'] = excludeUidRange;
+                    if (includeAndroidUser.length > 0) outNetwork.tun['include-android-user'] = includeAndroidUser;
+                    if (includePackage.length > 0) outNetwork.tun['include-package'] = includePackage;
+                    if (excludePackage.length > 0) outNetwork.tun['exclude-package'] = excludePackage;
                 }
 
                 if (raw.sniffer && raw.sniffer.enable) {
@@ -112,9 +544,18 @@
                     let sQUIC = parsePorts(uiState.value.snifferSniff?.QUIC);
                     if (sHTTP.length > 0 || sTLS.length > 0 || sQUIC.length > 0) {
                         outNetwork.sniffer.sniff = {};
-                        if (sHTTP.length > 0) outNetwork.sniffer.sniff.HTTP = { ports: sHTTP };
-                        if (sTLS.length > 0) outNetwork.sniffer.sniff.TLS = { ports: sTLS };
-                        if (sQUIC.length > 0) outNetwork.sniffer.sniff.QUIC = { ports: sQUIC };
+                        if (sHTTP.length > 0) {
+                            outNetwork.sniffer.sniff.HTTP = { ports: sHTTP };
+                            if (uiState.value.snifferSniffOverrideDestination?.HTTP) outNetwork.sniffer.sniff.HTTP['override-destination'] = true;
+                        }
+                        if (sTLS.length > 0) {
+                            outNetwork.sniffer.sniff.TLS = { ports: sTLS };
+                            if (uiState.value.snifferSniffOverrideDestination?.TLS) outNetwork.sniffer.sniff.TLS['override-destination'] = true;
+                        }
+                        if (sQUIC.length > 0) {
+                            outNetwork.sniffer.sniff.QUIC = { ports: sQUIC };
+                            if (uiState.value.snifferSniffOverrideDestination?.QUIC) outNetwork.sniffer.sniff.QUIC['override-destination'] = true;
+                        }
                     }
                     const skips = parseText(uiState.value.snifferSkipDomain);
                     if(skips.length > 0) outNetwork.sniffer['skip-domain'] = skips;
@@ -122,17 +563,35 @@
                     if(forces.length > 0) outNetwork.sniffer['force-domain'] = forces;
                     const whitelists = parseText(uiState.value.snifferPortWhitelist);
                     if(whitelists.length > 0) outNetwork.sniffer['port-whitelist'] = whitelists.map(p => isNaN(p) ? p : Number(p));
+                    const skipSrcAddress = parseText(uiState.value.snifferSkipSrcAddress);
+                    if (skipSrcAddress.length > 0) outNetwork.sniffer['skip-src-address'] = skipSrcAddress;
+                    const skipDstAddress = parseText(uiState.value.snifferSkipDstAddress);
+                    if (skipDstAddress.length > 0) outNetwork.sniffer['skip-dst-address'] = skipDstAddress;
                 }
 
                 if (raw.dns && raw.dns.enable) {
                     outNetwork.dns = { ...raw.dns };
                     const normalizedDnsListen = getListenPort(raw.dns.listen, 53);
                     outNetwork.dns.listen = `:${normalizedDnsListen}`;
+                    if (raw.dns['cache-algorithm'] === defaultConfig.dns?.['cache-algorithm']) {
+                        delete outNetwork.dns['cache-algorithm'];
+                    }
                     if (outNetwork.dns['enhanced-mode'] === 'fake-ip') {
                         outNetwork.dns['fake-ip-filter-mode'] = raw.dns['fake-ip-filter-mode'];
+                        if (!String(raw.dns['fake-ip-range6'] || '').trim()) delete outNetwork.dns['fake-ip-range6'];
+                        const fakeIpTtl = Number(raw.dns['fake-ip-ttl']);
+                        if (!Number.isFinite(fakeIpTtl) || fakeIpTtl <= 0) delete outNetwork.dns['fake-ip-ttl'];
                         const filters = parseText(uiState.value.fakeIpFilter);
                         if (filters.length > 0) outNetwork.dns['fake-ip-filter'] = filters;
-                    } else { delete outNetwork.dns['fake-ip-range']; delete outNetwork.dns['fake-ip-filter-mode']; }
+                    } else {
+                        delete outNetwork.dns['fake-ip-range'];
+                        delete outNetwork.dns['fake-ip-range6'];
+                        delete outNetwork.dns['fake-ip-filter-mode'];
+                        delete outNetwork.dns['fake-ip-ttl'];
+                    }
+
+                    const nameserverPolicyText = String(uiState.value.dnsNameserverPolicy || '').trim();
+                    const directNameservers = parseText(uiState.value.dnsDirectNameservers);
 
                     outNetwork.dns['default-nameserver'] = parseText(uiState.value.dnsDefaultNameservers);
                     outNetwork.dns.nameserver = parseText(uiState.value.dnsNameservers);
@@ -142,11 +601,23 @@
                         delete outNetwork.dns.fallback;
                     }
                     outNetwork.dns['proxy-server-nameserver'] = parseText(uiState.value.dnsProxyServerNameservers);
-                    outNetwork.dns['direct-nameserver'] = parseText(uiState.value.dnsDirectNameservers);
+                    outNetwork.dns['direct-nameserver'] = directNameservers;
 
-                    if (uiState.value.enableNameserverPolicy) {
-                        const parsedPolicy = parseYamlMapText(uiState.value.dnsNameserverPolicy);
+                    if (nameserverPolicyText) {
+                        const parsedPolicy = parseYamlMapText(nameserverPolicyText);
                         if (parsedPolicy) outNetwork.dns['nameserver-policy'] = parsedPolicy;
+                    }
+
+                    if (!nameserverPolicyText) delete outNetwork.dns['nameserver-policy'];
+                    if (!nameserverPolicyText || directNameservers.length === 0) {
+                        delete outNetwork.dns['direct-nameserver-follow-policy'];
+                    }
+
+                    if (uiState.value.enableProxyServerNameserverPolicy) {
+                        const parsedProxyPolicy = parseYamlMapText(uiState.value.dnsProxyServerNameserverPolicy);
+                        if (parsedProxyPolicy) outNetwork.dns['proxy-server-nameserver-policy'] = parsedProxyPolicy;
+                    } else {
+                        delete outNetwork.dns['proxy-server-nameserver-policy'];
                     }
 
                     if (uiState.value.enableDnsFallback && outNetwork.dns.fallback && outNetwork.dns.fallback.length > 0) {
@@ -185,10 +656,13 @@
                 const validStaticMembers = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', ...groupNames, ...proxyNames]);
                 const defaultRuleTarget = groupNames[0] || 'DIRECT';
                 const normalizeRuleTarget = (target) => validStaticMembers.has(target) ? target : defaultRuleTarget;
+                const getRuleTarget = (rule) => rule && rule.type === 'SUB-RULE'
+                    ? (rule.target || '')
+                    : normalizeRuleTarget(rule && rule.target);
                 const normalizeDialerProxy = (value) => value && validStaticMembers.has(value) ? value : '';
                 let outProxies = {};
                 if (raw.proxies && raw.proxies.length > 0) {
-                    outProxies.proxies = raw.proxies.map(px => parseSingleProxyNode(px)).filter(Boolean);
+                    outProxies.proxies = raw.proxies.map(px => sanitizeProxyForYaml(px)).filter(Boolean);
                 }
 
                 let outProviders = {};
@@ -196,27 +670,67 @@
                     outProviders['proxy-providers'] = {};
                     providersList.value.forEach(p => {
                         if (p.name) {
-                            let prov = { type: p.type || 'http' };
-                            if (prov.type === 'http') {
-                                if (!p.url) return;
-                                prov.url = p.url;
-                                prov.interval = p.interval || 3600;
-                                if (p.lazy !== undefined) prov.lazy = p.lazy;
-                                prov.path = `./providers/${p.name}.yaml`;
-                                prov['health-check'] = {
-                                    enable: true, interval: 600, url: p.healthUrl || 'https://www.gstatic.com/generate_204',
-                                    lazy: p.healthCheckLazy !== false, timeout: p.healthCheckTimeout || 5000
+                            const providerType = p.type || 'http';
+                            let prov = { type: providerType };
+
+                            if (providerType === 'http') {
+                                const url = String(p.url || '').trim();
+                                if (!url) return;
+                                prov.url = url;
+                            }
+
+                            if (providerType === 'http' || providerType === 'file') {
+                                const providerPath = String(p.path || '').trim() || `./providers/${p.name}.yaml`;
+                                const providerInterval = Number(p.interval);
+                                const normalizedProviderProxy = normalizeDialerProxy(p.proxy || p.downloadProxy);
+                                const parsedHeaders = parseYamlMapText(p.headers);
+                                const sizeLimitText = String(p.sizeLimit ?? '').trim();
+                                const sizeLimit = Number(sizeLimitText);
+                                const healthCheck = {
+                                    enable: p.healthCheckEnable !== false,
+                                    interval: Number(p.healthCheckInterval) > 0 ? Number(p.healthCheckInterval) : 600,
+                                    url: p.healthUrl || 'https://www.gstatic.com/generate_204',
+                                    lazy: p.healthCheckLazy !== false,
+                                    timeout: Number(p.healthCheckTimeout) > 0 ? Number(p.healthCheckTimeout) : 5000
                                 };
-                                const normalizedDownloadProxy = normalizeDialerProxy(p.downloadProxy);
-                                if (p.useDownloadProxy && normalizedDownloadProxy) prov['dialer-proxy'] = normalizedDownloadProxy;
-                            } else if (prov.type === 'inline') {
+                                const healthExpectedStatus = String(p.healthExpectedStatus ?? '').trim();
+
+                                prov.path = providerPath;
+                                if (providerInterval > 0) prov.interval = providerInterval;
+                                else if (providerType === 'http') prov.interval = 3600;
+                                if (p.lazy !== undefined) prov.lazy = p.lazy;
+                                if (normalizedProviderProxy) prov.proxy = normalizedProviderProxy;
+                                if (sizeLimitText !== '' && Number.isFinite(sizeLimit) && sizeLimit >= 0) {
+                                    prov['size-limit'] = sizeLimit;
+                                }
+                                if (parsedHeaders) prov.header = parsedHeaders;
+                                if (healthExpectedStatus) healthCheck['expected-status'] = healthExpectedStatus;
+                                prov['health-check'] = healthCheck;
+                            } else if (providerType === 'inline') {
                                 let payloadNodes = [];
                                 if (p.inlineProxies && p.inlineProxies.length > 0) {
                                     payloadNodes = p.inlineProxies.map(pxName => parseSingleProxyNode((raw.proxies||[]).find(x => x.name === pxName))).filter(Boolean);
                                 }
                                 prov.payload = payloadNodes;
-                                const normalizedOverrideDialerProxy = normalizeDialerProxy(p.overrideDialerProxy);
-                                if (normalizedOverrideDialerProxy) prov.override = { 'dialer-proxy': normalizedOverrideDialerProxy };
+                            }
+
+                            const providerOverride = {};
+                            const normalizedOverrideDialerProxy = normalizeDialerProxy(p.overrideDialerProxy);
+                            const overrideAdditionalPrefix = String(p.overrideAdditionalPrefix ?? '').trim();
+                            const overrideAdditionalSuffix = String(p.overrideAdditionalSuffix ?? '').trim();
+                            const overrideProxyName = parseProxyNameOverride(p.overrideProxyName);
+                            if (normalizedOverrideDialerProxy) providerOverride['dialer-proxy'] = normalizedOverrideDialerProxy;
+                            if (overrideAdditionalPrefix) providerOverride['additional-prefix'] = overrideAdditionalPrefix;
+                            if (overrideAdditionalSuffix) providerOverride['additional-suffix'] = overrideAdditionalSuffix;
+                            if (overrideProxyName) providerOverride['proxy-name'] = overrideProxyName;
+                            if (Object.keys(providerOverride).length > 0) prov.override = providerOverride;
+
+                            if (p.filter) prov.filter = p.filter;
+                            if (p.excludeFilter) prov['exclude-filter'] = p.excludeFilter;
+                            if (p.excludeType) prov['exclude-type'] = p.excludeType;
+
+                            if (providerType === 'file' && !prov.path) {
+                                prov.path = `./providers/${p.name}.yaml`;
                             }
                             outProviders['proxy-providers'][p.name] = prov;
                         }
@@ -233,11 +747,22 @@
                         if (rp.type === 'http') {
                             const url = rp.autoUrl ? getRuleProviderUrl(rp) : rp.customUrl;
                             if (!url) return;
-                            rProv.path = `./rules/${rp.name}.${rp.format}`;
+                            const ruleProviderPath = String(rp.path || '').trim() || `./rules/${rp.name}.${getRuleProviderPathExt(rp.format)}`;
+                            const normalizedRuleProviderProxy = normalizeDialerProxy(rp.proxy);
+                            const parsedRuleProviderHeaders = parseYamlMapText(rp.headers);
+                            const sizeLimitText = String(rp.sizeLimit ?? '').trim();
+                            const sizeLimit = Number(sizeLimitText);
+
+                            rProv.path = ruleProviderPath;
                             rProv.url = url;
                             rProv.interval = rp.interval || 86400;
+                            if (normalizedRuleProviderProxy) rProv.proxy = normalizedRuleProviderProxy;
+                            if (sizeLimitText !== '' && Number.isFinite(sizeLimit) && sizeLimit >= 0) {
+                                rProv['size-limit'] = sizeLimit;
+                            }
+                            if (parsedRuleProviderHeaders) rProv.header = parsedRuleProviderHeaders;
                         } else if (rp.type === 'file') {
-                            rProv.path = rp.path || `./rules/${rp.name}.${rp.format}`;
+                            rProv.path = rp.path || `./rules/${rp.name}.${getRuleProviderPathExt(rp.format)}`;
                         } else if (rp.type === 'inline') {
                             rProv.payload = parseText(rp.payload);
                         }
@@ -249,17 +774,21 @@
                 if (raw['proxy-groups'] && raw['proxy-groups'].length > 0) {
                     outGroups['proxy-groups'] = raw['proxy-groups'].map(g => {
                         let cg = { name: g.name, type: g.type };
-                        if (g['include-all']) cg['include-all'] = true;
+                        if (g['include-all-proxies']) cg['include-all-proxies'] = true;
+                        if (g['include-all-providers']) cg['include-all-providers'] = true;
+                        if (g.hidden) cg.hidden = true;
+                        if (g.icon) cg.icon = g.icon;
 
                         if(g.type === 'load-balance') cg.strategy = g.strategy || 'consistent-hashing';
 
                         if(g.type !== 'relay') {
-                            if(!cg['include-all']) {
+                            if(!cg['include-all-proxies']) {
                                 if(g.proxies && g.proxies.length>0) cg.proxies = g.proxies.filter(name => validStaticMembers.has(name));
-                                if(g.use && g.use.length>0) cg.use = g.use.filter(name => providerNames.includes(name));
                             }
+                            if(!cg['include-all-providers'] && g.use && g.use.length>0) cg.use = g.use.filter(name => providerNames.includes(name));
                             if(g.filter) cg.filter = g.filter;
                             if(g['exclude-filter']) cg['exclude-filter'] = g['exclude-filter'];
+                            if(g['exclude-type']) cg['exclude-type'] = g['exclude-type'];
                         } else {
                             if(g.proxies && g.proxies.length>0) cg.proxies = g.proxies;
                         }
@@ -267,11 +796,16 @@
                         if(g.type === 'url-test' || g.type === 'fallback' || g.type === 'load-balance') {
                             cg.url = g.url || 'https://www.gstatic.com/generate_204';
                             cg.interval = g.interval || 300;
+                            if(g['max-failed-times'] !== undefined && g['max-failed-times'] !== '') cg['max-failed-times'] = g['max-failed-times'];
+                            if(g['expected-status']) cg['expected-status'] = g['expected-status'];
                         }
                         if(g.type === 'url-test' || g.type === 'fallback') {
                             if (g.timeout > 0) cg.timeout = g.timeout;
                         }
                         if(g.type === 'url-test') { cg.tolerance = g.tolerance; cg.lazy = g.lazy; }
+                        if(g['disable-udp']) cg['disable-udp'] = true;
+                        if(g['interface-name']) cg['interface-name'] = g['interface-name'];
+                        if(g['routing-mark'] !== undefined && g['routing-mark'] !== null && String(g['routing-mark']).trim() !== '') cg['routing-mark'] = /^\d+$/.test(String(g['routing-mark']).trim()) ? Number(g['routing-mark']) : g['routing-mark'];
                         const normalizedGroupDialerProxy = normalizeDialerProxy(g['dialer-proxy']);
                         if(normalizedGroupDialerProxy) cg['dialer-proxy'] = normalizedGroupDialerProxy;
 
@@ -282,15 +816,20 @@
                     });
                 } else { outGroups['proxy-groups'] = [{ name: 'Proxy', type: 'select', proxies: ['DIRECT'] }]; }
 
+                let outSubRules = {};
+                const parsedSubRules = parseYamlObjectText(uiState.value.subRulesYaml);
+                if (parsedSubRules) outSubRules['sub-rules'] = parsedSubRules;
+
                 let outRules = { rules: [] };
                 if (uiState.value.rules) {
                     outRules.rules = uiState.value.rules.map(r => {
-                        const ipTypes = ['GEOIP', 'IP-CIDR', 'IP-CIDR6', 'SRC-IP-CIDR', 'IP-SUFFIX', 'IP-ASN', 'SRC-IP-SUFFIX', 'SRC-IP-ASN'];
+                        const ipTypes = ['GEOIP', 'SRC-GEOIP', 'IP-CIDR', 'IP-CIDR6', 'SRC-IP-CIDR', 'IP-SUFFIX', 'IP-ASN', 'SRC-IP-SUFFIX', 'SRC-IP-ASN'];
                         if (r.logic) {
                             const parts = (r.conditions||[]).map(c => {
                                 let innerVal = c.type === 'DOMAIN-REGEX' && c.value && c.value.includes(',') ? `"${c.value}"` : c.value;
                                 let inner = `${c.type},${innerVal}`;
                                 if (c.noResolve && ipTypes.includes(c.type)) inner += ',no-resolve';
+                                if (c.src) inner += `,src,${c.src}`;
                                 return c.not ? `NOT,((${inner}))` : `(${inner})`;
                             });
                             const body = `${r.logic},(${parts.join(',')})`;
@@ -302,27 +841,44 @@
                         let inner = `${r.type},${outerVal}`;
                         if (r.not) {
                             if (r.noResolve && ipTypes.includes(r.type)) inner += ',no-resolve';
-                            return `NOT,((${inner})),${normalizeRuleTarget(r.target)}`;
+                            if (r.src) inner += `,src,${r.src}`;
+                            return `NOT,((${inner})),${getRuleTarget(r)}`;
                         } else {
-                            let ruleStr = `${inner},${normalizeRuleTarget(r.target)}`;
+                            let ruleStr = `${inner},${getRuleTarget(r)}`;
                             if (r.noResolve && ipTypes.includes(r.type)) ruleStr += ',no-resolve';
+                            if (r.src) ruleStr += `,src,${r.src}`;
                             return ruleStr;
                         }
                     });
                 }
                 if (!outRules.rules.some(r => r.startsWith('MATCH'))) outRules.rules.push(`MATCH,${defaultRuleTarget}`);
 
-                const dump = (obj) => Object.keys(obj).length > 0 ? jsyaml.dump(obj, opts) : '';
-
-                yamlSections.value = {
-                    general: dump(outGeneral), network: dump(outNetwork),
-                    proxies: dump(outProxies), providers: dump(outProviders), ruleProviders: dump(outRuleProviders),
-                    groups: dump(outGroups), rules: dump(outRules)
+                const dump = (obj, defaults) => {
+                    const stripped = stripDefaultFalseFlags(obj, defaults);
+                    const pruned = pruneEmptyYamlValue(stripped);
+                    return pruned && Object.keys(pruned).length > 0 ? jsyaml.dump(pruned, opts) : '';
                 };
 
-                fullYaml.value = [yamlSections.value.general, yamlSections.value.network, yamlSections.value.proxies, yamlSections.value.providers, yamlSections.value.ruleProviders, yamlSections.value.groups, yamlSections.value.rules].filter(Boolean).join('');
+                yamlSections.value = {
+                    general: dump(outGeneral, defaultConfig),
+                    experimental: dump(outExperimental, { experimental: defaultConfig.experimental || {} }),
+                    network: dump(outNetwork, {
+                        tun: defaultConfig.tun || {},
+                        sniffer: defaultConfig.sniffer || {},
+                        dns: defaultConfig.dns || {}
+                    }),
+                    proxies: dump(outProxies),
+                    providers: dump(outProviders),
+                    ruleProviders: dump(outRuleProviders),
+                    groups: dump(outGroups),
+                    subRules: dump(outSubRules),
+                    rules: dump(outRules)
+                };
+
+                fullYaml.value = [yamlSections.value.general, yamlSections.value.experimental, yamlSections.value.network, yamlSections.value.proxies, yamlSections.value.providers, yamlSections.value.ruleProviders, yamlSections.value.groups, yamlSections.value.subRules, yamlSections.value.rules].filter(Boolean).join('');
             } catch (err) {
                 console.error("YAML 构建遭遇异常:", err);
+                throw err;
             }
         };
 

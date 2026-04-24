@@ -81,6 +81,69 @@ function formatYamlMapText(map) {
     }).trim();
 }
 
+function parseYamlSequenceText(str, itemTransformer) {
+    const text = String(str || '').trim();
+    if (!text) return undefined;
+    if (!window.jsyaml || typeof window.jsyaml.load !== 'function') {
+        throw new Error('js-yaml 未加载，无法解析 YAML 列表');
+    }
+
+    const parsed = window.jsyaml.load(text);
+    if (parsed === undefined || parsed === null || parsed === '') return undefined;
+    if (!Array.isArray(parsed)) {
+        throw new Error('请输入 YAML 列表，例如 - item');
+    }
+
+    const result = parsed
+        .map((item, index) => (typeof itemTransformer === 'function' ? itemTransformer(item, index) : item))
+        .filter((item) => item !== undefined && item !== null && item !== '');
+
+    return result.length > 0 ? result : undefined;
+}
+
+function formatYamlSequenceText(list) {
+    if (!Array.isArray(list) || list.length === 0) return '';
+    if (!window.jsyaml || typeof window.jsyaml.dump !== 'function') {
+        return list.map((item) => JSON.stringify(item)).join('\n');
+    }
+
+    return window.jsyaml.dump(list, {
+        indent: 2,
+        lineWidth: -1,
+        noRefs: true,
+        sortKeys: false
+    }).trim();
+}
+
+function parseYamlObjectText(str) {
+    const text = String(str || '').trim();
+    if (!text) return undefined;
+    if (!window.jsyaml || typeof window.jsyaml.load !== 'function') {
+        throw new Error('js-yaml 未加载，无法解析 YAML 对象');
+    }
+
+    const parsed = window.jsyaml.load(text);
+    if (parsed === undefined || parsed === null || parsed === '') return undefined;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('请输入 YAML 对象');
+    }
+    return parsed;
+}
+
+function formatYamlObjectText(obj) {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj) || Object.keys(obj).length === 0) return '';
+    if (!window.jsyaml || typeof window.jsyaml.dump !== 'function') {
+        return JSON.stringify(obj, null, 2);
+    }
+
+    return window.jsyaml.dump(obj, {
+        indent: 2,
+        lineWidth: -1,
+        noRefs: true,
+        sortKeys: false
+    }).trim();
+}
+
 function parseMarkValue(val, fallback = 111) {
     const s = String(val ?? '').trim();
     if (!s) return fallback;
@@ -226,6 +289,10 @@ const deepMerge = (target, source) => {
         getSanitizedUiStateForSave,
         parseYamlMapText,
         formatYamlMapText,
+        parseYamlSequenceText,
+        formatYamlSequenceText,
+        parseYamlObjectText,
+        formatYamlObjectText,
         splitByComma,
         deepMerge
     };

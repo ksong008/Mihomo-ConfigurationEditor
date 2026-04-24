@@ -19,6 +19,7 @@
         normalizeNftablesConfig,
         getSanitizedUiStateForSave,
         parseYamlMapText,
+        parseYamlObjectText,
         formatYamlMapText,
         splitByComma,
         deepMerge
@@ -54,6 +55,11 @@
     createApp({
         setup() {
             const crashError = ref(null);
+            const cacheWarning = ref('');
+            const bilingualLabelPattern = /^(.+?)\s*\(([^()]+)\)$/;
+            const bilingualSkipTags = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'PRE', 'CODE', 'OPTION']);
+            let bilingualLabelObserver = null;
+            let bilingualLabelFrame = 0;
             const clearPersistedStorage = (includeLegacy = true) => {
                 const keys = [STORAGE_KEY, STORAGE_BACKUP_KEY];
                 if (includeLegacy) keys.push(...CLEANUP_STORAGE_KEYS);
@@ -76,6 +82,69 @@
             const forceClearCache = () => {
                 clearPersistedStorage();
                 location.reload();
+            };
+            const dismissCacheWarning = () => {
+                cacheWarning.value = '';
+            };
+            const createDualLabelNode = (doc, zh, en) => {
+                const wrapper = doc.createElement('span');
+                wrapper.className = 'dual-label';
+
+                const zhNode = doc.createElement('span');
+                zhNode.className = 'dual-label-zh';
+                zhNode.textContent = zh;
+
+                const enNode = doc.createElement('span');
+                enNode.className = 'dual-label-en';
+                enNode.textContent = en;
+
+                wrapper.appendChild(zhNode);
+                wrapper.appendChild(enNode);
+                return wrapper;
+            };
+            const shouldTransformBilingualText = (textNode) => {
+                if (!textNode || !textNode.parentElement) return false;
+                const parent = textNode.parentElement;
+                if (bilingualSkipTags.has(parent.tagName)) return false;
+                if (parent.closest('pre, code, textarea, option, .dual-label')) return false;
+
+                const text = String(textNode.nodeValue || '');
+                const normalized = text.replace(/\s+/g, ' ').trim();
+                return bilingualLabelPattern.test(normalized);
+            };
+            const applyBilingualLabelLayout = (root = document.getElementById('app')) => {
+                if (!root) return;
+
+                const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+                const candidates = [];
+                let current = walker.nextNode();
+
+                while (current) {
+                    if (shouldTransformBilingualText(current)) candidates.push(current);
+                    current = walker.nextNode();
+                }
+
+                candidates.forEach((textNode) => {
+                    const rawText = String(textNode.nodeValue || '');
+                    const normalized = rawText.replace(/\s+/g, ' ').trim();
+                    const match = normalized.match(bilingualLabelPattern);
+                    if (!match || !textNode.parentNode) return;
+
+                    const [, zh, en] = match;
+                    const fragment = document.createDocumentFragment();
+                    if (/^\s+/.test(rawText)) fragment.appendChild(document.createTextNode(' '));
+                    fragment.appendChild(createDualLabelNode(document, zh.trim(), en.trim()));
+                    if (/\s+$/.test(rawText)) fragment.appendChild(document.createTextNode(' '));
+                    textNode.parentNode.insertBefore(fragment, textNode);
+                    textNode.parentNode.removeChild(textNode);
+                });
+            };
+            const scheduleBilingualLabelLayout = () => {
+                if (bilingualLabelFrame) window.cancelAnimationFrame(bilingualLabelFrame);
+                bilingualLabelFrame = window.requestAnimationFrame(() => {
+                    bilingualLabelFrame = 0;
+                    applyBilingualLabelLayout();
+                });
             };
 
             const askConfirm = (msg) => {
@@ -112,8 +181,33 @@
             const config = ref(getDefaultConfig());
             const providersList = ref([]);
             const ruleProvidersList = ref([]);
+            const availableSubRuleNames = computed(() => {
+                try {
+                    const parsed = parseYamlObjectText(uiState.value && uiState.value.subRulesYaml);
+                    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return [];
+                    return Object.keys(parsed).filter(Boolean);
+                } catch (err) {
+                    return [];
+                }
+            });
             const defaultConfigSnapshot = JSON.parse(JSON.stringify(config.value));
             const defaultUiStateSnapshot = JSON.parse(JSON.stringify(uiState.value));
+            onMounted(() => {
+                nextTick(() => {
+                    scheduleBilingualLabelLayout();
+                    const root = document.getElementById('app');
+                    if (!root) return;
+
+                    bilingualLabelObserver = new MutationObserver(() => {
+                        scheduleBilingualLabelLayout();
+                    });
+                    bilingualLabelObserver.observe(root, {
+                        subtree: true,
+                        childList: true,
+                        characterData: true
+                    });
+                });
+            });
             watch(() => uiState.value.useMirrorForPanels, (n) => {
                 const p = panels.find(x => x.id === uiState.value.selectedPanel);
                 if (p && p.id !== 'custom') config.value['external-ui-url'] = n ? p.mirrorUrl : p.rawUrl;
@@ -124,18 +218,29 @@
                     config.value.geo.url = {
                         geoip: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat',
                         geosite: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat',
-                        mmdb: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb'
+                        mmdb: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb',
+                        asn: 'https://fastly.jsdelivr.net/gh/xishang0128/geoip@release/GeoLite2-ASN.mmdb'
                     };
                 } else {
                     config.value.geo.url = {
                         geoip: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geoip.dat',
                         geosite: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geosite.dat',
-                        mmdb: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/country.mmdb'
+                        mmdb: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/country.mmdb',
+                        asn: 'https://github.com/xishang0128/geoip/releases/download/latest/GeoLite2-ASN.mmdb'
                     };
                 }
             });
 
             watch(() => uiState.value.enableNameserverPolicy, (enabled) => {
+                if (!enabled && config.value && config.value.dns) {
+                    config.value.dns['direct-nameserver-follow-policy'] = false;
+                }
+            });
+            const hasNameserverPolicyText = computed(() => String(uiState.value?.dnsNameserverPolicy || '').trim().length > 0);
+            const hasDirectNameserverEntries = computed(() => parseLineList(uiState.value?.dnsDirectNameservers).length > 0);
+            const canUseDirectNameserverFollowPolicy = computed(() => hasNameserverPolicyText.value && hasDirectNameserverEntries.value);
+
+            watch(canUseDirectNameserverFollowPolicy, (enabled) => {
                 if (!enabled && config.value && config.value.dns) {
                     config.value.dns['direct-nameserver-follow-policy'] = false;
                 }
@@ -146,7 +251,8 @@
                 config.value.geo.url = {
                     geoip: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat',
                     geosite: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat',
-                    mmdb: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb'
+                    mmdb: 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb',
+                    asn: 'https://fastly.jsdelivr.net/gh/xishang0128/geoip@release/GeoLite2-ASN.mmdb'
                 };
             };
 
@@ -203,7 +309,18 @@
                     type: 'mixed',
                     port: 7890,
                     listen: '::',
-                    udp: true
+                    udp: true,
+                    rule: '',
+                    proxy: '',
+                    token: '',
+                    certificate: '',
+                    'private-key': '',
+                    'client-auth-type': '',
+                    'client-auth-cert': '',
+                    'ech-key': '',
+                    'ech-cert': '',
+                    users: [],
+                    _usersText: ''
                 });
             };
             const removeListener = (idx) => {
@@ -229,7 +346,8 @@
                 onRuleDragEnter,
                 onRuleDrop,
                 onRuleDragEnd,
-                parseRuleString
+                parseRuleString,
+                IP_RULE_TYPES
             } = rulesModule;
 
             const providersModule = window.MihomoCore.createProvidersModule({
@@ -296,7 +414,10 @@
                 updateGroupName,
                 getRuleProviderUrl,
                 clearLists,
-                getInlinePayloadPreview
+                getInlinePayloadPreview,
+                getProxyNetworkOptions,
+                proxySupportsTransport,
+                proxySupportsToggle
             } = providersModule;
 
             const yamlModule = window.MihomoFeatureModules.createYamlModule({
@@ -306,7 +427,8 @@
                 providersList,
                 ruleProvidersList,
                 parseSingleProxyNode,
-                getRuleProviderUrl
+                getRuleProviderUrl,
+                getDefaultConfig
             });
             const {
                 yamlSections,
@@ -379,6 +501,9 @@
                 getListenPort,
                 deepMerge,
                 clearPersistedStorage,
+                setCacheWarning: (message) => {
+                    cacheWarning.value = String(message || '');
+                },
                 storageVersion: STORAGE_VERSION,
                 storageKey: STORAGE_KEY,
                 storageBackupKey: STORAGE_BACKUP_KEY,
@@ -450,6 +575,9 @@
                 onRuleDrop,
                 onRuleDragEnd,
                 getInlinePayloadPreview,
+                getProxyNetworkOptions,
+                proxySupportsTransport,
+                proxySupportsToggle,
                 yamlSections,
                 fullYaml,
                 copyYaml,
@@ -482,6 +610,7 @@
                 updateRuleProviderName,
                 resetGeoUrls,
                 formatConditions,
+                IP_RULE_TYPES,
                 dnsListenPort,
                 dnsListenPortInput,
                 normalizeDnsListenInput,
@@ -492,6 +621,12 @@
                 dnsLocalForwardNeedsNon53,
                 dnsPathPreview,
                 specifiedPortsContain53,
+                cacheWarning,
+                dismissCacheWarning,
+                availableSubRuleNames,
+                hasNameserverPolicyText,
+                hasDirectNameserverEntries,
+                canUseDirectNameserverFollowPolicy,
                 crashError,
                 askConfirm
             };

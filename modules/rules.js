@@ -9,6 +9,7 @@
     window.MihomoFeatureModules.createRulesModule = function (ctx) {
         const { ref, config, uiState, scrollToBottom } = ctx;
         const { splitByComma } = window.MihomoHelpers;
+        const IP_RULE_TYPES = ['GEOIP', 'SRC-GEOIP', 'IP-CIDR', 'IP-CIDR6', 'SRC-IP-CIDR', 'IP-SUFFIX', 'IP-ASN', 'SRC-IP-SUFFIX', 'SRC-IP-ASN'];
 
         const formatConditions = (r) => {
             if (!r || !r.conditions) return '';
@@ -18,13 +19,14 @@
                 if (c.not) res += 'NOT ';
                 res += c.type || '';
                 if (c.value) res += ',' + c.value;
+                if (c.src) res += ` [src=${c.src}]`;
                 return res;
             }).join(r.logic === 'AND' ? ' && ' : ' || ');
         };
 
         const addCondition = (r) => {
             if (!r.conditions) r.conditions = [];
-            r.conditions.push({type:'DOMAIN',value:'',not:false,noResolve:false});
+            r.conditions.push({type:'DOMAIN',value:'',not:false,noResolve:false,src:''});
         };
 
         const addRule = (kind) => {
@@ -33,9 +35,9 @@
             let newRule;
             const fallbackTarget = (config.value['proxy-groups'] && config.value['proxy-groups'][0]) ? config.value['proxy-groups'][0].name : 'DIRECT';
             if (kind === 'AND' || kind === 'OR') {
-                newRule = { logic: kind, not: false, target: fallbackTarget, conditions: [{ type: 'DOMAIN', value: '', not: false, noResolve: false }] };
+                newRule = { logic: kind, not: false, target: fallbackTarget, conditions: [{ type: 'DOMAIN', value: '', not: false, noResolve: false, src: '' }] };
             } else {
-                newRule = { type: 'GEOSITE', value: '', target: fallbackTarget, noResolve: false, not: false };
+                newRule = { type: 'GEOSITE', value: '', target: fallbackTarget, noResolve: false, not: false, src: '' };
             }
             if (matchIdx !== -1) uiState.value.rules.splice(matchIdx, 0, newRule);
             else uiState.value.rules.push(newRule);
@@ -112,7 +114,10 @@
                         cParts = splitByComma((cParts[1]||'').replace(/^\(+|\)+$/g, ''));
                     }
                     let val = (cParts[1]||'').replace(/^"|"$/g, '');
-                    return { type: cParts[0], value: val, not: cNot, noResolve: cParts.includes('no-resolve') };
+                    let src = '';
+                    const srcIdx = cParts.findIndex(part => part === 'src');
+                    if (srcIdx > -1 && cParts[srcIdx + 1] !== undefined) src = cParts[srcIdx + 1];
+                    return { type: cParts[0], value: val, not: cNot, noResolve: cParts.includes('no-resolve'), src };
                 });
                 return { logic, not: false, target, conditions };
             }
@@ -127,14 +132,20 @@
                 } else {
                     let cParts = innerParts;
                     let val = (cParts[1]||'').replace(/^"|"$/g, '');
-                    return { type: cParts[0], value: val, target: parts[2], not: true, noResolve: cParts.includes('no-resolve') };
+                    let src = '';
+                    const srcIdx = cParts.findIndex(part => part === 'src');
+                    if (srcIdx > -1 && cParts[srcIdx + 1] !== undefined) src = cParts[srcIdx + 1];
+                    return { type: cParts[0], value: val, target: parts[2], not: true, noResolve: cParts.includes('no-resolve'), src };
                 }
             }
 
-            if (parts[0] === 'MATCH') return { type: 'MATCH', value: '', target: parts[1] || 'DIRECT', noResolve: false, not: false };
+            if (parts[0] === 'MATCH') return { type: 'MATCH', value: '', target: parts[1] || 'DIRECT', noResolve: false, not: false, src: '' };
 
             let val = (parts[1]||'').replace(/^"|"$/g, '');
-            return { type: parts[0], value: val, target: parts[2], noResolve: parts.includes('no-resolve'), not: false };
+            let src = '';
+            const srcIdx = parts.findIndex(part => part === 'src');
+            if (srcIdx > -1 && parts[srcIdx + 1] !== undefined) src = parts[srcIdx + 1];
+            return { type: parts[0], value: val, target: parts[2], noResolve: parts.includes('no-resolve'), not: false, src };
         };
 
         return {
@@ -147,7 +158,8 @@
             onRuleDragEnter,
             onRuleDrop,
             onRuleDragEnd,
-            parseRuleString
+            parseRuleString,
+            IP_RULE_TYPES
         };
     };
 })(window);
