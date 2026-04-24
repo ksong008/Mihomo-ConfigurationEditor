@@ -14,11 +14,87 @@
             parseSingleProxyNode,
             askConfirm
         } = ctx;
+        const proxyNetworkOptionsMap = {
+            vless: [
+                { value: 'tcp', label: 'TCP' },
+                { value: 'ws', label: 'WebSocket' },
+                { value: 'grpc', label: 'gRPC' },
+                { value: 'h2', label: 'HTTP/2 (h2)' },
+                { value: 'http', label: 'HTTP' },
+                { value: 'xhttp', label: 'xHTTP' }
+            ],
+            vmess: [
+                { value: 'tcp', label: 'TCP' },
+                { value: 'ws', label: 'WebSocket' },
+                { value: 'grpc', label: 'gRPC' },
+                { value: 'h2', label: 'HTTP/2 (h2)' },
+                { value: 'http', label: 'HTTP' }
+            ],
+            trojan: [
+                { value: 'tcp', label: 'TCP' },
+                { value: 'ws', label: 'WebSocket' },
+                { value: 'grpc', label: 'gRPC' }
+            ],
+            masque: [
+                { value: 'quic', label: 'QUIC' },
+                { value: 'h2', label: 'HTTP/2 (h2)' }
+            ]
+        };
+        const proxyToggleSupport = {
+            udp: new Set(['vless', 'vmess', 'trojan', 'ss', 'ssr', 'hysteria2', 'hysteria', 'tuic', 'wireguard', 'socks5', 'snell']),
+            tfo: new Set(['vless', 'vmess', 'trojan', 'ss', 'ssr', 'http', 'socks5', 'snell', 'ssh', 'anytls']),
+            mptcp: new Set(['vless', 'vmess', 'trojan', 'ss', 'http', 'socks5', 'anytls']),
+            tls: new Set(['vless', 'vmess', 'trojan', 'ss', 'http', 'socks5', 'sudoku']),
+            reality: new Set(['vless', 'trojan']),
+            smux: new Set(['vless', 'vmess', 'trojan', 'ss', 'http', 'socks5', 'sudoku'])
+        };
+        const implicitTlsTypes = new Set(['hysteria2', 'hysteria', 'tuic', 'masque', 'anytls']);
+        const getProxyNetworkOptions = (type) => proxyNetworkOptionsMap[type] || [];
+        const proxySupportsTransport = (type) => getProxyNetworkOptions(type).length > 0;
+        const proxySupportsToggle = (type, toggle) => !!proxyToggleSupport[toggle] && proxyToggleSupport[toggle].has(type);
+        const normalizeProxyTransportState = () => {
+            (config.value.proxies || []).forEach((px) => {
+                if (!px || typeof px !== 'object') return;
+                const options = getProxyNetworkOptions(px.type);
+                const allowed = new Set(options.map((item) => item.value));
+                if (allowed.size === 0) {
+                    px.network = 'tcp';
+                } else if (!allowed.has(px.network)) {
+                    px.network = 'tcp';
+                }
+                if (!proxySupportsToggle(px.type, 'tls')) {
+                    px.tls = false;
+                }
+                if (!proxySupportsToggle(px.type, 'reality')) {
+                    px.reality = false;
+                }
+                if (!proxySupportsToggle(px.type, 'smux') || (proxySupportsTransport(px.type) && px.network !== 'tcp')) {
+                    if (px.smux && typeof px.smux === 'object') {
+                        px.smux.enabled = false;
+                    }
+                }
+                if (px.type !== 'trojan' && px['ss-opts']) {
+                    px['ss-opts'].enabled = false;
+                }
+                if (!proxySupportsToggle(px.type, 'tls') && !proxySupportsToggle(px.type, 'reality') && !implicitTlsTypes.has(px.type)) {
+                    px.reality = false;
+                    px.tls = false;
+                }
+            });
+        };
 
         const addManualProxy = () => {
             config.value.proxies.push(parseSingleProxyNode({ type: 'vless' }));
             scrollToBottom();
         };
+
+        watch(
+            () => config.value.proxies,
+            () => {
+                normalizeProxyTransportState();
+            },
+            { immediate: true, deep: true, flush: 'sync' }
+        );
 
         const addGroup = () => {
             config.value['proxy-groups'].push({
@@ -28,15 +104,24 @@
                 use: [],
                 filter: '',
                 'exclude-filter': '',
+                'exclude-type': '',
                 url: 'https://www.gstatic.com/generate_204',
                 interval: 300,
                 tolerance: 50,
                 timeout: 0,
                 lazy: false,
+                'max-failed-times': 5,
+                'disable-udp': false,
+                'interface-name': '',
+                'routing-mark': '',
                 'dialer-proxy': '',
                 strategy: 'consistent-hashing',
-                'include-all': false,
-                _collapsed: true
+                'include-all-proxies': false,
+                'include-all-providers': false,
+                'expected-status': '',
+                hidden: false,
+                icon: '',
+                _collapsed: false
             });
             scrollToBottom();
         };
@@ -168,7 +253,7 @@
         };
 
         const onInlineGroupMemberDragStart = (g, name, e) => {
-            if (!g || g['include-all'] || !Array.isArray(g.proxies)) return;
+            if (!g || g['include-all-proxies'] || !Array.isArray(g.proxies)) return;
             const idx = g.proxies.indexOf(name);
             if (idx < 0) return;
 
@@ -180,7 +265,7 @@
         };
 
         const onInlineGroupMemberDragOver = (g, name, e) => {
-            if (!g || g['include-all'] || !Array.isArray(g.proxies)) return;
+            if (!g || g['include-all-proxies'] || !Array.isArray(g.proxies)) return;
             if (!g.proxies.includes(name)) return;
 
             if (e && e.dataTransfer) {
@@ -189,7 +274,7 @@
         };
 
         const onInlineGroupMemberDrop = (g, name, e) => {
-            if (!g || g['include-all'] || !Array.isArray(g.proxies)) {
+            if (!g || g['include-all-proxies'] || !Array.isArray(g.proxies)) {
                 onGroupProxyDragEnd();
                 return;
             }
@@ -246,7 +331,7 @@
         const groupUseDrag = ref({ groupName: '', fromIndex: -1 });
 
         const onGroupUseDragStart = (g, name, e) => {
-            if (!g || g['include-all'] || !Array.isArray(g.use)) return;
+            if (!g || g['include-all-providers'] || !Array.isArray(g.use)) return;
             const idx = g.use.indexOf(name);
             if (idx < 0) return;
 
@@ -259,7 +344,7 @@
         };
 
         const onGroupUseDragOver = (g, name, e) => {
-            if (!g || g['include-all'] || !Array.isArray(g.use)) return;
+            if (!g || g['include-all-providers'] || !Array.isArray(g.use)) return;
             if (!g.use.includes(name)) return;
 
             if (e && e.dataTransfer) {
@@ -268,7 +353,7 @@
         };
 
         const onGroupUseDrop = (g, name) => {
-            if (!g || g['include-all'] || !Array.isArray(g.use)) {
+            if (!g || g['include-all-providers'] || !Array.isArray(g.use)) {
                 onGroupUseDragEnd();
                 return;
             }
@@ -426,14 +511,23 @@
                     use: [],
                     filter: '',
                     'exclude-filter': '',
+                    'exclude-type': '',
                     url: 'https://www.gstatic.com/generate_204',
                     interval: 300,
                     tolerance: 50,
                     timeout: 0,
                     lazy: false,
+                    'max-failed-times': 5,
+                    'disable-udp': false,
+                    'interface-name': '',
+                    'routing-mark': '',
                     'dialer-proxy': '',
                     strategy: 'consistent-hashing',
-                    'include-all': false
+                    'include-all-proxies': false,
+                    'include-all-providers': false,
+                    'expected-status': '',
+                    hidden: false,
+                    icon: ''
                 };
                 config.value['proxy-groups'].unshift(mainGroup);
             }
@@ -446,14 +540,23 @@
                     use: (providersList.value || []).map(p => p.name),
                     filter: '',
                     'exclude-filter': '',
+                    'exclude-type': '',
                     url: 'https://www.gstatic.com/generate_204',
                     interval: 300,
                     tolerance: 50,
                     timeout: 0,
                     lazy: true,
+                    'max-failed-times': 5,
+                    'disable-udp': false,
+                    'interface-name': '',
+                    'routing-mark': '',
                     'dialer-proxy': '',
                     strategy: 'consistent-hashing',
-                    'include-all': false
+                    'include-all-proxies': false,
+                    'include-all-providers': false,
+                    'expected-status': '',
+                    hidden: false,
+                    icon: ''
                 };
                 config.value['proxy-groups'].splice(1, 0, autoGroup);
             }
@@ -467,14 +570,23 @@
                         use: (providersList.value || []).map(p => p.name),
                         filter: r.filter,
                         'exclude-filter': '',
+                        'exclude-type': '',
                         url: 'https://www.gstatic.com/generate_204',
                         interval: 300,
                         tolerance: 50,
                         timeout: 0,
                         lazy: true,
+                        'max-failed-times': 5,
+                        'disable-udp': false,
+                        'interface-name': '',
+                        'routing-mark': '',
                         'dialer-proxy': '',
                         strategy: 'consistent-hashing',
-                        'include-all': false
+                        'include-all-proxies': false,
+                        'include-all-providers': false,
+                        'expected-status': '',
+                        hidden: false,
+                        icon: ''
                     });
                 }
                 if (!mainGroup.proxies.includes(r.name)) mainGroup.proxies.push(r.name);
@@ -524,15 +636,26 @@
                 name: `Provider-${(providersList.value || []).length + 1}`,
                 type: 'http',
                 url: '',
+                path: '',
                 interval: 3600,
+                proxy: '',
+                sizeLimit: '',
+                headers: '',
+                filter: '',
+                excludeFilter: '',
+                excludeType: '',
+                healthCheckEnable: true,
                 healthUrl: 'https://www.gstatic.com/generate_204',
+                healthCheckInterval: 600,
                 overrideDialerProxy: '',
-                useDownloadProxy: false,
-                downloadProxy: '',
+                overrideAdditionalPrefix: '',
+                overrideAdditionalSuffix: '',
+                overrideProxyName: '',
                 inlineProxies: [],
                 lazy: true,
                 healthCheckLazy: true,
-                healthCheckTimeout: 5000
+                healthCheckTimeout: 5000,
+                healthExpectedStatus: ''
             });
             scrollToBottom();
         };
@@ -545,11 +668,14 @@
                 type: 'http',
                 file: '',
                 behavior: 'domain',
-                format: 'yaml',
+                format: 'mrs',
                 interval: 86400,
                 autoUrl: true,
                 customUrl: '',
                 path: '',
+                proxy: '',
+                sizeLimit: '',
+                headers: '',
                 payload: '',
                 _collapsed: false
             });
@@ -739,8 +865,15 @@
         const replaceProviderDialerRefs = (oldName, newName) => {
             (providersList.value || []).forEach((p) => {
                 if (!p || typeof p !== 'object') return;
-                if (p.downloadProxy === oldName) p.downloadProxy = newName;
+                if (p.proxy === oldName) p.proxy = newName;
                 if (p.overrideDialerProxy === oldName) p.overrideDialerProxy = newName;
+            });
+        };
+
+        const replaceRuleProviderProxyRefs = (oldName, newName) => {
+            (ruleProvidersList.value || []).forEach((rp) => {
+                if (!rp || typeof rp !== 'object') return;
+                if (rp.proxy === oldName) rp.proxy = newName;
             });
         };
 
@@ -784,6 +917,7 @@
             });
 
             replaceProviderDialerRefs(oldName, newName);
+            replaceRuleProviderProxyRefs(oldName, newName);
             replaceProviderInlineProxyRefs(oldName, newName);
 
             (config.value.proxies || []).forEach((item) => {
@@ -807,6 +941,7 @@
             });
 
             replaceProviderDialerRefs(oldName, newName);
+            replaceRuleProviderProxyRefs(oldName, newName);
 
             (config.value.proxies || []).forEach((px) => {
                 replaceDialerProxyName(px, oldName, newName);
@@ -832,7 +967,8 @@
                 ? 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo'
                 : 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo';
             const folder = rp.behavior === 'ipcidr' ? 'geoip' : 'geosite';
-            return `${base}/${folder}/${targetName}.${rp.format}`;
+            const ext = rp.format === 'text' ? 'list' : rp.format;
+            return `${base}/${folder}/${targetName}.${ext}`;
         };
 
         const clearLists = () => {
@@ -913,7 +1049,10 @@
             updateGroupName,
             getRuleProviderUrl,
             clearLists,
-            getInlinePayloadPreview
+            getInlinePayloadPreview,
+            getProxyNetworkOptions,
+            proxySupportsTransport,
+            proxySupportsToggle
         };
     };
 })(window);

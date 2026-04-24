@@ -27,6 +27,7 @@
             getListenPort,
             deepMerge,
             clearPersistedStorage,
+            setCacheWarning,
             storageVersion,
             storageKey,
             storageBackupKey,
@@ -50,6 +51,31 @@
             if (value === undefined || value === null || value === '' || value === false) return [];
             if (isPlainObject(value)) return Object.values(value);
             return [value];
+        };
+
+        const normalizeSnifferUiState = () => {
+            const defaultSniff = { HTTP: '', TLS: '', QUIC: '' };
+            const defaultOverrides = { HTTP: false, TLS: false, QUIC: false };
+
+            if (!isPlainObject(uiState.value.snifferSniff)) {
+                uiState.value.snifferSniff = { ...defaultSniff };
+            } else {
+                uiState.value.snifferSniff = {
+                    HTTP: String(uiState.value.snifferSniff.HTTP || ''),
+                    TLS: String(uiState.value.snifferSniff.TLS || ''),
+                    QUIC: String(uiState.value.snifferSniff.QUIC || '')
+                };
+            }
+
+            if (!isPlainObject(uiState.value.snifferSniffOverrideDestination)) {
+                uiState.value.snifferSniffOverrideDestination = { ...defaultOverrides };
+            } else {
+                uiState.value.snifferSniffOverrideDestination = {
+                    HTTP: !!uiState.value.snifferSniffOverrideDestination.HTTP,
+                    TLS: !!uiState.value.snifferSniffOverrideDestination.TLS,
+                    QUIC: !!uiState.value.snifferSniffOverrideDestination.QUIC
+                };
+            }
         };
 
         const unwrapPersistedPayload = (raw) => {
@@ -138,6 +164,7 @@
 
             if (isPlainObject(payload.uiState)) {
                 deepMerge(uiState.value, payload.uiState);
+                normalizeSnifferUiState();
 
                 if (!Object.prototype.hasOwnProperty.call(payload.uiState, 'tunDnsHijackEnabled')) {
                     uiState.value.tunDnsHijackEnabled = !!String(uiState.value.tunDnsHijack || '').trim();
@@ -150,6 +177,9 @@
                     if (!uiState.value.enableNameserverPolicy && config.value && config.value.dns) {
                         config.value.dns['direct-nameserver-follow-policy'] = false;
                     }
+                }
+                if (!Object.prototype.hasOwnProperty.call(payload.uiState, 'enableProxyServerNameserverPolicy')) {
+                    uiState.value.enableProxyServerNameserverPolicy = !!String(uiState.value.dnsProxyServerNameserverPolicy || '').trim();
                 }
             }
 
@@ -168,6 +198,7 @@
 
             ensureGroupCollapseState();
             ensureRuleProviderCollapseState();
+            normalizeSnifferUiState();
 
             uiState.value.nftablesConfig = normalizeNftablesConfig(uiState.value.nftablesConfig, config.value);
             sanitizeNftMarks();
@@ -180,6 +211,7 @@
         const restorePersistedState = () => {
             const candidates = [storageKey, storageBackupKey, ...restoreLegacyStorageKeys];
             let sawPersistedState = false;
+            let cacheIssueDetected = false;
 
             for (const key of candidates) {
                 let raw = null;
@@ -196,6 +228,7 @@
                 const payload = unwrapPersistedPayload(raw);
                 if (!payload) {
                     console.warn('本地缓存格式无效，已跳过:', key);
+                    cacheIssueDetected = true;
                     continue;
                 }
 
@@ -206,11 +239,16 @@
                     if (safeBuildYaml(`restore cache ${key}`)) {
                         if (key !== storageKey) {
                             writePersistedState({ replaceBackup: true });
+                            cacheIssueDetected = true;
+                        }
+                        if (typeof setCacheWarning === 'function') {
+                            setCacheWarning(cacheIssueDetected ? '检测到旧缓存或损坏缓存，已自动使用可恢复的数据继续加载。建议点击“清理缓存并重载”，避免后续再次出现页面异常。' : '');
                         }
                         return true;
                     }
                 } catch (err) {
                     console.warn('本地缓存恢复失败，已跳过:', key, err);
+                    cacheIssueDetected = true;
                 }
             }
 
@@ -221,6 +259,11 @@
             if (sawPersistedState) {
                 console.warn('所有本地缓存均恢复失败，已回退到默认配置并清理缓存。');
                 clearPersistedStorage();
+                if (typeof setCacheWarning === 'function') {
+                    setCacheWarning('检测到本地缓存异常，当前已回退默认配置。为避免再次白屏，建议点击“清理缓存并重载”。');
+                }
+            } else if (typeof setCacheWarning === 'function') {
+                setCacheWarning('');
             }
 
             safeBuildYaml(sawPersistedState ? 'cache fallback to defaults' : 'initial mount');

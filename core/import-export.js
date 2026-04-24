@@ -26,7 +26,7 @@
             pruneInvalidGroupProxyMembers,
             pruneInvalidGroupUseMembers
         } = ctx;
-        const { getListenPort, parseYamlMapText } = window.MihomoHelpers;
+        const { getListenPort, parseYamlMapText, parseYamlSequenceText, parseYamlObjectText, formatYamlSequenceText, formatYamlObjectText } = window.MihomoHelpers;
 
         const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
 
@@ -71,6 +71,50 @@
             }
             if (value === undefined || value === null || value === '' || value === false) return [];
             return [String(value).trim()].filter(Boolean);
+        };
+
+        const getRuleProviderPathExt = (format) => format === 'text' ? 'list' : (format || 'yaml');
+
+        const normalizeYamlMapLike = (value) => {
+            if (isPlainObject(value)) return safeJsonClone(value, {});
+            if (value === undefined || value === null || value === '' || value === false) return {};
+
+            const text = typeof value === 'string'
+                ? value
+                : ensureStringArray(value).join('\n');
+            if (!text.trim()) return {};
+
+            const parsed = parseYamlMapText(text);
+            return parsed || {};
+        };
+
+        const normalizeProxyNameRuleItem = (item) => {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+            const pattern = String(item.pattern ?? '').trim();
+            const target = String(item.target ?? '').trim();
+            if (!pattern || !target) return null;
+            return { pattern, target };
+        };
+
+        const normalizeProxyNameRules = (value) => {
+            if (Array.isArray(value)) {
+                return value
+                    .map(normalizeProxyNameRuleItem)
+                    .filter(Boolean);
+            }
+
+            if (isPlainObject(value)) {
+                const item = normalizeProxyNameRuleItem(value);
+                return item ? [item] : [];
+            }
+
+            if (value === undefined || value === null || value === '' || value === false) return [];
+
+            try {
+                return parseYamlSequenceText(String(value), normalizeProxyNameRuleItem) || [];
+            } catch (err) {
+                return [];
+            }
         };
 
         const normalizeImportedHosts = (value) => {
@@ -120,7 +164,19 @@
             }
 
             if (rule.noResolve) parts.push('no-resolve');
+            if (rule.src !== undefined && rule.src !== null && String(rule.src).trim() !== '') {
+                parts.push('src', String(rule.src).trim());
+            }
             return parts.join(',');
+        };
+
+        const listToMultilineText = (value) => {
+            if (Array.isArray(value)) {
+                return value.map((item) => String(item ?? '').trim()).filter(Boolean).join('\n');
+            }
+            if (typeof value === 'string') return value.trim();
+            if (value === undefined || value === null || value === false) return '';
+            return String(value).trim();
         };
 
         const normalizeImportedMap = (value, prefix) => {
@@ -147,7 +203,7 @@
         const normalizeImportedConfigData = (source) => {
             const data = isPlainObject(source) ? safeJsonClone(source, {}) : {};
 
-            const supportedProxyProviderTypes = new Set(['http', 'inline']);
+            const supportedProxyProviderTypes = new Set(['http', 'file', 'inline']);
             const supportedRuleProviderTypes = new Set(['http', 'file', 'inline']);
             const supportedProxyGroupTypes = new Set(['select', 'url-test', 'fallback', 'load-balance', 'relay']);
 
@@ -158,10 +214,46 @@
             if (data.listeners !== undefined) {
                 data.listeners = ensureArray(data.listeners)
                     .filter(isPlainObject)
-                    .map((item, idx) => ({
-                        ...item,
-                        name: String(item.name || `listener-${idx + 1}`).trim() || `listener-${idx + 1}`
-                    }));
+                    .map((item, idx) => {
+                        const users = ensureArray(item.users).filter(isPlainObject);
+                        return {
+                            ...item,
+                            name: String(item.name || `listener-${idx + 1}`).trim() || `listener-${idx + 1}`,
+                            rule: String(item.rule || ''),
+                            proxy: String(item.proxy || ''),
+                            token: String(item.token || ''),
+                            certificate: String(item.certificate || ''),
+                            'private-key': String(item['private-key'] || ''),
+                            'client-auth-type': String(item['client-auth-type'] || ''),
+                            'client-auth-cert': String(item['client-auth-cert'] || ''),
+                            'ech-key': String(item['ech-key'] || ''),
+                            'ech-cert': String(item['ech-cert'] || ''),
+                            users,
+                            _usersText: formatYamlSequenceText(users)
+                        };
+                    });
+            }
+
+            ['lan-allowed-ips', 'lan-disallowed-ips', 'authentication', 'skip-auth-prefixes'].forEach((key) => {
+                if (data[key] !== undefined) {
+                    data[key] = ensureStringArray(data[key]);
+                }
+            });
+
+            if (data['external-controller-cors'] !== undefined && !isPlainObject(data['external-controller-cors'])) {
+                data['external-controller-cors'] = normalizeYamlMapLike(data['external-controller-cors']);
+            }
+
+            if (data.tls !== undefined && !isPlainObject(data.tls)) {
+                data.tls = normalizeYamlMapLike(data.tls);
+            }
+
+            if (data['sub-rules'] !== undefined && !isPlainObject(data['sub-rules'])) {
+                data['sub-rules'] = parseYamlObjectText(typeof data['sub-rules'] === 'string' ? data['sub-rules'] : JSON.stringify(data['sub-rules']));
+            }
+
+            if (data.experimental !== undefined && !isPlainObject(data.experimental)) {
+                data.experimental = normalizeYamlMapLike(data.experimental);
             }
 
             if (data.proxies !== undefined) {
@@ -187,14 +279,23 @@
                             use: ensureStringArray(g.use),
                             filter: String(g.filter || ''),
                             'exclude-filter': String(g['exclude-filter'] || ''),
+                            'exclude-type': String(g['exclude-type'] || ''),
                             url: String(g.url || 'https://www.gstatic.com/generate_204'),
                             interval: Number(g.interval) > 0 ? Number(g.interval) : 300,
                             tolerance: Number.isFinite(Number(g.tolerance)) ? Number(g.tolerance) : 50,
                             timeout: Number.isFinite(Number(g.timeout)) ? Number(g.timeout) : 0,
                             lazy: g.lazy !== false,
+                            'max-failed-times': Number.isFinite(Number(g['max-failed-times'])) ? Number(g['max-failed-times']) : 5,
+                            'disable-udp': g['disable-udp'] === true,
+                            'interface-name': String(g['interface-name'] || ''),
+                            'routing-mark': g['routing-mark'] !== undefined && g['routing-mark'] !== null ? String(g['routing-mark']) : '',
                             'dialer-proxy': String(g['dialer-proxy'] || ''),
                             strategy: String(g.strategy || 'consistent-hashing'),
-                            'include-all': g['include-all'] === true
+                            'include-all-proxies': g['include-all-proxies'] === true,
+                            'include-all-providers': g['include-all-providers'] === true,
+                            'expected-status': String(g['expected-status'] || ''),
+                            hidden: g.hidden === true,
+                            icon: String(g.icon || '')
                         };
                     });
             }
@@ -206,7 +307,7 @@
             }
 
             if (data.sniffer && isPlainObject(data.sniffer)) {
-                ['skip-domain', 'force-domain', 'port-whitelist'].forEach((key) => {
+                ['skip-domain', 'force-domain', 'port-whitelist', 'skip-src-address', 'skip-dst-address'].forEach((key) => {
                     if (data.sniffer[key] !== undefined) {
                         data.sniffer[key] = ensureStringArray(data.sniffer[key]);
                     }
@@ -242,6 +343,35 @@
                     const parsedPolicy = parseYamlMapText(normalizedPolicyText);
                     data.dns['nameserver-policy'] = parsedPolicy || {};
                 }
+
+                if (data.dns['proxy-server-nameserver-policy'] !== undefined && !isPlainObject(data.dns['proxy-server-nameserver-policy'])) {
+                    const normalizedPolicyText = ensureStringArray(data.dns['proxy-server-nameserver-policy']).join('\n');
+                    const parsedPolicy = parseYamlMapText(normalizedPolicyText);
+                    data.dns['proxy-server-nameserver-policy'] = parsedPolicy || {};
+                }
+            }
+
+            if (data.tun && isPlainObject(data.tun)) {
+                [
+                    'dns-hijack',
+                    'route-address-set',
+                    'route-exclude-address-set',
+                    'route-address',
+                    'route-exclude-address',
+                    'include-interface',
+                    'exclude-interface',
+                    'include-uid',
+                    'include-uid-range',
+                    'exclude-uid',
+                    'exclude-uid-range',
+                    'include-android-user',
+                    'include-package',
+                    'exclude-package'
+                ].forEach((key) => {
+                    if (data.tun[key] !== undefined) {
+                        data.tun[key] = ensureStringArray(data.tun[key]);
+                    }
+                });
             }
 
             if (data.hosts !== undefined) {
@@ -260,16 +390,52 @@
                     if (!supportedProxyProviderTypes.has(type)) return;
 
                     const name = String(key || p.name || `provider-${idx + 1}`).trim() || `provider-${idx + 1}`;
-                    const next = { ...p, type };
+                    const next = {
+                        ...p,
+                        type,
+                        path: String(p.path || ''),
+                        proxy: String(p.proxy || p['dialer-proxy'] || ''),
+                        header: normalizeYamlMapLike(p.header),
+                        filter: String(p.filter || ''),
+                        'exclude-filter': String(p['exclude-filter'] || ''),
+                        'exclude-type': String(p['exclude-type'] || '')
+                    };
+
+                    if (p['size-limit'] !== undefined && p['size-limit'] !== null && p['size-limit'] !== '') {
+                        const sizeLimit = Number(p['size-limit']);
+                        if (Number.isFinite(sizeLimit) && sizeLimit >= 0) next['size-limit'] = sizeLimit;
+                    }
+
+                    const rawOverride = isPlainObject(p.override) ? { ...p.override } : {};
+                    next.override = {
+                        ...rawOverride,
+                        'dialer-proxy': String(rawOverride['dialer-proxy'] || ''),
+                        'additional-prefix': String(rawOverride['additional-prefix'] || ''),
+                        'additional-suffix': String(rawOverride['additional-suffix'] || ''),
+                        'proxy-name': normalizeProxyNameRules(rawOverride['proxy-name'])
+                    };
 
                     if (type === 'http') {
                         next.url = String(p.url || '');
                         next.interval = Number(p.interval) > 0 ? Number(p.interval) : 3600;
-                        next['health-check'] = isPlainObject(p['health-check']) ? { ...p['health-check'] } : {};
-                        next['dialer-proxy'] = String(p['dialer-proxy'] || '');
+                    } else if (type === 'file') {
+                        next.interval = Number(p.interval) > 0 ? Number(p.interval) : 3600;
                     } else if (type === 'inline') {
                         next.payload = ensureArray(p.payload).filter(isPlainObject);
-                        next.override = isPlainObject(p.override) ? { ...p.override } : {};
+                    }
+
+                    if (type === 'http' || type === 'file') {
+                        const healthCheck = isPlainObject(p['health-check']) ? { ...p['health-check'] } : {};
+                        next['health-check'] = {
+                            enable: healthCheck.enable !== false,
+                            url: String(healthCheck.url || ''),
+                            interval: Number(healthCheck.interval) > 0 ? Number(healthCheck.interval) : 600,
+                            timeout: Number(healthCheck.timeout) > 0 ? Number(healthCheck.timeout) : 5000,
+                            lazy: healthCheck.lazy !== false
+                        };
+                        if (healthCheck['expected-status'] !== undefined && healthCheck['expected-status'] !== null && String(healthCheck['expected-status']).trim() !== '') {
+                            next['health-check']['expected-status'] = String(healthCheck['expected-status']).trim();
+                        }
                     }
 
                     nextProviders[name] = next;
@@ -294,8 +460,15 @@
                         ...p,
                         type,
                         behavior: String(p.behavior || 'domain'),
-                        format: String(p.format || 'yaml')
+                        format: String(p.format || 'mrs'),
+                        proxy: String(p.proxy || ''),
+                        header: normalizeYamlMapLike(p.header)
                     };
+
+                    if (p['size-limit'] !== undefined && p['size-limit'] !== null && p['size-limit'] !== '') {
+                        const sizeLimit = Number(p['size-limit']);
+                        if (Number.isFinite(sizeLimit) && sizeLimit >= 0) next['size-limit'] = sizeLimit;
+                    }
 
                     if (type === 'inline') next.payload = ensureStringArray(p.payload);
                     if (type === 'file') next.path = String(p.path || '');
@@ -407,15 +580,37 @@
             config.value.listeners = finalListeners;
 
             if (data['allow-lan'] !== undefined) config.value['allow-lan'] = data['allow-lan'];
+            config.value['bind-address'] = data['bind-address'] !== undefined ? data['bind-address'] : getDefaultConfig()['bind-address'];
             if (data.mode !== undefined) config.value.mode = data.mode;
             if (data['log-level'] !== undefined) config.value['log-level'] = data['log-level'];
             if (data.ipv6 !== undefined) config.value.ipv6 = data.ipv6;
+            config.value['keep-alive-interval'] = data['keep-alive-interval'] !== undefined ? data['keep-alive-interval'] : getDefaultConfig()['keep-alive-interval'];
+            config.value['keep-alive-idle'] = data['keep-alive-idle'] !== undefined ? data['keep-alive-idle'] : getDefaultConfig()['keep-alive-idle'];
+            config.value['disable-keep-alive'] = data['disable-keep-alive'] !== undefined ? data['disable-keep-alive'] : getDefaultConfig()['disable-keep-alive'];
             if (data['find-process-mode'] !== undefined) config.value['find-process-mode'] = data['find-process-mode'];
             if (data.profile) config.value.profile = { ...config.value.profile, ...data.profile };
-            if (data['external-controller']) config.value['external-controller'] = data['external-controller'];
-            if (data.secret) config.value.secret = data.secret;
-            if (data['external-ui']) config.value['external-ui'] = data['external-ui'];
-            if (data['external-ui-url']) config.value['external-ui-url'] = data['external-ui-url'];
+            if (data['external-controller'] !== undefined) config.value['external-controller'] = data['external-controller'];
+            config.value['external-controller-unix'] = data['external-controller-unix'] !== undefined ? data['external-controller-unix'] : getDefaultConfig()['external-controller-unix'];
+            config.value['external-controller-pipe'] = data['external-controller-pipe'] !== undefined ? data['external-controller-pipe'] : getDefaultConfig()['external-controller-pipe'];
+            config.value['external-controller-tls'] = data['external-controller-tls'] !== undefined ? data['external-controller-tls'] : getDefaultConfig()['external-controller-tls'];
+            if (data.secret !== undefined) config.value.secret = data.secret;
+            if (data['external-ui'] !== undefined) config.value['external-ui'] = data['external-ui'];
+            config.value['external-ui-name'] = data['external-ui-name'] !== undefined ? data['external-ui-name'] : getDefaultConfig()['external-ui-name'];
+            config.value['external-ui-url'] = data['external-ui-url'] !== undefined ? data['external-ui-url'] : getDefaultConfig()['external-ui-url'];
+            config.value['geodata-loader'] = data['geodata-loader'] !== undefined ? data['geodata-loader'] : getDefaultConfig()['geodata-loader'];
+            config.value['global-ua'] = data['global-ua'] !== undefined ? data['global-ua'] : getDefaultConfig()['global-ua'];
+            config.value['etag-support'] = data['etag-support'] !== undefined ? data['etag-support'] : getDefaultConfig()['etag-support'];
+            config.value['external-controller-cors'] = data['external-controller-cors'] && typeof data['external-controller-cors'] === 'object' ? { ...data['external-controller-cors'] } : {};
+            config.value.tls = data.tls && typeof data.tls === 'object' ? { ...data.tls } : {};
+            config.value.experimental = data.experimental && typeof data.experimental === 'object' ? { ...config.value.experimental, ...data.experimental } : { ...getDefaultConfig().experimental };
+
+            uiState.value.generalLanAllowedIps = listToMultilineText(data['lan-allowed-ips']);
+            uiState.value.generalLanDisallowedIps = listToMultilineText(data['lan-disallowed-ips']);
+            uiState.value.generalAuthentication = listToMultilineText(data.authentication);
+            uiState.value.generalSkipAuthPrefixes = listToMultilineText(data['skip-auth-prefixes']);
+            uiState.value.externalControllerCorsText = formatYamlMapText(data['external-controller-cors']);
+            uiState.value.tlsConfigText = formatYamlMapText(data.tls);
+            uiState.value.subRulesYaml = formatYamlObjectText(data['sub-rules']);
 
             if (data.tun) {
                 config.value.tun = { ...config.value.tun, enable: true, ...data.tun };
@@ -428,9 +623,36 @@
                 } else {
                     uiState.value.tunDnsHijackEnabled = false;
                 }
+
+                uiState.value.tunRouteAddressSet = listToMultilineText(data.tun['route-address-set']);
+                uiState.value.tunRouteExcludeAddressSet = listToMultilineText(data.tun['route-exclude-address-set']);
+                uiState.value.tunRouteAddress = listToMultilineText(data.tun['route-address']);
+                uiState.value.tunRouteExcludeAddress = listToMultilineText(data.tun['route-exclude-address']);
+                uiState.value.tunIncludeInterface = listToMultilineText(data.tun['include-interface']);
+                uiState.value.tunExcludeInterface = listToMultilineText(data.tun['exclude-interface']);
+                uiState.value.tunIncludeUid = listToMultilineText(data.tun['include-uid']);
+                uiState.value.tunIncludeUidRange = listToMultilineText(data.tun['include-uid-range']);
+                uiState.value.tunExcludeUid = listToMultilineText(data.tun['exclude-uid']);
+                uiState.value.tunExcludeUidRange = listToMultilineText(data.tun['exclude-uid-range']);
+                uiState.value.tunIncludeAndroidUser = listToMultilineText(data.tun['include-android-user']);
+                uiState.value.tunIncludePackage = listToMultilineText(data.tun['include-package']);
+                uiState.value.tunExcludePackage = listToMultilineText(data.tun['exclude-package']);
             } else {
                 config.value.tun.enable = false;
                 uiState.value.tunDnsHijackEnabled = false;
+                uiState.value.tunRouteAddressSet = '';
+                uiState.value.tunRouteExcludeAddressSet = '';
+                uiState.value.tunRouteAddress = '';
+                uiState.value.tunRouteExcludeAddress = '';
+                uiState.value.tunIncludeInterface = '';
+                uiState.value.tunExcludeInterface = '';
+                uiState.value.tunIncludeUid = '';
+                uiState.value.tunIncludeUidRange = '';
+                uiState.value.tunExcludeUid = '';
+                uiState.value.tunExcludeUidRange = '';
+                uiState.value.tunIncludeAndroidUser = '';
+                uiState.value.tunIncludePackage = '';
+                uiState.value.tunExcludePackage = '';
             }
 
             if (data.sniffer) {
@@ -440,22 +662,34 @@
                 if (data.sniffer['override-destination'] !== undefined) config.value.sniffer['override-destination'] = data.sniffer['override-destination'];
 
                 uiState.value.snifferSniff = { HTTP: '', TLS: '', QUIC: '' };
+                uiState.value.snifferSniffOverrideDestination = { HTTP: false, TLS: false, QUIC: false };
                 if (data.sniffer.sniff) {
                     if (data.sniffer.sniff.HTTP && data.sniffer.sniff.HTTP.ports) uiState.value.snifferSniff.HTTP = data.sniffer.sniff.HTTP.ports.join(', ');
                     if (data.sniffer.sniff.TLS && data.sniffer.sniff.TLS.ports) uiState.value.snifferSniff.TLS = data.sniffer.sniff.TLS.ports.join(', ');
                     if (data.sniffer.sniff.QUIC && data.sniffer.sniff.QUIC.ports) uiState.value.snifferSniff.QUIC = data.sniffer.sniff.QUIC.ports.join(', ');
                 }
 
-                if (data.sniffer['skip-domain']) uiState.value.snifferSkipDomain = data.sniffer['skip-domain'].join('\n');
-                if (data.sniffer['force-domain']) uiState.value.snifferForceDomain = data.sniffer['force-domain'].join('\n');
-                if (data.sniffer['port-whitelist']) uiState.value.snifferPortWhitelist = data.sniffer['port-whitelist'].join('\n');
+                uiState.value.snifferSkipDomain = listToMultilineText(data.sniffer['skip-domain']);
+                uiState.value.snifferForceDomain = listToMultilineText(data.sniffer['force-domain']);
+                uiState.value.snifferPortWhitelist = listToMultilineText(data.sniffer['port-whitelist']);
+                uiState.value.snifferSkipSrcAddress = listToMultilineText(data.sniffer['skip-src-address']);
+                uiState.value.snifferSkipDstAddress = listToMultilineText(data.sniffer['skip-dst-address']);
+                uiState.value.snifferSniffOverrideDestination = {
+                    HTTP: !!data.sniffer.sniff?.HTTP?.['override-destination'],
+                    TLS: !!data.sniffer.sniff?.TLS?.['override-destination'],
+                    QUIC: !!data.sniffer.sniff?.QUIC?.['override-destination']
+                };
             } else {
                 config.value.sniffer.enable = false;
+                uiState.value.snifferSniff = { HTTP: '', TLS: '', QUIC: '' };
+                uiState.value.snifferSkipSrcAddress = '';
+                uiState.value.snifferSkipDstAddress = '';
+                uiState.value.snifferSniffOverrideDestination = { HTTP: false, TLS: false, QUIC: false };
             }
 
             if (data.dns) {
                 config.value.dns.enable = true;
-                ['listen', 'ipv6', 'enhanced-mode', 'fake-ip-range', 'fake-ip-filter-mode', 'prefer-h3', 'respect-rules', 'use-hosts', 'use-system-hosts', 'direct-nameserver-follow-policy'].forEach(k => {
+                ['listen', 'ipv6', 'enhanced-mode', 'fake-ip-range', 'fake-ip-range6', 'fake-ip-filter-mode', 'fake-ip-ttl', 'cache-algorithm', 'prefer-h3', 'respect-rules', 'use-hosts', 'use-system-hosts', 'direct-nameserver-follow-policy'].forEach(k => {
                     if (data.dns[k] !== undefined) config.value.dns[k] = data.dns[k];
                 });
                 config.value.dns.listen = String(getListenPort(config.value.dns.listen, 53));
@@ -486,6 +720,14 @@
                     uiState.value.dnsNameserverPolicy = '';
                 }
 
+                if (data.dns['proxy-server-nameserver-policy']) {
+                    uiState.value.enableProxyServerNameserverPolicy = true;
+                    uiState.value.dnsProxyServerNameserverPolicy = formatYamlMapText(data.dns['proxy-server-nameserver-policy']);
+                } else {
+                    uiState.value.enableProxyServerNameserverPolicy = false;
+                    uiState.value.dnsProxyServerNameserverPolicy = '';
+                }
+
                 if (data.dns['fallback-filter']) {
                     config.value.dns['fallback-filter'].geoip = data.dns['fallback-filter'].geoip !== false;
                     if (data.dns['fallback-filter']['geoip-code']) {
@@ -505,6 +747,10 @@
             } else {
                 config.value.dns.enable = false;
                 uiState.value.enableDnsFallback = false;
+                uiState.value.enableNameserverPolicy = false;
+                uiState.value.dnsNameserverPolicy = '';
+                uiState.value.enableProxyServerNameserverPolicy = false;
+                uiState.value.dnsProxyServerNameserverPolicy = '';
             }
 
             if (data.hosts) {
@@ -538,23 +784,63 @@
             if (data['proxy-providers']) {
                 providersList.value = Object.keys(data['proxy-providers']).map(k => {
                     const p = data['proxy-providers'][k];
-                    const prov = { name: k, type: p.type || 'http', overrideDialerProxy: '', inlineProxies: [] };
+                    const prov = {
+                        name: k,
+                        type: p.type || 'http',
+                        url: '',
+                        path: '',
+                        interval: 3600,
+                        proxy: '',
+                        sizeLimit: '',
+                        headers: '',
+                        filter: '',
+                        excludeFilter: '',
+                        excludeType: '',
+                        healthCheckEnable: true,
+                        healthUrl: 'https://www.gstatic.com/generate_204',
+                        healthCheckInterval: 600,
+                        healthCheckLazy: true,
+                        healthCheckTimeout: 5000,
+                        healthExpectedStatus: '',
+                        lazy: true,
+                        overrideDialerProxy: '',
+                        overrideAdditionalPrefix: '',
+                        overrideAdditionalSuffix: '',
+                        overrideProxyName: '',
+                        inlineProxies: []
+                    };
+
+                    prov.path = p.path || '';
+                    prov.proxy = p.proxy || '';
+                    prov.sizeLimit = p['size-limit'] !== undefined && p['size-limit'] !== null ? String(p['size-limit']) : '';
+                    prov.headers = formatYamlMapText(p.header);
+                    prov.filter = p.filter || '';
+                    prov.excludeFilter = p['exclude-filter'] || '';
+                    prov.excludeType = p['exclude-type'] || '';
+
+                    if (p.override) {
+                        prov.overrideDialerProxy = p.override['dialer-proxy'] || '';
+                        prov.overrideAdditionalPrefix = p.override['additional-prefix'] || '';
+                        prov.overrideAdditionalSuffix = p.override['additional-suffix'] || '';
+                        prov.overrideProxyName = formatYamlSequenceText(p.override['proxy-name']);
+                    }
+
+                    if (prov.type === 'http' || prov.type === 'file') {
+                        prov.interval = p.interval || 3600;
+                        prov.lazy = p.lazy !== false;
+                        prov.healthCheckEnable = p['health-check']?.enable !== false;
+                        prov.healthUrl = p['health-check']?.url || 'https://www.gstatic.com/generate_204';
+                        prov.healthCheckInterval = p['health-check']?.interval || 600;
+                        prov.healthCheckLazy = p['health-check']?.lazy !== false;
+                        prov.healthCheckTimeout = p['health-check']?.timeout || 5000;
+                        prov.healthExpectedStatus = p['health-check']?.['expected-status'] || '';
+                    }
 
                     if (prov.type === 'http') {
                         prov.url = p.url || '';
-                        prov.interval = p.interval || 3600;
-                        prov.lazy = p.lazy !== false;
-                        prov.healthUrl = p['health-check']?.url || 'https://www.gstatic.com/generate_204';
-                        prov.healthCheckLazy = p['health-check']?.lazy !== false;
-                        prov.healthCheckTimeout = p['health-check']?.timeout || 5000;
-                        prov.useDownloadProxy = !!p['dialer-proxy'];
-                        prov.downloadProxy = p['dialer-proxy'] || '';
                     } else if (prov.type === 'inline') {
                         if (p.payload && Array.isArray(p.payload)) {
                             prov.inlineProxies = p.payload.map(px => px.name).filter(Boolean);
-                        }
-                        if (p.override && p.override['dialer-proxy']) {
-                            prov.overrideDialerProxy = p.override['dialer-proxy'];
                         }
                     }
                     return prov;
@@ -570,11 +856,14 @@
                         name: k,
                         type: p.type || 'http',
                         behavior: p.behavior || 'domain',
-                        format: p.format || 'yaml',
+                        format: p.format || 'mrs',
                         interval: p.interval || 86400,
                         autoUrl: false,
                         customUrl: '',
                         path: p.path || '',
+                        proxy: p.proxy || '',
+                        sizeLimit: p['size-limit'] !== undefined && p['size-limit'] !== null ? String(p['size-limit']) : '',
+                        headers: formatYamlMapText(p.header),
                         file: '',
                         payload: '',
                         _collapsed: false
@@ -582,7 +871,7 @@
 
                     if (rp.type === 'http') {
                         rp.customUrl = p.url || '';
-                        if (rp.customUrl.includes('meta-rules-dat')) {
+                        if (rp.behavior !== 'classical' && rp.customUrl.includes('meta-rules-dat')) {
                             rp.autoUrl = true;
                             const parts = rp.customUrl.split('/');
                             const filename = parts[parts.length - 1];
@@ -608,14 +897,23 @@
                         use: Array.isArray(g.use) ? g.use : [],
                         filter: g.filter || '',
                         'exclude-filter': g['exclude-filter'] || '',
+                        'exclude-type': g['exclude-type'] || '',
                         url: g.url || 'https://www.gstatic.com/generate_204',
                         interval: g.interval || 300,
                         tolerance: g.tolerance || 50,
                         timeout: g.timeout || 0,
                         lazy: g.lazy !== false,
+                        'max-failed-times': Number.isFinite(Number(g['max-failed-times'])) ? Number(g['max-failed-times']) : 5,
+                        'disable-udp': g['disable-udp'] === true,
+                        'interface-name': g['interface-name'] || '',
+                        'routing-mark': g['routing-mark'] !== undefined && g['routing-mark'] !== null ? String(g['routing-mark']) : '',
                         'dialer-proxy': g['dialer-proxy'] || '',
                         strategy: g.strategy || 'consistent-hashing',
-                        'include-all': g['include-all'] === true,
+                        'include-all-proxies': g['include-all-proxies'] === true,
+                        'include-all-providers': g['include-all-providers'] === true,
+                        'expected-status': g['expected-status'] || '',
+                        hidden: g.hidden === true,
+                        icon: g.icon || '',
                         _collapsed: typeof g._collapsed === 'boolean' ? g._collapsed : true
                     };
                 });
