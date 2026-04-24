@@ -243,10 +243,31 @@ function splitByComma(str) {
     let result = [];
     let current = '';
     let depth = 0;
+    let quote = '';
+    let escaping = false;
     for (let i = 0; i < str.length; i++) {
         let char = str[i];
+
+        if (quote) {
+            current += char;
+            if (escaping) {
+                escaping = false;
+            } else if (char === '\\') {
+                escaping = true;
+            } else if (char === quote) {
+                quote = '';
+            }
+            continue;
+        }
+
+        if (char === '"' || char === "'") {
+            quote = char;
+            current += char;
+            continue;
+        }
+
         if (char === '(') depth++;
-        if (char === ')') depth--;
+        if (char === ')') depth = Math.max(0, depth - 1);
         if (char === ',' && depth === 0) {
             result.push(current.trim());
             current = '';

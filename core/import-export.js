@@ -73,8 +73,6 @@
             return [String(value).trim()].filter(Boolean);
         };
 
-        const getRuleProviderPathExt = (format) => format === 'text' ? 'list' : (format || 'yaml');
-
         const normalizeYamlMapLike = (value) => {
             if (isPlainObject(value)) return safeJsonClone(value, {});
             if (value === undefined || value === null || value === '' || value === false) return {};

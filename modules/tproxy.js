@@ -153,7 +153,10 @@
             try {
                 await navigator.clipboard.writeText(routingCommands.value);
                 alert('路由命令已复制');
-            } catch(e){}
+            } catch(e) {
+                console.warn('复制路由命令失败:', e);
+                alert('复制失败，请手动选择路由命令复制。');
+            }
         };
 
         const systemdService = computed(() => {
@@ -337,8 +340,16 @@ ${bypassCnIp && cn6.length ? `        ip6 daddr @cn_ip6 accept comment "大陆 I
             return `#!/bin/bash\n# 一键部署 Mihomo 透明代理持久化环境\nmkdir -p /etc/mihomo\n\n# 1. 写入 nftables 规则\ncat > /etc/mihomo/tproxy.nft << 'EOF'\n${getCleanNftables()}\nEOF\n\n# 2. 写入 Systemd 服务\ncat > /etc/systemd/system/mihomo-tproxy.service << 'EOF'\n${systemdService.value}\nEOF\n\n# 3. 重新加载并启用服务\nsystemctl daemon-reload\nsystemctl enable --now mihomo-tproxy\necho "Mihomo 透明代理规则已持久化部署并启动！"`;
         });
 
-        const copyNftables = async () => { try { await navigator.clipboard.writeText(getCleanNftables()); alert('nftables 规则已复制'); } catch(e){} };
-                const downloadNftables = () => {
+        const copyNftables = async () => {
+            try {
+                await navigator.clipboard.writeText(getCleanNftables());
+                alert('nftables 规则已复制');
+            } catch(e) {
+                console.warn('复制 nftables 规则失败:', e);
+                alert('复制失败，请手动选择 nftables 规则复制。');
+            }
+        };
+        const downloadNftables = () => {
             const url = URL.createObjectURL(new Blob([getCleanNftables()], { type: 'text/plain' }));
             const a = document.createElement('a');
             const fname = ((uiState.value.nftablesConfig?.nftTable || 'mihomo').trim() || 'mihomo').replace(/[^\w.-]+/g, '_');
@@ -347,7 +358,15 @@ ${bypassCnIp && cn6.length ? `        ip6 daddr @cn_ip6 accept comment "大陆 I
             a.click();
             URL.revokeObjectURL(url);
         };
-        const copyInstallScript = async () => { try { await navigator.clipboard.writeText(installScript.value); alert('部署脚本已复制'); } catch(e){} };
+        const copyInstallScript = async () => {
+            try {
+                await navigator.clipboard.writeText(installScript.value);
+                alert('部署脚本已复制');
+            } catch(e) {
+                console.warn('复制部署脚本失败:', e);
+                alert('复制失败，请手动选择部署脚本复制。');
+            }
+        };
 
         return {
             handleTproxyToggle,

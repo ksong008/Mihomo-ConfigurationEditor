@@ -7,21 +7,11 @@
 
     const { createApp, ref, computed, watch, onMounted, nextTick, onErrorCaptured } = Vue;
     const {
-        parsePorts,
-        parseHosts,
-        parseMarkValue,
         getListenPort,
-        parseLineList,
-        parseCommaList,
-        DEFAULT_NFT_PRIVATE4,
-        DEFAULT_NFT_PRIVATE6,
-        DEFAULT_NFT_COMMON_PORTS,
         normalizeNftablesConfig,
         getSanitizedUiStateForSave,
-        parseYamlMapText,
         parseYamlObjectText,
         formatYamlMapText,
-        splitByComma,
         deepMerge
     } = window.MihomoHelpers;
 
@@ -434,7 +424,6 @@
                 uiState,
                 providersList,
                 ruleProvidersList,
-                parseSingleProxyNode,
                 sanitizeProxyNodeForYaml,
                 getRuleProviderUrl,
                 getDefaultConfig
