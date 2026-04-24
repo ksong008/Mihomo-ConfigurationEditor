@@ -71,6 +71,14 @@
         const getProxyNetworkOptions = (type) => proxyNetworkOptionsMap[type] || [];
         const proxySupportsTransport = (type) => getProxyNetworkOptions(type).length > 0;
         const proxySupportsToggle = (type, toggle) => !!proxyToggleSupport[toggle] && proxyToggleSupport[toggle].has(type);
+        const setDragData = (e, value) => {
+            if (!e || !e.dataTransfer) return;
+            try {
+                e.dataTransfer.setData('text/plain', String(value));
+            } catch (err) {
+                console.warn('拖拽数据写入失败:', err);
+            }
+        };
         const normalizeChainProvidersState = () => {
             const sourceProviders = (providersList.value || []).filter((p) => p && !p._chainMode);
             (providersList.value || []).forEach((p) => {
@@ -101,7 +109,7 @@
                 if (allowed.size === 0) {
                     px.network = 'tcp';
                 } else if (!allowed.has(px.network)) {
-                    px.network = 'tcp';
+                    px.network = options[0].value;
                 }
                 if (!proxySupportsToggle(px.type, 'tls')) {
                     px.tls = false;
@@ -345,7 +353,7 @@
             groupProxyDrag.value = { groupName: g.name, fromIndex: idx };
             if (e && e.dataTransfer) {
                 e.dataTransfer.effectAllowed = 'move';
-                try { e.dataTransfer.setData('text/plain', String(idx)); } catch (err) {}
+                setDragData(e, idx);
             }
         };
 
@@ -387,7 +395,7 @@
 
             if (e && e.dataTransfer) {
                 e.dataTransfer.effectAllowed = 'move';
-                try { e.dataTransfer.setData('text/plain', String(idx)); } catch (err) {}
+                setDragData(e, idx);
             }
         };
 
@@ -442,7 +450,7 @@
 
             if (e && e.dataTransfer) {
                 e.dataTransfer.effectAllowed = 'move';
-                try { e.dataTransfer.setData('text/plain', String(idx)); } catch (err) {}
+                setDragData(e, idx);
             }
         };
 
@@ -666,7 +674,9 @@
                             if (!g.use) g.use = [];
                             if (prov.name && !g.use.includes(prov.name)) g.use.push(prov.name);
                         });
-                    } catch (e) {}
+                    } catch (e) {
+                        console.warn('节点分组过滤表达式无效，已跳过:', g.filter, e);
+                    }
                 }
             });
         };
@@ -855,7 +865,7 @@
 
             if (e && e.dataTransfer) {
                 e.dataTransfer.effectAllowed = 'move';
-                try { e.dataTransfer.setData('text/plain', String(idx)); } catch (err) {}
+                setDragData(e, idx);
             }
         };
 

@@ -52,7 +52,11 @@
             ruleDragOverIndex.value = idx;
             if (e && e.dataTransfer) {
                 e.dataTransfer.effectAllowed = 'move';
-                try { e.dataTransfer.setData('text/plain', String(idx)); } catch (err) {}
+                try {
+                    e.dataTransfer.setData('text/plain', String(idx));
+                } catch (err) {
+                    console.warn('规则拖拽数据写入失败:', err);
+                }
             }
         };
 
@@ -96,56 +100,158 @@
             onRuleDragEnd();
         };
 
+        const isWrappedByParens = (text) => {
+            const s = String(text || '').trim();
+            if (!s.startsWith('(') || !s.endsWith(')')) return false;
+
+            let depth = 0;
+            let quote = '';
+            let escaping = false;
+            for (let i = 0; i < s.length; i++) {
+                const char = s[i];
+                if (quote) {
+                    if (escaping) escaping = false;
+                    else if (char === '\\') escaping = true;
+                    else if (char === quote) quote = '';
+                    continue;
+                }
+                if (char === '"' || char === "'") {
+                    quote = char;
+                    continue;
+                }
+                if (char === '(') depth++;
+                if (char === ')') depth--;
+                if (depth === 0 && i < s.length - 1) return false;
+            }
+            return depth === 0;
+        };
+
+        const stripWrappingParens = (text) => {
+            let s = String(text || '').trim();
+            while (isWrappedByParens(s)) {
+                s = s.slice(1, -1).trim();
+            }
+            return s;
+        };
+
+        const stripQuotes = (value) => {
+            const s = String(value || '').trim();
+            if (s.length >= 2 && ((s[0] === '"' && s[s.length - 1] === '"') || (s[0] === "'" && s[s.length - 1] === "'"))) {
+                return s.slice(1, -1);
+            }
+            return s;
+        };
+
+        const readBalancedGroup = (text, startIndex) => {
+            let depth = 0;
+            let quote = '';
+            let escaping = false;
+            for (let i = startIndex; i < text.length; i++) {
+                const char = text[i];
+                if (quote) {
+                    if (escaping) escaping = false;
+                    else if (char === '\\') escaping = true;
+                    else if (char === quote) quote = '';
+                    continue;
+                }
+                if (char === '"' || char === "'") {
+                    quote = char;
+                    continue;
+                }
+                if (char === '(') depth++;
+                if (char === ')') depth--;
+                if (depth === 0) {
+                    return { value: text.slice(startIndex, i + 1), endIndex: i + 1 };
+                }
+            }
+            return { value: text.slice(startIndex), endIndex: text.length };
+        };
+
+        const splitLogicConditions = (text) => {
+            const s = stripWrappingParens(text);
+            const conditions = [];
+            let i = 0;
+
+            while (i < s.length) {
+                while (s[i] === ',' || /\s/.test(s[i] || '')) i++;
+                if (i >= s.length) break;
+
+                let not = false;
+                if (s.slice(i, i + 4) === 'NOT,') {
+                    not = true;
+                    i += 4;
+                }
+
+                let raw = '';
+                if (s[i] === '(') {
+                    const group = readBalancedGroup(s, i);
+                    raw = group.value;
+                    i = group.endIndex;
+                } else {
+                    const nextComma = s.indexOf(',', i);
+                    const end = nextComma === -1 ? s.length : nextComma;
+                    raw = s.slice(i, end);
+                    i = end;
+                }
+
+                const normalized = stripWrappingParens(raw);
+                if (normalized) conditions.push({ raw: normalized, not });
+            }
+
+            return conditions;
+        };
+
+        const parseCondition = (raw, forcedNot = false) => {
+            let text = stripWrappingParens(raw);
+            let not = forcedNot;
+            let parts = splitByComma(text);
+
+            if (parts[0] === 'NOT') {
+                not = true;
+                text = stripWrappingParens(parts[1] || '');
+                parts = splitByComma(text);
+            }
+
+            const srcIdx = parts.findIndex(part => part === 'src');
+            return {
+                type: parts[0] || 'DOMAIN',
+                value: stripQuotes(parts[1] || ''),
+                not,
+                noResolve: parts.includes('no-resolve'),
+                src: srcIdx > -1 && parts[srcIdx + 1] !== undefined ? parts[srcIdx + 1] : ''
+            };
+        };
+
+        const parseLogicRule = (logic, conditionText, target, not = false) => {
+            const conditions = splitLogicConditions(conditionText)
+                .map((item) => parseCondition(item.raw, item.not))
+                .filter((condition) => condition.type);
+            return { logic, not, target, conditions };
+        };
+
         const parseRuleString = (rStr) => {
             if (typeof rStr !== 'string') return null;
             let parts = splitByComma(rStr);
 
-            if (['AND', 'OR'].includes(parts[0]) && parts.length === 3) {
-                let logic = parts[0];
-                let innerStr = parts[1].replace(/^\(+|\)+$/g, '');
-                let target = parts[2];
-                let condStrs = splitByComma(innerStr);
-                let conditions = condStrs.map(c => {
-                    let stripped = c.replace(/^\(+|\)+$/g, '');
-                    let cParts = splitByComma(stripped);
-                    let cNot = false;
-                    if (cParts[0] === 'NOT') {
-                        cNot = true;
-                        cParts = splitByComma((cParts[1]||'').replace(/^\(+|\)+$/g, ''));
-                    }
-                    let val = (cParts[1]||'').replace(/^"|"$/g, '');
-                    let src = '';
-                    const srcIdx = cParts.findIndex(part => part === 'src');
-                    if (srcIdx > -1 && cParts[srcIdx + 1] !== undefined) src = cParts[srcIdx + 1];
-                    return { type: cParts[0], value: val, not: cNot, noResolve: cParts.includes('no-resolve'), src };
-                });
-                return { logic, not: false, target, conditions };
+            if (['AND', 'OR'].includes(parts[0]) && parts.length >= 3) {
+                return parseLogicRule(parts[0], parts[1], parts[2]);
             }
 
-            if (parts[0] === 'NOT' && parts.length === 3) {
-                let innerStr = parts[1].replace(/^\(+|\)+$/g, '');
-                let innerParts = splitByComma(innerStr);
+            if (parts[0] === 'NOT' && parts.length >= 3) {
+                const innerText = stripWrappingParens(parts[1]);
+                const innerParts = splitByComma(innerText);
                 if (['AND', 'OR'].includes(innerParts[0])) {
-                    let logicRule = parseRuleString(`${innerParts[0]},${innerParts[1]},${parts[2]}`);
-                    if (logicRule) logicRule.not = true;
-                    return logicRule;
-                } else {
-                    let cParts = innerParts;
-                    let val = (cParts[1]||'').replace(/^"|"$/g, '');
-                    let src = '';
-                    const srcIdx = cParts.findIndex(part => part === 'src');
-                    if (srcIdx > -1 && cParts[srcIdx + 1] !== undefined) src = cParts[srcIdx + 1];
-                    return { type: cParts[0], value: val, target: parts[2], not: true, noResolve: cParts.includes('no-resolve'), src };
+                    return parseLogicRule(innerParts[0], innerParts[1], parts[2], true);
                 }
+
+                const condition = parseCondition(innerText, true);
+                return { ...condition, target: parts[2] };
             }
 
             if (parts[0] === 'MATCH') return { type: 'MATCH', value: '', target: parts[1] || 'DIRECT', noResolve: false, not: false, src: '' };
 
-            let val = (parts[1]||'').replace(/^"|"$/g, '');
-            let src = '';
-            const srcIdx = parts.findIndex(part => part === 'src');
-            if (srcIdx > -1 && parts[srcIdx + 1] !== undefined) src = parts[srcIdx + 1];
-            return { type: parts[0], value: val, target: parts[2], noResolve: parts.includes('no-resolve'), not: false, src };
+            const condition = parseCondition(rStr);
+            return { ...condition, target: parts[2] };
         };
 
         return {

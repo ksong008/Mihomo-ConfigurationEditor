@@ -306,10 +306,10 @@
             const implicitTlsTypes = new Set(['hysteria2', 'hysteria', 'tuic', 'masque', 'anytls']);
             const tlsToggleTypes = new Set(['vless', 'vmess', 'trojan', 'ss', 'http', 'socks5', 'sudoku']);
             const allowedNetworksByType = {
-                vless: new Set(['tcp', 'ws', 'grpc', 'h2', 'http', 'xhttp']),
-                vmess: new Set(['tcp', 'ws', 'grpc', 'h2', 'http']),
-                trojan: new Set(['tcp', 'ws', 'grpc']),
-                masque: new Set(['quic', 'h2'])
+                vless: ['tcp', 'ws', 'grpc', 'h2', 'http', 'xhttp'],
+                vmess: ['tcp', 'ws', 'grpc', 'h2', 'http'],
+                trojan: ['tcp', 'ws', 'grpc'],
+                masque: ['quic', 'h2']
             };
             const realityEnabled = !!proxy.reality;
             const echEnabled = !!proxy['ech-opts']?.enable;
@@ -318,11 +318,14 @@
             const obfsEnabled = !!String(proxy.obfs || '').trim();
             const tlsSectionEnabled = !!proxy.tls || !!proxy.reality || implicitTlsTypes.has(parsed.type);
             const currentNetwork = String(proxy.network || parsed.network || 'tcp').trim() || 'tcp';
-            const allowedNetworks = allowedNetworksByType[parsed.type] || new Set(['tcp']);
-            const effectiveNetwork = allowedNetworks.has(currentNetwork) ? currentNetwork : 'tcp';
+            const allowedNetworkList = allowedNetworksByType[parsed.type] || ['tcp'];
+            const allowedNetworks = new Set(allowedNetworkList);
+            const defaultNetwork = allowedNetworkList[0] || 'tcp';
+            const effectiveNetwork = allowedNetworks.has(currentNetwork) ? currentNetwork : defaultNetwork;
 
             delete next.reality;
-            if (effectiveNetwork === 'tcp') delete next.network;
+            if (effectiveNetwork === defaultNetwork) delete next.network;
+            else next.network = effectiveNetwork;
             if (parsed.type === 'http') {
                 const proxyHeaders = parseYamlMapText(proxy._proxyHeadersText);
                 if (proxyHeaders) next.headers = proxyHeaders;
@@ -468,6 +471,13 @@
                 delete next['obfs-password'];
                 delete next['obfs-host'];
                 delete next['obfs-param'];
+            }
+            if (parsed.type === 'hysteria' && next.password) {
+                next['auth-str'] = next.password;
+                delete next.password;
+            } else if (parsed.type === 'snell' && next.password) {
+                next.psk = next.password;
+                delete next.password;
             }
             if (!realityEnabled) delete next['reality-opts'];
             if (!tlsSectionEnabled) {
