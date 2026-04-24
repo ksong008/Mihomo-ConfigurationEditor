@@ -3,6 +3,12 @@
 
     window.MihomoFeatureModules = window.MihomoFeatureModules || {};
     window.MihomoFeatureModules.createProxiesModule = function () {
+        const parseYamlMapText = window.MihomoHelpers && typeof window.MihomoHelpers.parseYamlMapText === 'function'
+            ? window.MihomoHelpers.parseYamlMapText
+            : () => undefined;
+        const parseYamlObjectText = window.MihomoHelpers && typeof window.MihomoHelpers.parseYamlObjectText === 'function'
+            ? window.MihomoHelpers.parseYamlObjectText
+            : () => undefined;
         const formatYamlMapText = window.MihomoHelpers && typeof window.MihomoHelpers.formatYamlMapText === 'function'
             ? window.MihomoHelpers.formatYamlMapText
             : (value) => {
@@ -234,9 +240,257 @@
             if (px.type === 'tuic' && !base.uuid) base.uuid = px.uuid || '';
             return base;
         };
+        const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+        const deepEqual = (a, b) => {
+            if (a === b) return true;
+            if (Array.isArray(a) && Array.isArray(b)) {
+                if (a.length !== b.length) return false;
+                return a.every((item, index) => deepEqual(item, b[index]));
+            }
+            if (isPlainObject(a) && isPlainObject(b)) {
+                const aKeys = Object.keys(a);
+                const bKeys = Object.keys(b);
+                if (aKeys.length !== bKeys.length) return false;
+                return aKeys.every((key) => deepEqual(a[key], b[key]));
+            }
+            return false;
+        };
+        const pruneEmptyYamlValue = (value) => {
+            if (value === undefined || value === null) return undefined;
+            if (typeof value === 'string') return value.trim() === '' ? undefined : value;
+            if (Array.isArray(value)) {
+                const next = value.map((item) => pruneEmptyYamlValue(item)).filter((item) => item !== undefined);
+                return next.length > 0 ? next : undefined;
+            }
+            if (isPlainObject(value)) {
+                const next = {};
+                Object.keys(value).forEach((key) => {
+                    if (key.startsWith('_')) return;
+                    const pruned = pruneEmptyYamlValue(value[key]);
+                    if (pruned !== undefined) next[key] = pruned;
+                });
+                return Object.keys(next).length > 0 ? next : undefined;
+            }
+            return value;
+        };
+        const compactWithDefaults = (value, defaults, alwaysKeepKeys = new Set()) => {
+            if (Array.isArray(value)) {
+                if (Array.isArray(defaults) && deepEqual(value, defaults)) return undefined;
+                const next = value
+                    .map((item, index) => compactWithDefaults(item, Array.isArray(defaults) ? defaults[index] : undefined, alwaysKeepKeys))
+                    .filter((item) => item !== undefined);
+                return next.length > 0 ? next : undefined;
+            }
+            if (isPlainObject(value)) {
+                const next = {};
+                Object.keys(value).forEach((key) => {
+                    if (key.startsWith('_')) return;
+                    if (alwaysKeepKeys.has(key)) {
+                        const kept = pruneEmptyYamlValue(value[key]);
+                        if (kept !== undefined) next[key] = kept;
+                        return;
+                    }
+                    const compacted = compactWithDefaults(value[key], defaults && defaults[key], alwaysKeepKeys);
+                    if (compacted !== undefined) next[key] = compacted;
+                });
+                return Object.keys(next).length > 0 ? next : undefined;
+            }
+            if (defaults !== undefined && deepEqual(value, defaults)) return undefined;
+            return pruneEmptyYamlValue(value);
+        };
+        const sanitizeProxyNodeForYaml = (proxy) => {
+            const parsed = parseSingleProxyNode(proxy);
+            if (!parsed) return null;
+            const defaults = parseSingleProxyNode({ type: parsed.type });
+            const next = compactWithDefaults(parsed, defaults, new Set(['name', 'type', 'server', 'port'])) || {};
+            const implicitTlsTypes = new Set(['hysteria2', 'hysteria', 'tuic', 'masque', 'anytls']);
+            const tlsToggleTypes = new Set(['vless', 'vmess', 'trojan', 'ss', 'http', 'socks5', 'sudoku']);
+            const allowedNetworksByType = {
+                vless: new Set(['tcp', 'ws', 'grpc', 'h2', 'http', 'xhttp']),
+                vmess: new Set(['tcp', 'ws', 'grpc', 'h2', 'http']),
+                trojan: new Set(['tcp', 'ws', 'grpc']),
+                masque: new Set(['quic', 'h2'])
+            };
+            const realityEnabled = !!proxy.reality;
+            const echEnabled = !!proxy['ech-opts']?.enable;
+            const smuxEnabled = !!proxy.smux?.enabled;
+            const brutalEnabled = !!proxy.smux?.['brutal-opts']?.enabled;
+            const obfsEnabled = !!String(proxy.obfs || '').trim();
+            const tlsSectionEnabled = !!proxy.tls || !!proxy.reality || implicitTlsTypes.has(parsed.type);
+            const currentNetwork = String(proxy.network || parsed.network || 'tcp').trim() || 'tcp';
+            const allowedNetworks = allowedNetworksByType[parsed.type] || new Set(['tcp']);
+            const effectiveNetwork = allowedNetworks.has(currentNetwork) ? currentNetwork : 'tcp';
+
+            delete next.reality;
+            if (effectiveNetwork === 'tcp') delete next.network;
+            if (parsed.type === 'http') {
+                const proxyHeaders = parseYamlMapText(proxy._proxyHeadersText);
+                if (proxyHeaders) next.headers = proxyHeaders;
+                else delete next.headers;
+            } else {
+                delete next.headers;
+            }
+            if (!parsed.plugin) {
+                delete next.plugin;
+                delete next['plugin-opts'];
+                delete next['kcptun-opts'];
+            } else if (parsed.plugin !== 'kcptun') {
+                delete next['kcptun-opts'];
+            }
+            if (next['ws-opts']) {
+                const wsHeaders = parseYamlMapText(proxy._wsHeadersText);
+                if (wsHeaders) next['ws-opts'].headers = wsHeaders;
+                else delete next['ws-opts'].headers;
+            }
+            if (next['http-opts']) {
+                const httpHeaders = parseYamlMapText(proxy._httpHeadersText);
+                if (httpHeaders) next['http-opts'].headers = httpHeaders;
+                else delete next['http-opts'].headers;
+            }
+            if (next['xhttp-opts']) {
+                const xhttpHeaders = parseYamlMapText(proxy._xhttpHeadersText);
+                if (xhttpHeaders) next['xhttp-opts'].headers = xhttpHeaders;
+                else delete next['xhttp-opts'].headers;
+            }
+            if (effectiveNetwork !== 'ws') delete next['ws-opts'];
+            if (effectiveNetwork !== 'grpc') delete next['grpc-opts'];
+            if (effectiveNetwork !== 'h2') delete next['h2-opts'];
+            if (parsed.network !== 'httpupgrade') delete next['httpupgrade-opts'];
+            if (effectiveNetwork !== 'http') delete next['http-opts'];
+            if (effectiveNetwork !== 'xhttp') delete next['xhttp-opts'];
+            if (!['vless', 'vmess'].includes(parsed.type)) delete next['packet-encoding'];
+            if (parsed.type !== 'vless') delete next.encryption;
+            if (parsed.type !== 'vmess') {
+                delete next['global-padding'];
+                delete next['authenticated-length'];
+            }
+            if (parsed.type !== 'trojan' || !proxy['ss-opts']?.enabled) delete next['ss-opts'];
+            if (parsed.type !== 'ss' || !proxy['udp-over-tcp']) delete next['udp-over-tcp-version'];
+            if (parsed.type !== 'wireguard') {
+                delete next.ipv6;
+                delete next['allowed-ips'];
+                delete next['persistent-keepalive'];
+                delete next['remote-dns-resolve'];
+                delete next.dns;
+                delete next['amnezia-wg-option'];
+            } else {
+                const allowedIps = String(proxy['allowed-ips'] || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+                if (allowedIps.length > 0) next['allowed-ips'] = allowedIps;
+                else delete next['allowed-ips'];
+                if (proxy['remote-dns-resolve']) {
+                    const wireguardDns = String(proxy.dns || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+                    if (wireguardDns.length > 0) next.dns = wireguardDns;
+                    else delete next.dns;
+                } else {
+                    delete next.dns;
+                }
+                const amneziaWgOption = parseYamlObjectText(proxy._amneziaWgOptionText);
+                if (amneziaWgOption) next['amnezia-wg-option'] = amneziaWgOption;
+                else delete next['amnezia-wg-option'];
+                delete next['wg-dns'];
+            }
+            if (parsed.type !== 'masque') {
+                delete next.ip;
+                delete next.ipv6;
+                delete next['remote-dns-resolve'];
+                delete next.dns;
+            } else if (proxy['remote-dns-resolve']) {
+                next['remote-dns-resolve'] = true;
+                const masqueDns = String(proxy.dns || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+                if (masqueDns.length > 0) next.dns = masqueDns;
+                else delete next.dns;
+            } else {
+                delete next['remote-dns-resolve'];
+                delete next.dns;
+            }
+            if (!['tuic'].includes(parsed.type)) {
+                delete next.token;
+                delete next['heartbeat-interval'];
+                delete next['disable-sni'];
+                delete next['max-udp-relay-packet-size'];
+                delete next['max-open-streams'];
+            }
+            if (!['hysteria', 'hysteria2'].includes(parsed.type)) {
+                delete next['recv-window-conn'];
+                delete next['recv-window'];
+                delete next.disable_mtu_discovery;
+            }
+            if (!['tuic', 'hysteria'].includes(parsed.type)) delete next['fast-open'];
+            if (!['hysteria2', 'tuic', 'masque', 'trusttunnel'].includes(parsed.type)) delete next['bbr-profile'];
+            if (parsed.type !== 'ssh') {
+                delete next['private-key-passphrase'];
+                delete next['host-key'];
+                delete next['host-key-algorithms'];
+            } else {
+                const hostKey = String(proxy['host-key'] || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+                const hostKeyAlgorithms = String(proxy['host-key-algorithms'] || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+                if (hostKey.length > 0) next['host-key'] = hostKey;
+                else delete next['host-key'];
+                if (hostKeyAlgorithms.length > 0) next['host-key-algorithms'] = hostKeyAlgorithms;
+                else delete next['host-key-algorithms'];
+            }
+            if (parsed.type !== 'mieru') {
+                delete next['port-range'];
+                delete next['traffic-pattern'];
+                delete next.transport;
+                delete next.multiplexing;
+            }
+            if (parsed.type !== 'trusttunnel') {
+                delete next.quic;
+                delete next['max-connections'];
+                delete next['min-streams'];
+                delete next['max-streams'];
+            } else if (!proxy.quic) {
+                delete next['max-connections'];
+                delete next['min-streams'];
+                delete next['max-streams'];
+                delete next['bbr-profile'];
+            }
+            if (parsed.type !== 'sudoku') {
+                delete next.key;
+                delete next['aead-method'];
+                delete next['padding-min'];
+                delete next['padding-max'];
+                delete next['table-type'];
+                delete next['custom-table'];
+                delete next['custom-tables'];
+                delete next.httpmask;
+                delete next['enable-pure-downlink'];
+            } else {
+                const customTables = String(proxy['custom-tables'] || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+                if (customTables.length > 0) next['custom-tables'] = customTables;
+                else delete next['custom-tables'];
+                const httpmask = parseYamlObjectText(proxy._sudokuHttpmaskText);
+                if (httpmask) next.httpmask = httpmask;
+                else delete next.httpmask;
+            }
+            if (!obfsEnabled) {
+                delete next['obfs-password'];
+                delete next['obfs-host'];
+                delete next['obfs-param'];
+            }
+            if (!realityEnabled) delete next['reality-opts'];
+            if (!tlsSectionEnabled) {
+                delete next.servername;
+                delete next.certificate;
+                delete next.fingerprint;
+                delete next['client-fingerprint'];
+                delete next.alpn;
+                delete next['skip-cert-verify'];
+                delete next['ech-opts'];
+                if (tlsToggleTypes.has(parsed.type)) delete next['private-key'];
+            }
+            if (!echEnabled) delete next['ech-opts'];
+            if (!smuxEnabled) delete next.smux;
+            if (next.smux && !brutalEnabled) delete next.smux['brutal-opts'];
+            if (next['xhttp-opts'] && !Object.keys(next['xhttp-opts']['reuse-settings'] || {}).length) delete next['xhttp-opts']['reuse-settings'];
+
+            return pruneEmptyYamlValue(next);
+        };
 
         return {
-            parseSingleProxyNode
+            parseSingleProxyNode,
+            sanitizeProxyNodeForYaml
         };
     };
 })(window);

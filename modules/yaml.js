@@ -7,7 +7,7 @@
 
     window.MihomoFeatureModules = window.MihomoFeatureModules || {};
     window.MihomoFeatureModules.createYamlModule = function (ctx) {
-        const { ref, config, uiState, providersList, ruleProvidersList, parseSingleProxyNode, getRuleProviderUrl, getDefaultConfig } = ctx;
+        const { ref, config, uiState, providersList, ruleProvidersList, parseSingleProxyNode, sanitizeProxyNodeForYaml, getRuleProviderUrl, getDefaultConfig } = ctx;
         const { parsePorts, parseHosts, parseYamlMapText, parseYamlSequenceText, parseYamlObjectText, parseMarkValue, getListenPort } = window.MihomoHelpers;
 
         const yamlSections = ref({ general: '', experimental: '', network: '', proxies: '', providers: '', ruleProviders: '', groups: '', subRules: '', rules: '' });
@@ -668,37 +668,71 @@
                 let outProviders = {};
                 if (providersList.value && providersList.value.length > 0) {
                     outProviders['proxy-providers'] = {};
+                    const resolveEffectiveProvider = (provider) => {
+                        if (!provider || provider._chainMode !== 'provider' || !provider._sourceProviderName) return provider;
+                        const source = (providersList.value || []).find((item) => item && item.name === provider._sourceProviderName && !item._chainMode);
+                        if (!source || !['http', 'file'].includes(source.type)) return null;
+                        return {
+                            ...source,
+                            ...provider,
+                            type: source.type,
+                            url: source.url,
+                            path: source.path,
+                            interval: source.interval,
+                            proxy: source.proxy,
+                            sizeLimit: source.sizeLimit,
+                            headers: source.headers,
+                            lazy: source.lazy,
+                            healthCheckEnable: source.healthCheckEnable,
+                            healthUrl: source.healthUrl,
+                            healthCheckInterval: source.healthCheckInterval,
+                            healthCheckLazy: source.healthCheckLazy,
+                            healthCheckTimeout: source.healthCheckTimeout,
+                            healthExpectedStatus: source.healthExpectedStatus,
+                            _chainMode: provider._chainMode,
+                            _sourceProviderName: provider._sourceProviderName,
+                            name: provider.name,
+                            filter: provider.filter || '',
+                            excludeFilter: provider.excludeFilter || '',
+                            excludeType: provider.excludeType || '',
+                            overrideDialerProxy: provider.overrideDialerProxy || '',
+                            overrideAdditionalPrefix: provider.overrideAdditionalPrefix || '',
+                            overrideAdditionalSuffix: provider.overrideAdditionalSuffix || '',
+                            overrideProxyName: provider.overrideProxyName || ''
+                        };
+                    };
                     providersList.value.forEach(p => {
-                        if (p.name) {
-                            const providerType = p.type || 'http';
+                        const effectiveProvider = resolveEffectiveProvider(p);
+                        if (effectiveProvider && effectiveProvider.name) {
+                            const providerType = effectiveProvider.type || 'http';
                             let prov = { type: providerType };
 
                             if (providerType === 'http') {
-                                const url = String(p.url || '').trim();
+                                const url = String(effectiveProvider.url || '').trim();
                                 if (!url) return;
                                 prov.url = url;
                             }
 
                             if (providerType === 'http' || providerType === 'file') {
-                                const providerPath = String(p.path || '').trim() || `./providers/${p.name}.yaml`;
-                                const providerInterval = Number(p.interval);
-                                const normalizedProviderProxy = normalizeDialerProxy(p.proxy || p.downloadProxy);
-                                const parsedHeaders = parseYamlMapText(p.headers);
-                                const sizeLimitText = String(p.sizeLimit ?? '').trim();
+                                const providerPath = String(effectiveProvider.path || '').trim() || `./providers/${effectiveProvider.name}.yaml`;
+                                const providerInterval = Number(effectiveProvider.interval);
+                                const normalizedProviderProxy = normalizeDialerProxy(effectiveProvider.proxy || effectiveProvider.downloadProxy);
+                                const parsedHeaders = parseYamlMapText(effectiveProvider.headers);
+                                const sizeLimitText = String(effectiveProvider.sizeLimit ?? '').trim();
                                 const sizeLimit = Number(sizeLimitText);
                                 const healthCheck = {
-                                    enable: p.healthCheckEnable !== false,
-                                    interval: Number(p.healthCheckInterval) > 0 ? Number(p.healthCheckInterval) : 600,
-                                    url: p.healthUrl || 'https://www.gstatic.com/generate_204',
-                                    lazy: p.healthCheckLazy !== false,
-                                    timeout: Number(p.healthCheckTimeout) > 0 ? Number(p.healthCheckTimeout) : 5000
+                                    enable: effectiveProvider.healthCheckEnable !== false,
+                                    interval: Number(effectiveProvider.healthCheckInterval) > 0 ? Number(effectiveProvider.healthCheckInterval) : 600,
+                                    url: effectiveProvider.healthUrl || 'https://www.gstatic.com/generate_204',
+                                    lazy: effectiveProvider.healthCheckLazy !== false,
+                                    timeout: Number(effectiveProvider.healthCheckTimeout) > 0 ? Number(effectiveProvider.healthCheckTimeout) : 5000
                                 };
-                                const healthExpectedStatus = String(p.healthExpectedStatus ?? '').trim();
+                                const healthExpectedStatus = String(effectiveProvider.healthExpectedStatus ?? '').trim();
 
                                 prov.path = providerPath;
                                 if (providerInterval > 0) prov.interval = providerInterval;
                                 else if (providerType === 'http') prov.interval = 3600;
-                                if (p.lazy !== undefined) prov.lazy = p.lazy;
+                                if (effectiveProvider.lazy !== undefined) prov.lazy = effectiveProvider.lazy;
                                 if (normalizedProviderProxy) prov.proxy = normalizedProviderProxy;
                                 if (sizeLimitText !== '' && Number.isFinite(sizeLimit) && sizeLimit >= 0) {
                                     prov['size-limit'] = sizeLimit;
@@ -708,31 +742,33 @@
                                 prov['health-check'] = healthCheck;
                             } else if (providerType === 'inline') {
                                 let payloadNodes = [];
-                                if (p.inlineProxies && p.inlineProxies.length > 0) {
-                                    payloadNodes = p.inlineProxies.map(pxName => parseSingleProxyNode((raw.proxies||[]).find(x => x.name === pxName))).filter(Boolean);
+                                if (effectiveProvider.inlineProxies && effectiveProvider.inlineProxies.length > 0) {
+                                    payloadNodes = effectiveProvider.inlineProxies
+                                        .map((pxName) => sanitizeProxyNodeForYaml((raw.proxies || []).find((x) => x.name === pxName)))
+                                        .filter(Boolean);
                                 }
                                 prov.payload = payloadNodes;
                             }
 
                             const providerOverride = {};
-                            const normalizedOverrideDialerProxy = normalizeDialerProxy(p.overrideDialerProxy);
-                            const overrideAdditionalPrefix = String(p.overrideAdditionalPrefix ?? '').trim();
-                            const overrideAdditionalSuffix = String(p.overrideAdditionalSuffix ?? '').trim();
-                            const overrideProxyName = parseProxyNameOverride(p.overrideProxyName);
+                            const normalizedOverrideDialerProxy = normalizeDialerProxy(effectiveProvider.overrideDialerProxy);
+                            const overrideAdditionalPrefix = String(effectiveProvider.overrideAdditionalPrefix ?? '').trim();
+                            const overrideAdditionalSuffix = String(effectiveProvider.overrideAdditionalSuffix ?? '').trim();
+                            const overrideProxyName = parseProxyNameOverride(effectiveProvider.overrideProxyName);
                             if (normalizedOverrideDialerProxy) providerOverride['dialer-proxy'] = normalizedOverrideDialerProxy;
                             if (overrideAdditionalPrefix) providerOverride['additional-prefix'] = overrideAdditionalPrefix;
                             if (overrideAdditionalSuffix) providerOverride['additional-suffix'] = overrideAdditionalSuffix;
                             if (overrideProxyName) providerOverride['proxy-name'] = overrideProxyName;
                             if (Object.keys(providerOverride).length > 0) prov.override = providerOverride;
 
-                            if (p.filter) prov.filter = p.filter;
-                            if (p.excludeFilter) prov['exclude-filter'] = p.excludeFilter;
-                            if (p.excludeType) prov['exclude-type'] = p.excludeType;
+                            if (effectiveProvider.filter) prov.filter = effectiveProvider.filter;
+                            if (effectiveProvider.excludeFilter) prov['exclude-filter'] = effectiveProvider.excludeFilter;
+                            if (effectiveProvider.excludeType) prov['exclude-type'] = effectiveProvider.excludeType;
 
                             if (providerType === 'file' && !prov.path) {
-                                prov.path = `./providers/${p.name}.yaml`;
+                                prov.path = `./providers/${effectiveProvider.name}.yaml`;
                             }
-                            outProviders['proxy-providers'][p.name] = prov;
+                            outProviders['proxy-providers'][effectiveProvider.name] = prov;
                         }
                     });
                 }
@@ -806,8 +842,6 @@
                         if(g['disable-udp']) cg['disable-udp'] = true;
                         if(g['interface-name']) cg['interface-name'] = g['interface-name'];
                         if(g['routing-mark'] !== undefined && g['routing-mark'] !== null && String(g['routing-mark']).trim() !== '') cg['routing-mark'] = /^\d+$/.test(String(g['routing-mark']).trim()) ? Number(g['routing-mark']) : g['routing-mark'];
-                        const normalizedGroupDialerProxy = normalizeDialerProxy(g['dialer-proxy']);
-                        if(normalizedGroupDialerProxy) cg['dialer-proxy'] = normalizedGroupDialerProxy;
 
                         if (cg.type === 'relay') {
                             delete cg.url; delete cg.interval; delete cg.timeout; delete cg.tolerance; delete cg.lazy;

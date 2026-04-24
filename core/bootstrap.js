@@ -328,7 +328,7 @@
             };
 
             const proxiesModule = window.MihomoFeatureModules.createProxiesModule();
-            const { parseSingleProxyNode } = proxiesModule;
+            const { parseSingleProxyNode, sanitizeProxyNodeForYaml } = proxiesModule;
 
             const rulesModule = window.MihomoFeatureModules.createRulesModule({
                 ref,
@@ -359,6 +359,7 @@
                 ruleProvidersList,
                 scrollToBottom,
                 parseSingleProxyNode,
+                sanitizeProxyNodeForYaml,
                 askConfirm
             });
             const {
@@ -396,6 +397,13 @@
                 injectRegionGroups,
                 autoCategorizeProxies,
                 addProvider,
+                addInlineChainProvider,
+                addSourceChainProvider,
+                getSubscriptionProviders,
+                getInlineChainProviders,
+                getProviderChainProviders,
+                getChainProviders,
+                getChainSourceProviders,
                 removeProvider,
                 addRuleProvider,
                 removeRuleProvider,
@@ -427,6 +435,7 @@
                 providersList,
                 ruleProvidersList,
                 parseSingleProxyNode,
+                sanitizeProxyNodeForYaml,
                 getRuleProviderUrl,
                 getDefaultConfig
             });
@@ -524,6 +533,13 @@
                 addListener,
                 removeListener,
                 addProvider,
+                addInlineChainProvider,
+                addSourceChainProvider,
+                getSubscriptionProviders,
+                getInlineChainProviders,
+                getProviderChainProviders,
+                getChainProviders,
+                getChainSourceProviders,
                 removeProvider,
                 addRuleProvider,
                 removeRuleProvider,

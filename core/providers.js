@@ -12,8 +12,27 @@
             ruleProvidersList,
             scrollToBottom,
             parseSingleProxyNode,
+            sanitizeProxyNodeForYaml,
             askConfirm
         } = ctx;
+        const scrollProviderCardIntoView = (selector) => {
+            window.requestAnimationFrame(() => {
+                window.requestAnimationFrame(() => {
+                    const scrollBox = document.getElementById('main-scroll');
+                    const target = document.querySelector(selector);
+                    if (!scrollBox || !target) return;
+
+                    const stickyHeader = target.closest('.bg-white.p-5.rounded-xl')?.querySelector('.sticky.top-0');
+                    const headerOffset = stickyHeader ? stickyHeader.getBoundingClientRect().height : 72;
+                    const containerRect = scrollBox.getBoundingClientRect();
+                    const targetRect = target.getBoundingClientRect();
+                    const absoluteTop = targetRect.top - containerRect.top + scrollBox.scrollTop;
+                    const safeTop = Math.max(0, absoluteTop - headerOffset - 12);
+
+                    scrollBox.scrollTo({ top: safeTop, behavior: 'smooth' });
+                });
+            });
+        };
         const proxyNetworkOptionsMap = {
             vless: [
                 { value: 'tcp', label: 'TCP' },
@@ -52,6 +71,28 @@
         const getProxyNetworkOptions = (type) => proxyNetworkOptionsMap[type] || [];
         const proxySupportsTransport = (type) => getProxyNetworkOptions(type).length > 0;
         const proxySupportsToggle = (type, toggle) => !!proxyToggleSupport[toggle] && proxyToggleSupport[toggle].has(type);
+        const normalizeChainProvidersState = () => {
+            const sourceProviders = (providersList.value || []).filter((p) => p && !p._chainMode);
+            (providersList.value || []).forEach((p) => {
+                if (!p || p._chainMode !== 'provider') return;
+                const source = sourceProviders.find((item) => item.name === p._sourceProviderName && ['http', 'file'].includes(item.type));
+                if (!source) return;
+                p.type = source.type;
+                p.url = source.url;
+                p.path = source.path;
+                p.interval = source.interval;
+                p.proxy = source.proxy;
+                p.sizeLimit = source.sizeLimit;
+                p.headers = source.headers;
+                p.lazy = source.lazy;
+                p.healthCheckEnable = source.healthCheckEnable;
+                p.healthUrl = source.healthUrl;
+                p.healthCheckInterval = source.healthCheckInterval;
+                p.healthCheckLazy = source.healthCheckLazy;
+                p.healthCheckTimeout = source.healthCheckTimeout;
+                p.healthExpectedStatus = source.healthExpectedStatus;
+            });
+        };
         const normalizeProxyTransportState = () => {
             (config.value.proxies || []).forEach((px) => {
                 if (!px || typeof px !== 'object') return;
@@ -89,6 +130,14 @@
         };
 
         watch(
+            () => providersList.value,
+            () => {
+                normalizeChainProvidersState();
+            },
+            { immediate: true, deep: true, flush: 'sync' }
+        );
+
+        watch(
             () => config.value.proxies,
             () => {
                 normalizeProxyTransportState();
@@ -114,7 +163,6 @@
                 'disable-udp': false,
                 'interface-name': '',
                 'routing-mark': '',
-                'dialer-proxy': '',
                 strategy: 'consistent-hashing',
                 'include-all-proxies': false,
                 'include-all-providers': false,
@@ -521,7 +569,6 @@
                     'disable-udp': false,
                     'interface-name': '',
                     'routing-mark': '',
-                    'dialer-proxy': '',
                     strategy: 'consistent-hashing',
                     'include-all-proxies': false,
                     'include-all-providers': false,
@@ -550,7 +597,6 @@
                     'disable-udp': false,
                     'interface-name': '',
                     'routing-mark': '',
-                    'dialer-proxy': '',
                     strategy: 'consistent-hashing',
                     'include-all-proxies': false,
                     'include-all-providers': false,
@@ -580,7 +626,6 @@
                         'disable-udp': false,
                         'interface-name': '',
                         'routing-mark': '',
-                        'dialer-proxy': '',
                         strategy: 'consistent-hashing',
                         'include-all-proxies': false,
                         'include-all-providers': false,
@@ -632,8 +677,9 @@
         };
 
         const addProvider = () => {
+            const nextName = `Provider-${(providersList.value || []).length + 1}`;
             providersList.value.push({
-                name: `Provider-${(providersList.value || []).length + 1}`,
+                name: nextName,
                 type: 'http',
                 url: '',
                 path: '',
@@ -657,8 +703,83 @@
                 healthCheckTimeout: 5000,
                 healthExpectedStatus: ''
             });
-            scrollToBottom();
+            scrollProviderCardIntoView(`[data-provider-kind="subscription"][data-provider-name="${CSS.escape(nextName)}"]`);
         };
+        const addInlineChainProvider = () => {
+            const nextName = `Chain-${(providersList.value || []).length + 1}`;
+            providersList.value.push({
+                name: nextName,
+                type: 'inline',
+                _chainMode: 'inline',
+                _sourceProviderName: '',
+                url: '',
+                path: '',
+                interval: 3600,
+                proxy: '',
+                sizeLimit: '',
+                headers: '',
+                filter: '',
+                excludeFilter: '',
+                excludeType: '',
+                healthCheckEnable: true,
+                healthUrl: 'https://www.gstatic.com/generate_204',
+                healthCheckInterval: 600,
+                overrideDialerProxy: '',
+                overrideAdditionalPrefix: '',
+                overrideAdditionalSuffix: '',
+                overrideProxyName: '',
+                inlineProxies: [],
+                lazy: true,
+                healthCheckLazy: true,
+                healthCheckTimeout: 5000,
+                healthExpectedStatus: ''
+            });
+            window.requestAnimationFrame(() => {
+                const detail = document.getElementById('inline-chain-details');
+                if (detail && detail.tagName === 'DETAILS') detail.open = true;
+                scrollProviderCardIntoView(`[data-provider-kind="inline-chain"][data-provider-name="${CSS.escape(nextName)}"]`);
+            });
+        };
+        const addSourceChainProvider = () => {
+            const nextName = `Provider-Chain-${(providersList.value || []).length + 1}`;
+            providersList.value.push({
+                name: nextName,
+                type: 'http',
+                _chainMode: 'provider',
+                _sourceProviderName: '',
+                url: '',
+                path: '',
+                interval: 3600,
+                proxy: '',
+                sizeLimit: '',
+                headers: '',
+                filter: '',
+                excludeFilter: '',
+                excludeType: '',
+                healthCheckEnable: true,
+                healthUrl: 'https://www.gstatic.com/generate_204',
+                healthCheckInterval: 600,
+                overrideDialerProxy: '',
+                overrideAdditionalPrefix: '',
+                overrideAdditionalSuffix: '',
+                overrideProxyName: '',
+                inlineProxies: [],
+                lazy: true,
+                healthCheckLazy: true,
+                healthCheckTimeout: 5000,
+                healthExpectedStatus: ''
+            });
+            window.requestAnimationFrame(() => {
+                const detail = document.getElementById('inline-chain-details');
+                if (detail && detail.tagName === 'DETAILS') detail.open = true;
+                scrollProviderCardIntoView(`[data-provider-kind="inline-chain"][data-provider-name="${CSS.escape(nextName)}"]`);
+            });
+        };
+        const getSubscriptionProviders = () => (providersList.value || []).filter((p) => p && !p._chainMode);
+        const getInlineChainProviders = () => (providersList.value || []).filter((p) => p && p._chainMode === 'inline');
+        const getProviderChainProviders = () => (providersList.value || []).filter((p) => p && p._chainMode === 'provider');
+        const getChainProviders = () => (providersList.value || []).filter((p) => p && p._chainMode);
+        const getChainSourceProviders = () => getSubscriptionProviders().filter((p) => ['http', 'file'].includes(p.type));
 
         const removeProvider = (idx) => providersList.value.splice(idx, 1);
 
@@ -883,6 +1004,12 @@
                 replaceNameInList(p.inlineProxies, oldName, newName);
             });
         };
+        const replaceProviderSourceRefs = (oldName, newName) => {
+            (providersList.value || []).forEach((p) => {
+                if (!p || typeof p !== 'object') return;
+                if (p._sourceProviderName === oldName) p._sourceProviderName = newName;
+            });
+        };
 
         const replaceRuleTargets = (oldName, newName) => {
             (uiState.value.rules || []).forEach((r) => {
@@ -900,6 +1027,7 @@
             (config.value['proxy-groups'] || []).forEach((g) => {
                 replaceNameInList(g.use, oldName, newName);
             });
+            replaceProviderSourceRefs(oldName, newName);
 
             providerNameSnapshots.set(p, String(newName || ''));
         };
@@ -913,7 +1041,6 @@
 
             (config.value['proxy-groups'] || []).forEach((g) => {
                 replaceNameInList(g.proxies, oldName, newName);
-                replaceDialerProxyName(g, oldName, newName);
             });
 
             replaceProviderDialerRefs(oldName, newName);
@@ -937,7 +1064,6 @@
 
             (config.value['proxy-groups'] || []).forEach((item) => {
                 replaceNameInList(item.proxies, oldName, newName);
-                replaceDialerProxyName(item, oldName, newName);
             });
 
             replaceProviderDialerRefs(oldName, newName);
@@ -952,10 +1078,6 @@
             if (Array.isArray(g.proxies)) {
                 g.proxies = g.proxies.filter((name) => String(name || '').trim() !== String(g.name || '').trim());
             }
-            if (g['dialer-proxy'] === g.name) {
-                g['dialer-proxy'] = '';
-            }
-
             groupNameSnapshots.set(g, String(newName || ''));
         };
 
@@ -986,8 +1108,7 @@
             const nodes = inlineProxies.map(name => {
                 const px = (config.value.proxies || []).find(x => x.name === name);
                 if (!px) return null;
-                const cleanPx = JSON.parse(JSON.stringify(parseSingleProxyNode(px)));
-                return cleanPx;
+                return sanitizeProxyNodeForYaml(px);
             }).filter(Boolean);
             try {
                 return jsyaml.dump(nodes, { indent: 2, lineWidth: -1, sortKeys: false });
@@ -1031,6 +1152,13 @@
             injectRegionGroups,
             autoCategorizeProxies,
             addProvider,
+            addInlineChainProvider,
+            addSourceChainProvider,
+            getSubscriptionProviders,
+            getInlineChainProviders,
+            getProviderChainProviders,
+            getChainProviders,
+            getChainSourceProviders,
             removeProvider,
             addRuleProvider,
             removeRuleProvider,
