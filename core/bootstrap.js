@@ -318,7 +318,16 @@
             };
 
             const proxiesModule = window.MihomoFeatureModules.createProxiesModule();
-            const { parseSingleProxyNode, sanitizeProxyNodeForYaml } = proxiesModule;
+            const {
+                parseSingleProxyNode,
+                sanitizeProxyByCapabilities,
+                sanitizeProxyNodeForYaml,
+                getProxyNetworkOptions: proxyModuleGetNetworkOptions,
+                proxySupportsTransport: proxyModuleSupportsTransport,
+                proxySupportsToggle: proxyModuleSupportsToggle,
+                proxyShowsTlsSection: proxyModuleShowsTlsSection,
+                proxyShowsSmuxSection: proxyModuleShowsSmuxSection
+            } = proxiesModule;
 
             const rulesModule = window.MihomoFeatureModules.createRulesModule({
                 ref,
@@ -350,6 +359,12 @@
                 scrollToBottom,
                 parseSingleProxyNode,
                 sanitizeProxyNodeForYaml,
+                sanitizeProxyByCapabilities,
+                getProxyNetworkOptions: proxyModuleGetNetworkOptions,
+                proxySupportsTransport: proxyModuleSupportsTransport,
+                proxySupportsToggle: proxyModuleSupportsToggle,
+                proxyShowsTlsSection: proxyModuleShowsTlsSection,
+                proxyShowsSmuxSection: proxyModuleShowsSmuxSection,
                 askConfirm
             });
             const {
@@ -415,7 +430,9 @@
                 getInlinePayloadPreview,
                 getProxyNetworkOptions,
                 proxySupportsTransport,
-                proxySupportsToggle
+                proxySupportsToggle,
+                proxyShowsTlsSection,
+                proxyShowsSmuxSection
             } = providersModule;
 
             const yamlModule = window.MihomoFeatureModules.createYamlModule({
@@ -583,6 +600,8 @@
                 getProxyNetworkOptions,
                 proxySupportsTransport,
                 proxySupportsToggle,
+                proxyShowsTlsSection,
+                proxyShowsSmuxSection,
                 yamlSections,
                 fullYaml,
                 copyYaml,

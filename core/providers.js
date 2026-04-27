@@ -13,6 +13,12 @@
             scrollToBottom,
             parseSingleProxyNode,
             sanitizeProxyNodeForYaml,
+            sanitizeProxyByCapabilities,
+            getProxyNetworkOptions,
+            proxySupportsTransport,
+            proxySupportsToggle,
+            proxyShowsTlsSection,
+            proxyShowsSmuxSection,
             askConfirm
         } = ctx;
         const scrollProviderCardIntoView = (selector) => {
@@ -33,44 +39,6 @@
                 });
             });
         };
-        const proxyNetworkOptionsMap = {
-            vless: [
-                { value: 'tcp', label: 'TCP' },
-                { value: 'ws', label: 'WebSocket' },
-                { value: 'grpc', label: 'gRPC' },
-                { value: 'h2', label: 'HTTP/2 (h2)' },
-                { value: 'http', label: 'HTTP' },
-                { value: 'xhttp', label: 'xHTTP' }
-            ],
-            vmess: [
-                { value: 'tcp', label: 'TCP' },
-                { value: 'ws', label: 'WebSocket' },
-                { value: 'grpc', label: 'gRPC' },
-                { value: 'h2', label: 'HTTP/2 (h2)' },
-                { value: 'http', label: 'HTTP' }
-            ],
-            trojan: [
-                { value: 'tcp', label: 'TCP' },
-                { value: 'ws', label: 'WebSocket' },
-                { value: 'grpc', label: 'gRPC' }
-            ],
-            masque: [
-                { value: 'quic', label: 'QUIC' },
-                { value: 'h2', label: 'HTTP/2 (h2)' }
-            ]
-        };
-        const proxyToggleSupport = {
-            udp: new Set(['vless', 'vmess', 'trojan', 'ss', 'ssr', 'hysteria2', 'hysteria', 'tuic', 'wireguard', 'socks5', 'snell']),
-            tfo: new Set(['vless', 'vmess', 'trojan', 'ss', 'ssr', 'http', 'socks5', 'snell', 'ssh', 'anytls']),
-            mptcp: new Set(['vless', 'vmess', 'trojan', 'ss', 'http', 'socks5', 'anytls']),
-            tls: new Set(['vless', 'vmess', 'trojan', 'ss', 'http', 'socks5', 'sudoku']),
-            reality: new Set(['vless', 'trojan']),
-            smux: new Set(['vless', 'vmess', 'trojan', 'ss', 'http', 'socks5', 'sudoku'])
-        };
-        const implicitTlsTypes = new Set(['hysteria2', 'hysteria', 'tuic', 'masque', 'anytls']);
-        const getProxyNetworkOptions = (type) => proxyNetworkOptionsMap[type] || [];
-        const proxySupportsTransport = (type) => getProxyNetworkOptions(type).length > 0;
-        const proxySupportsToggle = (type, toggle) => !!proxyToggleSupport[toggle] && proxyToggleSupport[toggle].has(type);
         const setDragData = (e, value) => {
             if (!e || !e.dataTransfer) return;
             try {
@@ -104,30 +72,8 @@
         const normalizeProxyTransportState = () => {
             (config.value.proxies || []).forEach((px) => {
                 if (!px || typeof px !== 'object') return;
-                const options = getProxyNetworkOptions(px.type);
-                const allowed = new Set(options.map((item) => item.value));
-                if (allowed.size === 0) {
-                    px.network = 'tcp';
-                } else if (!allowed.has(px.network)) {
-                    px.network = options[0].value;
-                }
-                if (!proxySupportsToggle(px.type, 'tls')) {
-                    px.tls = false;
-                }
-                if (!proxySupportsToggle(px.type, 'reality')) {
-                    px.reality = false;
-                }
-                if (!proxySupportsToggle(px.type, 'smux') || (proxySupportsTransport(px.type) && px.network !== 'tcp')) {
-                    if (px.smux && typeof px.smux === 'object') {
-                        px.smux.enabled = false;
-                    }
-                }
-                if (px.type !== 'trojan' && px['ss-opts']) {
-                    px['ss-opts'].enabled = false;
-                }
-                if (!proxySupportsToggle(px.type, 'tls') && !proxySupportsToggle(px.type, 'reality') && !implicitTlsTypes.has(px.type)) {
-                    px.reality = false;
-                    px.tls = false;
+                if (typeof sanitizeProxyByCapabilities === 'function') {
+                    sanitizeProxyByCapabilities(px);
                 }
             });
         };
@@ -1190,7 +1136,9 @@
             getInlinePayloadPreview,
             getProxyNetworkOptions,
             proxySupportsTransport,
-            proxySupportsToggle
+            proxySupportsToggle,
+            proxyShowsTlsSection,
+            proxyShowsSmuxSection
         };
     };
 })(window);

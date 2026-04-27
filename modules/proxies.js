@@ -27,6 +27,218 @@
                     return '';
                 }
             };
+        const cloneState = (value) => {
+            if (typeof globalThis.structuredClone === 'function') return globalThis.structuredClone(value);
+            return JSON.parse(JSON.stringify(value));
+        };
+        const NETWORK_OPTION_LIBRARY = Object.freeze({
+            tcp: Object.freeze({ value: 'tcp', label: 'TCP' }),
+            ws: Object.freeze({ value: 'ws', label: 'WebSocket' }),
+            grpc: Object.freeze({ value: 'grpc', label: 'gRPC' }),
+            h2: Object.freeze({ value: 'h2', label: 'HTTP/2 (h2)' }),
+            http: Object.freeze({ value: 'http', label: 'HTTP' }),
+            xhttp: Object.freeze({ value: 'xhttp', label: 'xHTTP' }),
+            quic: Object.freeze({ value: 'quic', label: 'QUIC' })
+        });
+        const createNetworkOptions = (values) => Object.freeze(
+            values
+                .map((value) => NETWORK_OPTION_LIBRARY[value])
+                .filter(Boolean)
+        );
+        const createToggleSpec = (value = {}) => Object.freeze({
+            udp: value.udp === true,
+            tfo: value.tfo === true,
+            mptcp: value.mptcp === true,
+            tls: value.tls === true,
+            reality: value.reality === true,
+            smux: value.smux === true
+        });
+        const PROXY_TYPE_SPEC = Object.freeze({
+            vless: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: false,
+                networkOptions: createNetworkOptions(['tcp', 'ws', 'grpc', 'h2', 'http', 'xhttp']),
+                toggles: createToggleSpec({ udp: true, tfo: true, mptcp: true, tls: true, reality: true, smux: true })
+            }),
+            vmess: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: false,
+                networkOptions: createNetworkOptions(['tcp', 'ws', 'grpc', 'h2', 'http']),
+                toggles: createToggleSpec({ udp: true, tfo: true, mptcp: true, tls: true, reality: false, smux: true })
+            }),
+            trojan: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: false,
+                networkOptions: createNetworkOptions(['tcp', 'ws', 'grpc']),
+                toggles: createToggleSpec({ udp: true, tfo: true, mptcp: true, tls: true, reality: true, smux: true })
+            }),
+            ss: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: false,
+                networkOptions: createNetworkOptions([]),
+                toggles: createToggleSpec({ udp: true, tfo: true, mptcp: true, tls: true, reality: false, smux: true })
+            }),
+            ssr: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: false,
+                networkOptions: createNetworkOptions([]),
+                toggles: createToggleSpec({ udp: true, tfo: true })
+            }),
+            hysteria2: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: true,
+                networkOptions: createNetworkOptions([]),
+                toggles: createToggleSpec({ udp: true })
+            }),
+            hysteria: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: true,
+                networkOptions: createNetworkOptions([]),
+                toggles: createToggleSpec({ udp: true })
+            }),
+            tuic: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: true,
+                networkOptions: createNetworkOptions([]),
+                toggles: createToggleSpec({ udp: true })
+            }),
+            masque: Object.freeze({
+                defaultNetwork: 'quic',
+                implicitTls: true,
+                networkOptions: createNetworkOptions(['quic', 'h2']),
+                toggles: createToggleSpec({})
+            }),
+            wireguard: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: false,
+                networkOptions: createNetworkOptions([]),
+                toggles: createToggleSpec({ udp: true })
+            }),
+            http: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: false,
+                networkOptions: createNetworkOptions([]),
+                toggles: createToggleSpec({ tfo: true, mptcp: true, tls: true, smux: true })
+            }),
+            socks5: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: false,
+                networkOptions: createNetworkOptions([]),
+                toggles: createToggleSpec({ udp: true, tfo: true, tls: true, smux: true })
+            }),
+            snell: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: false,
+                networkOptions: createNetworkOptions([]),
+                toggles: createToggleSpec({ udp: true, tfo: true })
+            }),
+            ssh: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: false,
+                networkOptions: createNetworkOptions([]),
+                toggles: createToggleSpec({ tfo: true })
+            }),
+            anytls: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: true,
+                networkOptions: createNetworkOptions([]),
+                toggles: createToggleSpec({ tfo: true, mptcp: true })
+            }),
+            mieru: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: false,
+                networkOptions: createNetworkOptions([]),
+                toggles: createToggleSpec({})
+            }),
+            sudoku: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: false,
+                networkOptions: createNetworkOptions([]),
+                toggles: createToggleSpec({ tls: true, smux: true })
+            }),
+            trusttunnel: Object.freeze({
+                defaultNetwork: 'tcp',
+                implicitTls: false,
+                networkOptions: createNetworkOptions([]),
+                toggles: createToggleSpec({})
+            })
+        });
+        const getProxyTypeSpec = (type) => PROXY_TYPE_SPEC[String(type || '').trim()] || PROXY_TYPE_SPEC.vless;
+        const resolveProxyCapabilities = (proxy = {}) => {
+            const type = String(proxy.type || 'vless').trim() || 'vless';
+            const spec = getProxyTypeSpec(type);
+            const networkOptions = spec.networkOptions || [];
+            const allowedNetworks = networkOptions.map((option) => option.value);
+            const defaultNetwork = spec.defaultNetwork || (allowedNetworks[0] || 'tcp');
+            const currentNetwork = String(proxy.network || '').trim();
+            const activeNetwork = allowedNetworks.length === 0
+                ? defaultNetwork
+                : (allowedNetworks.includes(currentNetwork) ? currentNetwork : defaultNetwork);
+            const toggles = spec.toggles || {};
+            const supportsTransport = allowedNetworks.length > 0;
+            const implicitTls = spec.implicitTls === true;
+            const supportsTlsToggle = toggles.tls === true;
+            const supportsReality = toggles.reality === true;
+            const tlsSectionAvailable = implicitTls || supportsTlsToggle || supportsReality;
+            const tlsSectionVisible = implicitTls || !!proxy.tls || !!proxy.reality;
+            const supportsSmux = toggles.smux === true;
+            const smuxAvailable = supportsSmux;
+            const smuxVisible = smuxAvailable && (!supportsTransport || activeNetwork === 'tcp');
+
+            return {
+                type,
+                spec,
+                toggles,
+                networkOptions,
+                allowedNetworks,
+                defaultNetwork,
+                activeNetwork,
+                supportsTransport,
+                implicitTls,
+                supportsTlsToggle,
+                supportsReality,
+                supportsSmux,
+                smuxAvailable,
+                smuxVisible,
+                tlsSectionAvailable,
+                tlsSectionVisible
+            };
+        };
+        const getProxyNetworkOptions = (type) => resolveProxyCapabilities({ type }).networkOptions;
+        const proxySupportsTransport = (type) => resolveProxyCapabilities({ type }).supportsTransport;
+        const proxySupportsToggle = (type, toggle) => {
+            const caps = resolveProxyCapabilities({ type });
+            return caps.toggles[toggle] === true;
+        };
+        const proxyShowsTlsSection = (proxy = {}) => {
+            const caps = resolveProxyCapabilities(proxy);
+            return caps.tlsSectionAvailable && caps.tlsSectionVisible;
+        };
+        const proxyShowsSmuxSection = (proxy = {}) => {
+            const caps = resolveProxyCapabilities(proxy);
+            return caps.smuxVisible && !!proxy?.smux?.enabled;
+        };
+        const sanitizeProxyByCapabilities = (proxy = {}) => {
+            if (!proxy || typeof proxy !== 'object') return proxy;
+
+            const caps = resolveProxyCapabilities(proxy);
+
+            proxy.network = caps.activeNetwork;
+
+            if (!caps.toggles.udp) proxy.udp = false;
+            if (!caps.toggles.tfo) proxy.tfo = false;
+            if (!caps.toggles.mptcp) proxy.mptcp = false;
+            if (!caps.supportsTlsToggle) proxy.tls = false;
+            if (!caps.supportsReality) proxy.reality = false;
+            if (proxy.type !== 'trojan' && proxy['ss-opts'] && typeof proxy['ss-opts'] === 'object') {
+                proxy['ss-opts'].enabled = false;
+            }
+            if ((!caps.smuxAvailable || !caps.smuxVisible) && proxy.smux && typeof proxy.smux === 'object') {
+                proxy.smux.enabled = false;
+            }
+
+            return proxy;
+        };
         const parseSingleProxyNode = (px) => {
             if (!px) return null;
             const hasRealityOpts = !!(
@@ -299,35 +511,27 @@
             return pruneEmptyYamlValue(value);
         };
         const sanitizeProxyNodeForYaml = (proxy) => {
-            const parsed = parseSingleProxyNode(proxy);
+            const sanitizedProxy = sanitizeProxyByCapabilities(cloneState(proxy));
+            const parsed = parseSingleProxyNode(sanitizedProxy);
             if (!parsed) return null;
             const defaults = parseSingleProxyNode({ type: parsed.type });
             const next = compactWithDefaults(parsed, defaults, new Set(['name', 'type', 'server', 'port'])) || {};
-            const implicitTlsTypes = new Set(['hysteria2', 'hysteria', 'tuic', 'masque', 'anytls']);
+            const caps = resolveProxyCapabilities(sanitizedProxy);
             const tlsToggleTypes = new Set(['vless', 'vmess', 'trojan', 'ss', 'http', 'socks5', 'sudoku']);
-            const allowedNetworksByType = {
-                vless: ['tcp', 'ws', 'grpc', 'h2', 'http', 'xhttp'],
-                vmess: ['tcp', 'ws', 'grpc', 'h2', 'http'],
-                trojan: ['tcp', 'ws', 'grpc'],
-                masque: ['quic', 'h2']
-            };
-            const realityEnabled = !!proxy.reality;
-            const echEnabled = !!proxy['ech-opts']?.enable;
-            const smuxEnabled = !!proxy.smux?.enabled;
-            const brutalEnabled = !!proxy.smux?.['brutal-opts']?.enabled;
-            const obfsEnabled = !!String(proxy.obfs || '').trim();
-            const tlsSectionEnabled = !!proxy.tls || !!proxy.reality || implicitTlsTypes.has(parsed.type);
-            const currentNetwork = String(proxy.network || parsed.network || 'tcp').trim() || 'tcp';
-            const allowedNetworkList = allowedNetworksByType[parsed.type] || ['tcp'];
-            const allowedNetworks = new Set(allowedNetworkList);
-            const defaultNetwork = allowedNetworkList[0] || 'tcp';
-            const effectiveNetwork = allowedNetworks.has(currentNetwork) ? currentNetwork : defaultNetwork;
+            const realityEnabled = !!sanitizedProxy.reality;
+            const echEnabled = !!sanitizedProxy['ech-opts']?.enable;
+            const smuxEnabled = proxyShowsSmuxSection(sanitizedProxy);
+            const brutalEnabled = !!sanitizedProxy.smux?.['brutal-opts']?.enabled;
+            const obfsEnabled = !!String(sanitizedProxy.obfs || '').trim();
+            const tlsSectionEnabled = proxyShowsTlsSection(sanitizedProxy);
+            const effectiveNetwork = caps.activeNetwork;
+            const defaultNetwork = caps.defaultNetwork;
 
             delete next.reality;
-            if (effectiveNetwork === defaultNetwork) delete next.network;
+            if (!caps.supportsTransport || effectiveNetwork === defaultNetwork) delete next.network;
             else next.network = effectiveNetwork;
             if (parsed.type === 'http') {
-                const proxyHeaders = parseYamlMapText(proxy._proxyHeadersText);
+                const proxyHeaders = parseYamlMapText(sanitizedProxy._proxyHeadersText);
                 if (proxyHeaders) next.headers = proxyHeaders;
                 else delete next.headers;
             } else {
@@ -341,24 +545,24 @@
                 delete next['kcptun-opts'];
             }
             if (next['ws-opts']) {
-                const wsHeaders = parseYamlMapText(proxy._wsHeadersText);
+                const wsHeaders = parseYamlMapText(sanitizedProxy._wsHeadersText);
                 if (wsHeaders) next['ws-opts'].headers = wsHeaders;
                 else delete next['ws-opts'].headers;
             }
             if (next['http-opts']) {
-                const httpHeaders = parseYamlMapText(proxy._httpHeadersText);
+                const httpHeaders = parseYamlMapText(sanitizedProxy._httpHeadersText);
                 if (httpHeaders) next['http-opts'].headers = httpHeaders;
                 else delete next['http-opts'].headers;
             }
             if (next['xhttp-opts']) {
-                const xhttpHeaders = parseYamlMapText(proxy._xhttpHeadersText);
+                const xhttpHeaders = parseYamlMapText(sanitizedProxy._xhttpHeadersText);
                 if (xhttpHeaders) next['xhttp-opts'].headers = xhttpHeaders;
                 else delete next['xhttp-opts'].headers;
             }
             if (effectiveNetwork !== 'ws') delete next['ws-opts'];
             if (effectiveNetwork !== 'grpc') delete next['grpc-opts'];
             if (effectiveNetwork !== 'h2') delete next['h2-opts'];
-            if (parsed.network !== 'httpupgrade') delete next['httpupgrade-opts'];
+            delete next['httpupgrade-opts'];
             if (effectiveNetwork !== 'http') delete next['http-opts'];
             if (effectiveNetwork !== 'xhttp') delete next['xhttp-opts'];
             if (!['vless', 'vmess'].includes(parsed.type)) delete next['packet-encoding'];
@@ -367,8 +571,8 @@
                 delete next['global-padding'];
                 delete next['authenticated-length'];
             }
-            if (parsed.type !== 'trojan' || !proxy['ss-opts']?.enabled) delete next['ss-opts'];
-            if (parsed.type !== 'ss' || !proxy['udp-over-tcp']) delete next['udp-over-tcp-version'];
+            if (parsed.type !== 'trojan' || !sanitizedProxy['ss-opts']?.enabled) delete next['ss-opts'];
+            if (parsed.type !== 'ss' || !sanitizedProxy['udp-over-tcp']) delete next['udp-over-tcp-version'];
             if (parsed.type !== 'wireguard') {
                 delete next.ipv6;
                 delete next['allowed-ips'];
@@ -377,17 +581,17 @@
                 delete next.dns;
                 delete next['amnezia-wg-option'];
             } else {
-                const allowedIps = String(proxy['allowed-ips'] || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+                const allowedIps = String(sanitizedProxy['allowed-ips'] || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
                 if (allowedIps.length > 0) next['allowed-ips'] = allowedIps;
                 else delete next['allowed-ips'];
-                if (proxy['remote-dns-resolve']) {
-                    const wireguardDns = String(proxy.dns || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+                if (sanitizedProxy['remote-dns-resolve']) {
+                    const wireguardDns = String(sanitizedProxy.dns || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
                     if (wireguardDns.length > 0) next.dns = wireguardDns;
                     else delete next.dns;
                 } else {
                     delete next.dns;
                 }
-                const amneziaWgOption = parseYamlObjectText(proxy._amneziaWgOptionText);
+                const amneziaWgOption = parseYamlObjectText(sanitizedProxy._amneziaWgOptionText);
                 if (amneziaWgOption) next['amnezia-wg-option'] = amneziaWgOption;
                 else delete next['amnezia-wg-option'];
                 delete next['wg-dns'];
@@ -397,9 +601,9 @@
                 delete next.ipv6;
                 delete next['remote-dns-resolve'];
                 delete next.dns;
-            } else if (proxy['remote-dns-resolve']) {
+            } else if (sanitizedProxy['remote-dns-resolve']) {
                 next['remote-dns-resolve'] = true;
-                const masqueDns = String(proxy.dns || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+                const masqueDns = String(sanitizedProxy.dns || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
                 if (masqueDns.length > 0) next.dns = masqueDns;
                 else delete next.dns;
             } else {
@@ -425,8 +629,8 @@
                 delete next['host-key'];
                 delete next['host-key-algorithms'];
             } else {
-                const hostKey = String(proxy['host-key'] || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
-                const hostKeyAlgorithms = String(proxy['host-key-algorithms'] || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+                const hostKey = String(sanitizedProxy['host-key'] || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+                const hostKeyAlgorithms = String(sanitizedProxy['host-key-algorithms'] || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
                 if (hostKey.length > 0) next['host-key'] = hostKey;
                 else delete next['host-key'];
                 if (hostKeyAlgorithms.length > 0) next['host-key-algorithms'] = hostKeyAlgorithms;
@@ -443,7 +647,7 @@
                 delete next['max-connections'];
                 delete next['min-streams'];
                 delete next['max-streams'];
-            } else if (!proxy.quic) {
+            } else if (!sanitizedProxy.quic) {
                 delete next['max-connections'];
                 delete next['min-streams'];
                 delete next['max-streams'];
@@ -460,10 +664,10 @@
                 delete next.httpmask;
                 delete next['enable-pure-downlink'];
             } else {
-                const customTables = String(proxy['custom-tables'] || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+                const customTables = String(sanitizedProxy['custom-tables'] || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
                 if (customTables.length > 0) next['custom-tables'] = customTables;
                 else delete next['custom-tables'];
-                const httpmask = parseYamlObjectText(proxy._sudokuHttpmaskText);
+                const httpmask = parseYamlObjectText(sanitizedProxy._sudokuHttpmaskText);
                 if (httpmask) next.httpmask = httpmask;
                 else delete next.httpmask;
             }
@@ -499,6 +703,15 @@
         };
 
         return {
+            PROXY_TYPE_SPEC,
+            getProxyTypeSpec,
+            resolveProxyCapabilities,
+            sanitizeProxyByCapabilities,
+            getProxyNetworkOptions,
+            proxySupportsTransport,
+            proxySupportsToggle,
+            proxyShowsTlsSection,
+            proxyShowsSmuxSection,
             parseSingleProxyNode,
             sanitizeProxyNodeForYaml
         };
