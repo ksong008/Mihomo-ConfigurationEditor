@@ -8,39 +8,26 @@
     window.MihomoFeatureModules = window.MihomoFeatureModules || {};
     window.MihomoFeatureModules.createDnsModule = function (ctx) {
         const { ref, computed, watch, config, uiState } = ctx;
-        const { parseCommaList, getListenPort } = window.MihomoHelpers;
+        const { parseCommaList, getListenPort, normalizeListenAddress, replaceListenPort } = window.MihomoHelpers;
+        const DEFAULT_FAKE_IP_RANGE6 = 'fdfe:dcba:9876::1/64';
 
-        const normalizeDnsListenText = (val, fallback = '53') => {
-            const raw = String(val ?? '').trim();
-            const digits = raw.replace(/[^\d]/g, '');
-            if (!digits) return fallback;
-            let port = Number(digits);
-            if (!Number.isInteger(port) || port < 1) port = 1;
-            if (port > 65535) port = 65535;
-            return String(port);
-        };
+        const normalizeDnsListenText = (val, fallback = ':53') => normalizeListenAddress(val, fallback);
 
         const dnsListenPortInput = computed({
             get() {
-                return normalizeDnsListenText(config.value.dns && config.value.dns.listen, '53');
+                return config.value.dns && config.value.dns.listen !== undefined && config.value.dns.listen !== null
+                    ? String(config.value.dns.listen)
+                    : ':53';
             },
             set(val) {
                 if (!config.value.dns) config.value.dns = {};
-                const digits = String(val ?? '').replace(/[^\d]/g, '');
-                if (!digits) {
-                    config.value.dns.listen = '';
-                    return;
-                }
-                let port = Number(digits);
-                if (!Number.isInteger(port) || port < 1) port = 1;
-                if (port > 65535) port = 65535;
-                config.value.dns.listen = String(port);
+                config.value.dns.listen = String(val ?? '');
             }
         });
 
         const normalizeDnsListenInput = () => {
             if (!config.value.dns) return;
-            config.value.dns.listen = normalizeDnsListenText(config.value.dns.listen, '53');
+            config.value.dns.listen = normalizeDnsListenText(config.value.dns.listen, ':53');
         };
 
         const dnsListenPort = computed(() => getListenPort(config.value.dns && config.value.dns.listen, 53));
@@ -55,6 +42,7 @@
 
         const dnsForwardConflict = computed(() => !!(uiState.value.useLocalDns53Forward && dnsHijackEnabled.value));
         const dnsLocalForwardNeedsNon53 = computed(() => !!(uiState.value.useLocalDns53Forward && dnsListenPort.value === 53));
+        const localDnsForwardTargetPort = computed(() => dnsListenPort.value === 53 ? 1053 : dnsListenPort.value);
 
         const specifiedProxyPortList = computed(() =>
             parseCommaList((uiState.value.nftablesConfig && uiState.value.nftablesConfig.commonPorts) || '')
@@ -67,7 +55,7 @@
         );
 
         const dnsPathPreview = computed(() => {
-            const listen = `:${dnsListenPort.value}`;
+            const listen = normalizeDnsListenText(config.value.dns && config.value.dns.listen, ':53');
 
             if (!(config.value.dns && config.value.dns.enable)) {
                 return {
@@ -83,7 +71,7 @@
             if (dnsForwardConflict.value) {
                 return {
                     tone: 'amber',
-                    title: '检测到 DNS 劫持与本地 53 转发同时开启',
+                    title: '检测到 DNS 劫持与本地 53 前端转发同时声明',
                     lines: [
                         '客户端 -> 53 端口请求',
                         '-> 可能被 TUN / TProxy DNS 劫持接走',
@@ -96,10 +84,10 @@
             if (uiState.value.useLocalDns53Forward) {
                 return {
                     tone: dnsLocalForwardNeedsNon53.value ? 'amber' : 'emerald',
-                    title: '使用本地 53 端口转发',
+                    title: '已声明使用本地 53 前端转发',
                     lines: [
                         '客户端 -> 192.168.1.1:53',
-                        '-> 本机 53 前端服务 (dnsmasq / smartdns / AdGuard Home)',
+                        '-> 本机 53 前端服务',
                         `-> 127.0.0.1:${dnsListenPort.value}`,
                         '-> Mihomo 内置 DNS'
                     ]
@@ -123,10 +111,11 @@
             if (usingTransparentProxy.value) {
                 return {
                     tone: 'amber',
-                    title: '透明代理已开启，但 DNS 未被接管',
+                    title: '透明代理已开启，但 DNS 未被强制接管',
                     lines: [
-                        '客户端 -> 原始 DNS 服务器:53',
-                        '-> 不经过 Mihomo 内置 DNS',
+                        '客户端 -> 客户端当前配置的 DNS:53',
+                        '典型 OpenWrt / DHCP 场景下，通常会先到路由器 53。',
+                        '这不等于自动劫持；手动指定外部 DNS 的客户端仍可能绕过 Mihomo。',
                         '如需稳定域名分流，请开启 DNS 劫持或使用本地 53 端口转发'
                     ]
                 };
@@ -134,10 +123,11 @@
 
             return {
                 tone: 'slate',
-                title: '按客户端原始 DNS 设置发送',
+                title: '按客户端 / DHCP DNS 配置决定',
                 lines: [
                     '当前既未启用透明代理 DNS 劫持，也未使用本地 53 端口转发。',
-                    'DNS 行为取决于客户端自己的 DNS 配置。'
+                    '典型 OpenWrt / DHCP 场景下，多数客户端会先请求路由器 53；这仍不是自动劫持。',
+                    `只有客户端本来就把 DNS 指向 ${listen}，或由前端 53 服务再转发到这里，请求才会进入 Mihomo 内置 DNS。`
                 ]
             };
         });
@@ -146,9 +136,23 @@
             if (!(config.value.dns && config.value.dns.enable)) return false;
             if (dnsListenPort.value !== 53) return false;
 
-            config.value.dns.listen = '1053';
+            config.value.dns.listen = replaceListenPort(config.value.dns.listen, 1053);
             return true;
         };
+
+        watch(
+            [
+                () => String(config.value?.dns?.['enhanced-mode'] || '').trim(),
+                () => !!config.value?.dns?.ipv6
+            ],
+            ([enhancedMode, ipv6Enabled]) => {
+                if (!config.value.dns) return;
+                if (enhancedMode !== 'fake-ip' || !ipv6Enabled) return;
+                if (String(config.value.dns['fake-ip-range6'] || '').trim()) return;
+                config.value.dns['fake-ip-range6'] = DEFAULT_FAKE_IP_RANGE6;
+            },
+            { immediate: true }
+        );
 
         return {
             dnsListenPortInput,
@@ -159,6 +163,7 @@
             dnsHijackEnabled,
             dnsForwardConflict,
             dnsLocalForwardNeedsNon53,
+            localDnsForwardTargetPort,
             specifiedPortsContain53,
             dnsPathPreview,
             ensureSafeDnsListenPortForTransparentProxy

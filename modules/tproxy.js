@@ -19,8 +19,8 @@
             }
         });
 
-        watch(() => uiState.value.nftablesConfig?.routeMarkHex, (v) => {
-            if (!uiState.value.nftablesConfig) return;
+        watch(() => [uiState.value.nftablesConfig?.routeMarkHex, uiState.value.tproxyEnable], ([v, enabled]) => {
+            if (!uiState.value.nftablesConfig || !enabled) return;
             config.value['routing-mark'] = parseMarkValue(v, 112);
         }, { immediate: true });
 

@@ -7,12 +7,21 @@
 
     const { createApp, ref, computed, watch, onMounted, nextTick, onErrorCaptured } = Vue;
     const {
-        getListenPort,
+        normalizeListenAddress,
         normalizeNftablesConfig,
         getSanitizedUiStateForSave,
         parseYamlObjectText,
+        parseYamlSequenceText,
+        formatYamlSequenceText,
         formatYamlMapText,
-        deepMerge
+        deepMerge,
+        getShadowsocksCipherOptions,
+        isSupportedShadowsocksCipher,
+        isShadowsocks2022Cipher,
+        generateShadowsocksPassword,
+        getSuggestedListenerPort,
+        normalizeTunnelListenerNetwork,
+        TUNNEL_LISTENER_NETWORK_OPTIONS
     } = window.MihomoHelpers;
 
     window.MihomoCore = window.MihomoCore || {};
@@ -27,12 +36,13 @@
         !window.MihomoCore.createPersistenceModule ||
         !window.MihomoFeatureModules ||
         !window.MihomoFeatureModules.createProxiesModule ||
+        !window.MihomoFeatureModules.createValidationModule ||
         !window.MihomoFeatureModules.createDnsModule ||
         !window.MihomoFeatureModules.createTproxyModule ||
         !window.MihomoFeatureModules.createRulesModule ||
         !window.MihomoFeatureModules.createYamlModule
     ) {
-        throw new Error('功能模块未加载，请确认先引入 ./core/state.js ./core/ui-runtime.js ./core/providers.js ./core/import-export.js ./core/persistence.js ./modules/proxies.js ./modules/dns.js ./modules/tproxy.js ./modules/rules.js ./modules/yaml.js');
+        throw new Error('功能模块未加载，请确认先引入 ./core/state.js ./core/ui-runtime.js ./core/providers.js ./core/import-export.js ./core/persistence.js ./modules/proxies.js ./modules/validation.js ./modules/dns.js ./modules/tproxy.js ./modules/rules.js ./modules/yaml.js');
     }
 
     const STORAGE_VERSION = 19;
@@ -262,6 +272,7 @@
                 dnsHijackEnabled,
                 dnsForwardConflict,
                 dnsLocalForwardNeedsNon53,
+                localDnsForwardTargetPort,
                 specifiedPortsContain53,
                 dnsPathPreview,
                 ensureSafeDnsListenPortForTransparentProxy
@@ -297,9 +308,13 @@
                 config.value.listeners.push({
                     name: `listener-${config.value.listeners.length + 1}`,
                     type: 'mixed',
-                    port: 7890,
+                    port: getSuggestedListenerPort(config.value, uiState.value, 7895),
                     listen: '::',
                     udp: true,
+                    cipher: '',
+                    password: '',
+                    network: ['tcp'],
+                    target: '',
                     rule: '',
                     proxy: '',
                     token: '',
@@ -310,11 +325,118 @@
                     'ech-key': '',
                     'ech-cert': '',
                     users: [],
-                    _usersText: ''
+                    _usersText: '',
+                    _shadowTlsText: '',
+                    _kcpTunText: ''
                 });
             };
             const removeListener = (idx) => {
                 config.value.listeners.splice(idx, 1);
+            };
+            const sanitizeListenerUser = (user) => {
+                if (!user || typeof user !== 'object') return { username: '', password: '' };
+                return {
+                    username: String(user.username || '').trim(),
+                    password: String(user.password || '')
+                };
+            };
+            const parseListenerUsersForEditor = (listener) => {
+                if (!listener || typeof listener !== 'object') return [];
+                if (Array.isArray(listener.users) && listener.users.length > 0) {
+                    return listener.users.map(sanitizeListenerUser);
+                }
+
+                const rawText = String(listener._usersText || '').trim();
+                if (!rawText) return [];
+
+                try {
+                    const parsedList = parseYamlSequenceText(rawText, (item) => item);
+                    if (parsedList && parsedList.every((item) => item && typeof item === 'object' && !Array.isArray(item))) {
+                        return parsedList.map(sanitizeListenerUser);
+                    }
+                } catch (err) {
+                    // ignore parse failures here; validation will surface the exact error
+                }
+
+                try {
+                    const parsedObject = parseYamlObjectText(rawText);
+                    if (parsedObject && typeof parsedObject === 'object' && !Array.isArray(parsedObject)) {
+                        return [sanitizeListenerUser(parsedObject)];
+                    }
+                } catch (err) {
+                    // ignore parse failures here; validation will surface the exact error
+                }
+
+                return [];
+            };
+            const syncListenerUsersText = (listener) => {
+                if (!listener || typeof listener !== 'object') return;
+                const editorUsers = (Array.isArray(listener.users) ? listener.users : [])
+                    .map(sanitizeListenerUser);
+                const exportUsers = editorUsers.filter((user) => user.username || user.password);
+                listener.users = editorUsers;
+                listener._usersText = formatYamlSequenceText(exportUsers);
+            };
+            const ensureListenerUsers = (listener) => {
+                if (!listener || typeof listener !== 'object') return;
+                if (!Array.isArray(listener.users) || listener.users.length === 0) {
+                    listener.users = parseListenerUsersForEditor(listener);
+                } else {
+                    listener.users = listener.users.map(sanitizeListenerUser);
+                }
+                syncListenerUsersText(listener);
+            };
+            const listenerUsesStructuredUsers = (listener) => ['mixed', 'http', 'socks'].includes(String(listener?.type || '').trim());
+            const addListenerUser = (listener) => {
+                if (!listener || typeof listener !== 'object') return;
+                ensureListenerUsers(listener);
+                listener.users.push({ username: '', password: '' });
+                syncListenerUsersText(listener);
+            };
+            const removeListenerUser = (listener, userIndex) => {
+                if (!listener || typeof listener !== 'object' || !Array.isArray(listener.users)) return;
+                listener.users.splice(userIndex, 1);
+                syncListenerUsersText(listener);
+            };
+            const tunnelListenerNetworkOptions = TUNNEL_LISTENER_NETWORK_OPTIONS.slice();
+            const handleListenerTypeChange = (listener) => {
+                if (!listener || typeof listener !== 'object') return;
+                if (String(listener.type || '').trim() === 'tunnel') {
+                    listener.network = normalizeTunnelListenerNetwork(listener.network);
+                    if (!Array.isArray(listener.network) || listener.network.length === 0) {
+                        listener.network = ['tcp'];
+                    }
+                    listener.target = String(listener.target || '').trim();
+                    return;
+                }
+
+                if (listenerUsesStructuredUsers(listener)) {
+                    ensureListenerUsers(listener);
+                }
+
+                if (!Array.isArray(listener.network)) {
+                    listener.network = normalizeTunnelListenerNetwork(listener.network);
+                }
+            };
+            onMounted(() => {
+                if (!Array.isArray(config.value.listeners)) return;
+                config.value.listeners.forEach((listener) => {
+                    if (listenerUsesStructuredUsers(listener)) ensureListenerUsers(listener);
+                });
+            });
+            const shadowsocksCipherOptions = getShadowsocksCipherOptions();
+            const getListenerShadowsocksPasswordPlaceholder = (cipher) => {
+                const normalizedCipher = String(cipher || '').trim();
+                if (!normalizedCipher) return '请先选择加密算法';
+                if (normalizedCipher === 'none') return 'none 模式无需密码';
+                if (isShadowsocks2022Cipher(normalizedCipher)) return '点击右侧生成标准 Base64 密钥';
+                return '请输入密码或点击右侧生成';
+            };
+            const generateListenerShadowsocksPassword = (listener) => {
+                if (!listener || typeof listener !== 'object') return;
+                const cipher = String(listener.cipher || '').trim();
+                if (!cipher || !isSupportedShadowsocksCipher(cipher)) return;
+                listener.password = generateShadowsocksPassword(cipher);
             };
 
             const proxiesModule = window.MihomoFeatureModules.createProxiesModule();
@@ -322,11 +444,13 @@
                 parseSingleProxyNode,
                 sanitizeProxyByCapabilities,
                 sanitizeProxyNodeForYaml,
-                getProxyNetworkOptions: proxyModuleGetNetworkOptions,
-                proxySupportsTransport: proxyModuleSupportsTransport,
-                proxySupportsToggle: proxyModuleSupportsToggle,
-                proxyShowsTlsSection: proxyModuleShowsTlsSection,
-                proxyShowsSmuxSection: proxyModuleShowsSmuxSection
+                getProxyNetworkOptions,
+                proxySupportsTransport,
+                proxySupportsToggle,
+                proxyHasTlsSection,
+                proxySupportsTlsClientFingerprint,
+                getProxyValidationIssues,
+                getProxyTlsMode
             } = proxiesModule;
 
             const rulesModule = window.MihomoFeatureModules.createRulesModule({
@@ -346,6 +470,8 @@
                 onRuleDrop,
                 onRuleDragEnd,
                 parseRuleString,
+                RULE_TYPE_GROUPS,
+                LOGIC_RULE_TYPE_GROUPS,
                 IP_RULE_TYPES
             } = rulesModule;
 
@@ -360,11 +486,13 @@
                 parseSingleProxyNode,
                 sanitizeProxyNodeForYaml,
                 sanitizeProxyByCapabilities,
-                getProxyNetworkOptions: proxyModuleGetNetworkOptions,
-                proxySupportsTransport: proxyModuleSupportsTransport,
-                proxySupportsToggle: proxyModuleSupportsToggle,
-                proxyShowsTlsSection: proxyModuleShowsTlsSection,
-                proxyShowsSmuxSection: proxyModuleShowsSmuxSection,
+                getProxyNetworkOptions,
+                proxySupportsTransport,
+                proxySupportsToggle,
+                proxyHasTlsSection,
+                proxySupportsTlsClientFingerprint,
+                getProxyValidationIssues,
+                getProxyTlsMode,
                 askConfirm
             });
             const {
@@ -379,6 +507,8 @@
                 removeGroupProxyMember,
                 getAvailableGroupMembers,
                 getOrderedAvailableGroupMembers,
+                groupIncludesAllProxies,
+                groupIncludesAllProviders,
                 onInlineGroupMemberDragStart,
                 onInlineGroupMemberDragOver,
                 onInlineGroupMemberDrop,
@@ -428,12 +558,28 @@
                 getRuleProviderUrl,
                 clearLists,
                 getInlinePayloadPreview,
-                getProxyNetworkOptions,
-                proxySupportsTransport,
-                proxySupportsToggle,
-                proxyShowsTlsSection,
-                proxyShowsSmuxSection
+                getProviderFallbackSnapshotNames,
+                getProviderFallbackDetachedNames,
+                removeProviderFallbackPayloadNode,
+                getProviderFallbackPayloadPreview
             } = providersModule;
+            const proxyValidationIssues = computed(() => {
+                return (config.value.proxies || []).map((proxy) => getProxyValidationIssues(proxy));
+            });
+            const validationModule = window.MihomoFeatureModules.createValidationModule({
+                computed,
+                config,
+                uiState,
+                providersList,
+                ruleProvidersList,
+                getProxyValidationIssues,
+                getRuleProviderUrl
+            });
+            const {
+                runtimeValidationIssues,
+                runtimeValidationErrors,
+                runtimeValidationWarnings
+            } = validationModule;
 
             const yamlModule = window.MihomoFeatureModules.createYamlModule({
                 ref,
@@ -473,6 +619,7 @@
                 fileInput,
                 fullYaml,
                 crashError,
+                runtimeValidationErrors,
                 getDefaultConfig,
                 safeBuildYaml,
                 parseSingleProxyNode,
@@ -513,7 +660,7 @@
                 sanitizeNftMarks,
                 normalizeNftablesConfig,
                 getSanitizedUiStateForSave,
-                getListenPort,
+                normalizeListenAddress,
                 deepMerge,
                 clearPersistedStorage,
                 setCacheWarning: (message) => {
@@ -538,6 +685,15 @@
                 pickPanel,
                 addListener,
                 removeListener,
+                addListenerUser,
+                removeListenerUser,
+                syncListenerUsersText,
+                tunnelListenerNetworkOptions,
+                handleListenerTypeChange,
+                shadowsocksCipherOptions,
+                isSupportedShadowsocksCipher,
+                getListenerShadowsocksPasswordPlaceholder,
+                generateListenerShadowsocksPassword,
                 addProvider,
                 addInlineChainProvider,
                 addSourceChainProvider,
@@ -570,6 +726,8 @@
                 getAvailableGroupMembers,
                 getOrderedAvailableGroupMembers,
                 getOrderedGroupUseProviders,
+                groupIncludesAllProxies,
+                groupIncludesAllProviders,
                 removeGroupProxyMember,
                 onGroupProxyDragStart,
                 onGroupProxyDrop,
@@ -597,11 +755,19 @@
                 onRuleDrop,
                 onRuleDragEnd,
                 getInlinePayloadPreview,
+                getProviderFallbackSnapshotNames,
+                getProviderFallbackDetachedNames,
+                removeProviderFallbackPayloadNode,
+                getProviderFallbackPayloadPreview,
                 getProxyNetworkOptions,
                 proxySupportsTransport,
                 proxySupportsToggle,
-                proxyShowsTlsSection,
-                proxyShowsSmuxSection,
+                proxyHasTlsSection,
+                proxySupportsTlsClientFingerprint,
+                proxyValidationIssues,
+                runtimeValidationIssues,
+                runtimeValidationErrors,
+                runtimeValidationWarnings,
                 yamlSections,
                 fullYaml,
                 copyYaml,
@@ -634,6 +800,8 @@
                 updateRuleProviderName,
                 resetGeoUrls,
                 formatConditions,
+                RULE_TYPE_GROUPS,
+                LOGIC_RULE_TYPE_GROUPS,
                 IP_RULE_TYPES,
                 dnsListenPort,
                 dnsListenPortInput,
@@ -643,6 +811,7 @@
                 dnsHijackEnabled,
                 dnsForwardConflict,
                 dnsLocalForwardNeedsNon53,
+                localDnsForwardTargetPort,
                 dnsPathPreview,
                 specifiedPortsContain53,
                 cacheWarning,

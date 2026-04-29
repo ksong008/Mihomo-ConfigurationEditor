@@ -8,7 +8,17 @@
     window.MihomoFeatureModules = window.MihomoFeatureModules || {};
     window.MihomoFeatureModules.createYamlModule = function (ctx) {
         const { ref, config, uiState, providersList, ruleProvidersList, sanitizeProxyNodeForYaml, getRuleProviderUrl, getDefaultConfig } = ctx;
-        const { parsePorts, parseHosts, parseYamlMapText, parseYamlSequenceText, parseYamlObjectText, parseMarkValue, getListenPort } = window.MihomoHelpers;
+        const {
+            parsePorts,
+            parseHosts,
+            parseYamlMapText,
+            parseYamlSequenceText,
+            parseYamlObjectText,
+            parseMarkValue,
+            normalizeListenAddress,
+            normalizeTunnelListenerNetwork
+        } = window.MihomoHelpers;
+        const DEFAULT_FAKE_IP_RANGE6 = 'fdfe:dcba:9876::1/64';
 
         const yamlSections = ref({ general: '', experimental: '', network: '', proxies: '', providers: '', ruleProviders: '', groups: '', subRules: '', rules: '' });
         const fullYaml = ref('');
@@ -26,6 +36,20 @@
 
             return { pattern, target };
         });
+        const parseProviderOverrideBoolean = (value) => {
+            const raw = String(value ?? '').trim().toLowerCase();
+            if (raw === 'true') return true;
+            if (raw === 'false') return false;
+            return undefined;
+        };
+        const normalizeProviderOverrideRoutingMark = (value) => {
+            const raw = String(value ?? '').trim();
+            if (!raw) return undefined;
+            if (/^(?:\d+|0x[0-9a-fA-F]+)$/.test(raw)) {
+                return parseMarkValue(raw, 0);
+            }
+            return raw;
+        };
         const parseListenerUsersText = (text) => {
             const rawText = String(text || '').trim();
             if (!rawText) return undefined;
@@ -100,7 +124,7 @@
                 listen: String(listener.listen || '').trim(),
                 port: listener.port
             };
-            if (['mixed', 'socks', 'tproxy'].includes(type) && listener.udp !== undefined) nextListener.udp = listener.udp;
+            if (['mixed', 'socks', 'tproxy', 'shadowsocks'].includes(type) && listener.udp !== undefined) nextListener.udp = listener.udp;
             if (listener.proxy) nextListener.proxy = String(listener.proxy).trim();
             if (listener.rule) nextListener.rule = String(listener.rule).trim();
             if (listener.token) nextListener.token = String(listener.token).trim();
@@ -117,6 +141,26 @@
                 if (listener['client-auth-cert']) nextListener['client-auth-cert'] = String(listener['client-auth-cert']).trim();
                 if (listener['ech-key']) nextListener['ech-key'] = String(listener['ech-key']).trim();
                 if (listener['ech-cert']) nextListener['ech-cert'] = String(listener['ech-cert']).trim();
+            }
+
+            if (type === 'shadowsocks') {
+                if (listener.cipher) nextListener.cipher = String(listener.cipher).trim();
+                if (listener.password) nextListener.password = String(listener.password).trim();
+                if (typeof listener._shadowTlsText === 'string' && listener._shadowTlsText.trim()) {
+                    nextListener['shadow-tls'] = parseYamlObjectText(listener._shadowTlsText);
+                } else if (isPlainObject(listener['shadow-tls'])) {
+                    nextListener['shadow-tls'] = listener['shadow-tls'];
+                }
+                if (typeof listener._kcpTunText === 'string' && listener._kcpTunText.trim()) {
+                    nextListener['kcp-tun'] = parseYamlObjectText(listener._kcpTunText);
+                } else if (isPlainObject(listener['kcp-tun'])) {
+                    nextListener['kcp-tun'] = listener['kcp-tun'];
+                }
+            }
+            if (type === 'tunnel') {
+                const network = normalizeTunnelListenerNetwork(listener.network);
+                if (network.length > 0) nextListener.network = network;
+                if (listener.target) nextListener.target = String(listener.target).trim();
             }
             return pruneEmptyYamlValue(nextListener);
         };
@@ -135,7 +179,7 @@
                     port: raw.port,
                     'socks-port': raw['socks-port'],
                     'redir-port': raw['redir-port'],
-                    'tproxy-port': uiState.value.tproxyEnable ? (raw['tproxy-port'] || uiState.value.nftablesConfig.tproxyPort || 7894) : raw['tproxy-port'],
+                    'tproxy-port': uiState.value.tproxyEnable ? (raw['tproxy-port'] || uiState.value.nftablesConfig.tproxyPort || 7894) : undefined,
                     'allow-lan': raw['allow-lan'], mode: raw.mode, 'log-level': raw['log-level'], ipv6: raw.ipv6,
                     'external-controller': raw['external-controller']
                 });
@@ -197,8 +241,16 @@
                 }
                 if (raw['find-process-mode'] !== 'always') outGeneral['find-process-mode'] = raw['find-process-mode'];
 
-                let rMarkInt = parseMarkValue(uiState.value.nftablesConfig.routeMarkHex, 112);
-                outGeneral['routing-mark'] = rMarkInt;
+                const rawRoutingMark = raw['routing-mark'] !== undefined && raw['routing-mark'] !== null
+                    ? String(raw['routing-mark']).trim()
+                    : '';
+                if (uiState.value.tproxyEnable) {
+                    outGeneral['routing-mark'] = parseMarkValue(uiState.value.nftablesConfig.routeMarkHex, 112);
+                } else if (rawRoutingMark) {
+                    outGeneral['routing-mark'] = /^(?:\d+|0x[0-9a-fA-F]+)$/.test(rawRoutingMark)
+                        ? parseMarkValue(rawRoutingMark, 0)
+                        : rawRoutingMark;
+                }
 
                 let finalListeners = [];
                 if (raw.listeners && Array.isArray(raw.listeners)) {
@@ -335,14 +387,17 @@
 
                 if (raw.dns && raw.dns.enable) {
                     outNetwork.dns = { ...raw.dns };
-                    const normalizedDnsListen = getListenPort(raw.dns.listen, 53);
-                    outNetwork.dns.listen = `:${normalizedDnsListen}`;
+                    outNetwork.dns.listen = normalizeListenAddress(raw.dns.listen, ':53');
                     if (raw.dns['cache-algorithm'] === defaultConfig.dns?.['cache-algorithm']) {
                         delete outNetwork.dns['cache-algorithm'];
                     }
                     if (outNetwork.dns['enhanced-mode'] === 'fake-ip') {
                         outNetwork.dns['fake-ip-filter-mode'] = raw.dns['fake-ip-filter-mode'];
-                        if (!String(raw.dns['fake-ip-range6'] || '').trim()) delete outNetwork.dns['fake-ip-range6'];
+                        if (raw.dns.ipv6) {
+                            outNetwork.dns['fake-ip-range6'] = String(raw.dns['fake-ip-range6'] || '').trim() || DEFAULT_FAKE_IP_RANGE6;
+                        } else {
+                            delete outNetwork.dns['fake-ip-range6'];
+                        }
                         const fakeIpTtl = Number(raw.dns['fake-ip-ttl']);
                         if (!Number.isFinite(fakeIpTtl) || fakeIpTtl <= 0) delete outNetwork.dns['fake-ip-ttl'];
                         const filters = parseText(uiState.value.fakeIpFilter);
@@ -417,7 +472,7 @@
                 const providerNames = (providersList.value || []).map(p => p.name).filter(Boolean);
                 const groupNames = (raw['proxy-groups'] || []).map(g => g.name).filter(Boolean);
                 const proxyNames = (raw.proxies || []).map(p => p.name).filter(Boolean);
-                const validStaticMembers = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', ...groupNames, ...proxyNames]);
+                const validStaticMembers = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE', ...groupNames, ...proxyNames]);
                 const defaultRuleTarget = groupNames[0] || 'DIRECT';
                 const normalizeRuleTarget = (target) => validStaticMembers.has(target) ? target : defaultRuleTarget;
                 const getRuleTarget = (rule) => rule && rule.type === 'SUB-RULE'
@@ -432,10 +487,33 @@
                 let outProviders = {};
                 if (providersList.value && providersList.value.length > 0) {
                     outProviders['proxy-providers'] = {};
+                    const cloneYamlValue = (value) => {
+                        if (Array.isArray(value)) return value.map((item) => cloneYamlValue(item));
+                        if (isPlainObject(value)) {
+                            const next = {};
+                            Object.keys(value).forEach((key) => {
+                                next[key] = cloneYamlValue(value[key]);
+                            });
+                            return next;
+                        }
+                        return value;
+                    };
                     const resolveEffectiveProvider = (provider) => {
                         if (!provider || provider._chainMode !== 'provider' || !provider._sourceProviderName) return provider;
                         const source = (providersList.value || []).find((item) => item && item.name === provider._sourceProviderName && !item._chainMode);
                         if (!source || !['http', 'file'].includes(source.type)) return null;
+                        const fallbackPayload = Array.isArray(provider._fallbackPayload) && provider._fallbackPayload.length > 0
+                            ? provider._fallbackPayload
+                            : (Array.isArray(source._fallbackPayload) ? source._fallbackPayload : []);
+                        const fallbackPayloadProxyNames = Array.isArray(provider._fallbackPayloadProxyNames) && provider._fallbackPayloadProxyNames.length > 0
+                            ? provider._fallbackPayloadProxyNames
+                            : (Array.isArray(source._fallbackPayloadProxyNames) ? source._fallbackPayloadProxyNames : []);
+                        const unsupportedOverride = isPlainObject(provider._unsupportedOverride) && Object.keys(provider._unsupportedOverride).length > 0
+                            ? provider._unsupportedOverride
+                            : (isPlainObject(source._unsupportedOverride) ? source._unsupportedOverride : {});
+                        const unsupportedOverrideKeys = Array.isArray(provider._unsupportedOverrideKeys) && provider._unsupportedOverrideKeys.length > 0
+                            ? provider._unsupportedOverrideKeys
+                            : (Array.isArray(source._unsupportedOverrideKeys) ? source._unsupportedOverrideKeys : []);
                         return {
                             ...source,
                             ...provider,
@@ -462,8 +540,69 @@
                             overrideDialerProxy: provider.overrideDialerProxy || '',
                             overrideAdditionalPrefix: provider.overrideAdditionalPrefix || '',
                             overrideAdditionalSuffix: provider.overrideAdditionalSuffix || '',
-                            overrideProxyName: provider.overrideProxyName || ''
+                            overrideProxyName: provider.overrideProxyName || '',
+                            overrideUdp: provider.overrideUdp || '',
+                            overrideUdpOverTcp: provider.overrideUdpOverTcp || '',
+                            overrideTfo: provider.overrideTfo || '',
+                            overrideMptcp: provider.overrideMptcp || '',
+                            overrideSkipCertVerify: provider.overrideSkipCertVerify || '',
+                            overrideUp: provider.overrideUp || '',
+                            overrideDown: provider.overrideDown || '',
+                            overrideInterfaceName: provider.overrideInterfaceName || '',
+                            overrideRoutingMark: provider.overrideRoutingMark || '',
+                            overrideIpVersion: provider.overrideIpVersion || '',
+                            _fallbackPayload: fallbackPayload,
+                            _fallbackPayloadProxyNames: fallbackPayloadProxyNames,
+                            _unsupportedOverride: unsupportedOverride,
+                            _unsupportedOverrideKeys: unsupportedOverrideKeys
                         };
+                    };
+                    const buildProviderPayloadNodes = (effectiveProvider) => {
+                        const payloadProxyNames = Array.isArray(effectiveProvider?.inlineProxies) && effectiveProvider.inlineProxies.length > 0
+                            ? effectiveProvider.inlineProxies
+                            : (Array.isArray(effectiveProvider?._fallbackPayloadProxyNames) ? effectiveProvider._fallbackPayloadProxyNames : []);
+                        const fallbackPayload = Array.isArray(effectiveProvider?._fallbackPayload)
+                            ? effectiveProvider._fallbackPayload.filter(isPlainObject)
+                            : [];
+                        const fallbackPayloadByName = new Map();
+                        fallbackPayload.forEach((item) => {
+                            const name = String(item?.name || '').trim();
+                            if (name && !fallbackPayloadByName.has(name)) {
+                                fallbackPayloadByName.set(name, item);
+                            }
+                        });
+
+                        const payloadNodes = [];
+                        const seenNames = new Set();
+                        payloadProxyNames
+                            .map((item) => String(item || '').trim())
+                            .filter(Boolean)
+                            .forEach((pxName) => {
+                                if (seenNames.has(pxName)) return;
+                                seenNames.add(pxName);
+                                const liveNode = sanitizeProxyNodeForYaml((raw.proxies || []).find((x) => x && x.name === pxName));
+                                if (liveNode) {
+                                    payloadNodes.push(liveNode);
+                                    return;
+                                }
+                                const snapshotNode = fallbackPayloadByName.get(pxName);
+                                if (snapshotNode) {
+                                    const preservedNode = pruneEmptyYamlValue(cloneYamlValue(snapshotNode));
+                                    if (preservedNode) payloadNodes.push(preservedNode);
+                                }
+                            });
+
+                        fallbackPayload.forEach((item) => {
+                            const name = String(item?.name || '').trim();
+                            if (name && seenNames.has(name)) return;
+                            const preservedNode = pruneEmptyYamlValue(cloneYamlValue(item));
+                            if (preservedNode) payloadNodes.push(preservedNode);
+                        });
+
+                        if (payloadNodes.length > 0) return payloadNodes;
+                        return fallbackPayload
+                            .map((item) => pruneEmptyYamlValue(cloneYamlValue(item)))
+                            .filter(Boolean);
                     };
                     providersList.value.forEach(p => {
                         const effectiveProvider = resolveEffectiveProvider(p);
@@ -504,26 +643,47 @@
                                 if (parsedHeaders) prov.header = parsedHeaders;
                                 if (healthExpectedStatus) healthCheck['expected-status'] = healthExpectedStatus;
                                 prov['health-check'] = healthCheck;
+                                const fallbackPayloadNodes = buildProviderPayloadNodes(effectiveProvider);
+                                if (fallbackPayloadNodes.length > 0) prov.payload = fallbackPayloadNodes;
                             } else if (providerType === 'inline') {
-                                let payloadNodes = [];
-                                if (effectiveProvider.inlineProxies && effectiveProvider.inlineProxies.length > 0) {
-                                    payloadNodes = effectiveProvider.inlineProxies
-                                        .map((pxName) => sanitizeProxyNodeForYaml((raw.proxies || []).find((x) => x.name === pxName)))
-                                        .filter(Boolean);
-                                }
-                                prov.payload = payloadNodes;
+                                prov.payload = buildProviderPayloadNodes(effectiveProvider);
                             }
 
-                            const providerOverride = {};
+                            const providerOverride = isPlainObject(effectiveProvider._unsupportedOverride)
+                                ? cloneYamlValue(effectiveProvider._unsupportedOverride)
+                                : {};
                             const normalizedOverrideDialerProxy = normalizeDialerProxy(effectiveProvider.overrideDialerProxy);
                             const overrideAdditionalPrefix = String(effectiveProvider.overrideAdditionalPrefix ?? '').trim();
                             const overrideAdditionalSuffix = String(effectiveProvider.overrideAdditionalSuffix ?? '').trim();
                             const overrideProxyName = parseProxyNameOverride(effectiveProvider.overrideProxyName);
+                            const overrideUdp = parseProviderOverrideBoolean(effectiveProvider.overrideUdp);
+                            const overrideUdpOverTcp = parseProviderOverrideBoolean(effectiveProvider.overrideUdpOverTcp);
+                            const overrideTfo = parseProviderOverrideBoolean(effectiveProvider.overrideTfo);
+                            const overrideMptcp = parseProviderOverrideBoolean(effectiveProvider.overrideMptcp);
+                            const overrideSkipCertVerify = parseProviderOverrideBoolean(effectiveProvider.overrideSkipCertVerify);
+                            const overrideUp = String(effectiveProvider.overrideUp ?? '').trim();
+                            const overrideDown = String(effectiveProvider.overrideDown ?? '').trim();
+                            const overrideInterfaceName = String(effectiveProvider.overrideInterfaceName ?? '').trim();
+                            const overrideRoutingMark = normalizeProviderOverrideRoutingMark(effectiveProvider.overrideRoutingMark);
+                            const overrideIpVersion = String(effectiveProvider.overrideIpVersion ?? '').trim();
                             if (normalizedOverrideDialerProxy) providerOverride['dialer-proxy'] = normalizedOverrideDialerProxy;
                             if (overrideAdditionalPrefix) providerOverride['additional-prefix'] = overrideAdditionalPrefix;
                             if (overrideAdditionalSuffix) providerOverride['additional-suffix'] = overrideAdditionalSuffix;
                             if (overrideProxyName) providerOverride['proxy-name'] = overrideProxyName;
-                            if (Object.keys(providerOverride).length > 0) prov.override = providerOverride;
+                            if (overrideUdp !== undefined) providerOverride.udp = overrideUdp;
+                            if (overrideUdpOverTcp !== undefined) providerOverride['udp-over-tcp'] = overrideUdpOverTcp;
+                            if (overrideTfo !== undefined) providerOverride.tfo = overrideTfo;
+                            if (overrideMptcp !== undefined) providerOverride.mptcp = overrideMptcp;
+                            if (overrideSkipCertVerify !== undefined) providerOverride['skip-cert-verify'] = overrideSkipCertVerify;
+                            if (overrideUp) providerOverride.up = overrideUp;
+                            if (overrideDown) providerOverride.down = overrideDown;
+                            if (overrideInterfaceName) providerOverride['interface-name'] = overrideInterfaceName;
+                            if (overrideRoutingMark !== undefined) providerOverride['routing-mark'] = overrideRoutingMark;
+                            if (overrideIpVersion) providerOverride['ip-version'] = overrideIpVersion;
+                            const prunedProviderOverride = pruneEmptyYamlValue(providerOverride);
+                            if (prunedProviderOverride && Object.keys(prunedProviderOverride).length > 0) {
+                                prov.override = prunedProviderOverride;
+                            }
 
                             if (effectiveProvider.filter) prov.filter = effectiveProvider.filter;
                             if (effectiveProvider.excludeFilter) prov['exclude-filter'] = effectiveProvider.excludeFilter;
@@ -574,18 +734,20 @@
                 if (raw['proxy-groups'] && raw['proxy-groups'].length > 0) {
                     outGroups['proxy-groups'] = raw['proxy-groups'].map(g => {
                         let cg = { name: g.name, type: g.type };
-                        if (g['include-all-proxies']) cg['include-all-proxies'] = true;
-                        if (g['include-all-providers']) cg['include-all-providers'] = true;
+                        const includeAll = g.type !== 'relay' && g['include-all'];
+                        if (includeAll) cg['include-all'] = true;
+                        if (!includeAll && g['include-all-proxies']) cg['include-all-proxies'] = true;
+                        if (!includeAll && g['include-all-providers']) cg['include-all-providers'] = true;
                         if (g.hidden) cg.hidden = true;
                         if (g.icon) cg.icon = g.icon;
 
                         if(g.type === 'load-balance') cg.strategy = g.strategy || 'consistent-hashing';
 
                         if(g.type !== 'relay') {
-                            if(!cg['include-all-proxies']) {
+                            if(!includeAll && !cg['include-all-proxies']) {
                                 if(g.proxies && g.proxies.length>0) cg.proxies = g.proxies.filter(name => validStaticMembers.has(name));
                             }
-                            if(!cg['include-all-providers'] && g.use && g.use.length>0) cg.use = g.use.filter(name => providerNames.includes(name));
+                            if(!includeAll && !cg['include-all-providers'] && g.use && g.use.length>0) cg.use = g.use.filter(name => providerNames.includes(name));
                             if(g.filter) cg.filter = g.filter;
                             if(g['exclude-filter']) cg['exclude-filter'] = g['exclude-filter'];
                             if(g['exclude-type']) cg['exclude-type'] = g['exclude-type'];

@@ -12,6 +12,143 @@ function parsePorts(str) {
     }).filter(Boolean);
 }
 
+function parsePortSpec(value) {
+    const raw = String(value ?? '').trim();
+    if (!raw) return null;
+
+    const ranges = [];
+    const tokens = raw
+        .split(/[\/,]/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+    if (tokens.length === 0) return null;
+
+    for (const token of tokens) {
+        if (/^\d+$/.test(token)) {
+            const port = Number(token);
+            if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
+            ranges.push({ start: port, end: port });
+            continue;
+        }
+
+        const match = token.match(/^(\d+)\s*-\s*(\d+)$/);
+        if (!match) return null;
+
+        const start = Number(match[1]);
+        const end = Number(match[2]);
+        if (
+            !Number.isInteger(start)
+            || !Number.isInteger(end)
+            || start < 1
+            || start > 65535
+            || end < 1
+            || end > 65535
+            || start > end
+        ) {
+            return null;
+        }
+        ranges.push({ start, end });
+    }
+
+    ranges.sort((a, b) => (a.start - b.start) || (a.end - b.end));
+    const merged = [];
+    ranges.forEach((range) => {
+        const previous = merged[merged.length - 1];
+        if (!previous || range.start > previous.end + 1) {
+            merged.push({ ...range });
+            return;
+        }
+        previous.end = Math.max(previous.end, range.end);
+    });
+
+    return merged;
+}
+
+function isValidPortSpec(value) {
+    return Array.isArray(parsePortSpec(value));
+}
+
+function getPortSpecOverlap(firstValue, secondValue) {
+    const firstRanges = Array.isArray(firstValue) ? firstValue : parsePortSpec(firstValue);
+    const secondRanges = Array.isArray(secondValue) ? secondValue : parsePortSpec(secondValue);
+    if (!Array.isArray(firstRanges) || !Array.isArray(secondRanges)) return null;
+
+    let i = 0;
+    let j = 0;
+    while (i < firstRanges.length && j < secondRanges.length) {
+        const first = firstRanges[i];
+        const second = secondRanges[j];
+        const start = Math.max(first.start, second.start);
+        const end = Math.min(first.end, second.end);
+        if (start <= end) return { start, end };
+
+        if (first.end < second.end) i += 1;
+        else j += 1;
+    }
+
+    return null;
+}
+
+function formatPortOverlap(range) {
+    if (!range || !Number.isInteger(range.start) || !Number.isInteger(range.end)) return '';
+    return range.start === range.end ? String(range.start) : `${range.start}-${range.end}`;
+}
+
+function isPortCovered(value, port) {
+    const targetPort = Number(port);
+    if (!Number.isInteger(targetPort) || targetPort < 1 || targetPort > 65535) return false;
+    const ranges = parsePortSpec(value);
+    if (!Array.isArray(ranges)) return false;
+    return ranges.some((range) => targetPort >= range.start && targetPort <= range.end);
+}
+
+function getSuggestedListenerPort(config, uiState, startPort = 7895) {
+    const candidates = [];
+    const cfg = config && typeof config === 'object' ? config : {};
+    const state = uiState && typeof uiState === 'object' ? uiState : {};
+
+    ['mixed-port', 'port', 'socks-port', 'redir-port'].forEach((key) => {
+        if (cfg[key] !== undefined && cfg[key] !== null && cfg[key] !== '') candidates.push(cfg[key]);
+    });
+
+    if (state.tproxyEnable && cfg['tproxy-port'] !== undefined && cfg['tproxy-port'] !== null && cfg['tproxy-port'] !== '') {
+        candidates.push(cfg['tproxy-port']);
+    }
+
+    if (Array.isArray(cfg.listeners)) {
+        cfg.listeners.forEach((listener) => {
+            if (!listener) return;
+            candidates.push(listener.port);
+        });
+    }
+
+    for (let port = Math.max(1, Number(startPort) || 7895); port <= 65535; port += 1) {
+        if (candidates.every((value) => !isPortCovered(value, port))) return port;
+    }
+    return 65535;
+}
+
+const TUNNEL_LISTENER_NETWORK_OPTIONS = Object.freeze(['tcp', 'udp']);
+
+function normalizeTunnelListenerNetwork(value) {
+    const source = Array.isArray(value)
+        ? value
+        : String(value ?? '')
+            .split(/[\/,\s]+/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+
+    const normalized = [];
+    source.forEach((item) => {
+        const network = String(item || '').trim().toLowerCase();
+        if (!TUNNEL_LISTENER_NETWORK_OPTIONS.includes(network) || normalized.includes(network)) return;
+        normalized.push(network);
+    });
+
+    return normalized;
+}
+
 function parseHosts(str) {
     if (!str || str.trim() === '') return undefined;
     const lines = str.split('\n').map(s=>s.trim()).filter(Boolean);
@@ -156,6 +293,37 @@ function getListenPort(val, fallback = 53) {
     return m ? Number(m[1]) : fallback;
 }
 
+function normalizeListenAddress(val, fallback = ':53') {
+    const raw = String(val ?? '').trim();
+    if (!raw) return fallback;
+
+    const match = raw.match(/(\d+)\s*$/);
+    if (!match) return raw;
+
+    const parsedPort = Number(match[1]);
+    let port = Number.isInteger(parsedPort) ? parsedPort : getListenPort(fallback, 53);
+    if (port < 1) port = 1;
+    if (port > 65535) port = 65535;
+
+    const prefix = raw.slice(0, match.index);
+    if (!prefix && /^\d+\s*$/.test(raw)) return `:${port}`;
+    return `${prefix}${port}`;
+}
+
+function replaceListenPort(val, nextPort) {
+    let port = Number(nextPort);
+    if (!Number.isInteger(port) || port < 1) port = 1;
+    if (port > 65535) port = 65535;
+
+    const raw = String(val ?? '').trim();
+    const match = raw.match(/(\d+)\s*$/);
+    if (!raw || !match) return `:${port}`;
+
+    const prefix = raw.slice(0, match.index);
+    if (!prefix && /^\d+\s*$/.test(raw)) return `:${port}`;
+    return `${prefix}${port}`;
+}
+
 function parseLineList(str) {
     return String(str || '')
         .split('\n')
@@ -168,6 +336,123 @@ function parseCommaList(str) {
         .split(',')
         .map(s => s.trim())
         .filter(Boolean);
+}
+
+const SHADOWSOCKS_CIPHER_OPTIONS = Object.freeze([
+    '2022-blake3-aes-128-gcm',
+    '2022-blake3-aes-256-gcm',
+    '2022-blake3-chacha20-poly1305',
+    'aes-128-gcm',
+    'aes-192-gcm',
+    'aes-256-gcm',
+    'chacha20-ietf-poly1305',
+    'xchacha20-ietf-poly1305',
+    'none'
+]);
+
+const SHADOWSOCKS_2022_KEY_BYTES = Object.freeze({
+    '2022-blake3-aes-128-gcm': 16,
+    '2022-blake3-aes-256-gcm': 32,
+    '2022-blake3-chacha20-poly1305': 32
+});
+
+function getShadowsocksCipherOptions() {
+    return SHADOWSOCKS_CIPHER_OPTIONS.slice();
+}
+
+function isSupportedShadowsocksCipher(cipher) {
+    return SHADOWSOCKS_CIPHER_OPTIONS.includes(String(cipher || '').trim());
+}
+
+function getShadowsocks2022KeyBytes(cipher) {
+    return SHADOWSOCKS_2022_KEY_BYTES[String(cipher || '').trim()] || null;
+}
+
+function isShadowsocks2022Cipher(cipher) {
+    return getShadowsocks2022KeyBytes(cipher) !== null;
+}
+
+function shadowsocksCipherRequiresPassword(cipher) {
+    return String(cipher || '').trim() !== 'none';
+}
+
+function getRandomBytes(length) {
+    const normalizedLength = Number(length);
+    if (!Number.isInteger(normalizedLength) || normalizedLength <= 0) return null;
+
+    const cryptoApi = (window && window.crypto) || (typeof globalThis !== 'undefined' ? globalThis.crypto : null);
+    if (!cryptoApi || typeof cryptoApi.getRandomValues !== 'function') return null;
+
+    const randomBytes = new Uint8Array(normalizedLength);
+    cryptoApi.getRandomValues(randomBytes);
+    return randomBytes;
+}
+
+function bytesToBase64(bytes) {
+    if (!bytes || typeof bytes.length !== 'number') return '';
+
+    let binary = '';
+    bytes.forEach((byte) => {
+        binary += String.fromCharCode(byte);
+    });
+
+    if (typeof btoa === 'function') return btoa(binary);
+    if (typeof Buffer !== 'undefined') return Buffer.from(binary, 'binary').toString('base64');
+    return '';
+}
+
+function getBase64DecodedLength(value) {
+    const source = String(value || '').trim();
+    if (!source) return null;
+    if (!/^[A-Za-z0-9+/=]+$/.test(source)) return null;
+
+    try {
+        if (typeof atob === 'function') return atob(source).length;
+        if (typeof Buffer !== 'undefined') return Buffer.from(source, 'base64').length;
+    } catch (err) {
+        return null;
+    }
+
+    return null;
+}
+
+function generateAsciiPassword(length = 24) {
+    const randomBytes = getRandomBytes(length);
+    if (!randomBytes) return '';
+
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789-_';
+    let result = '';
+    randomBytes.forEach((byte) => {
+        result += alphabet[byte % alphabet.length];
+    });
+    return result;
+}
+
+function generateShadowsocksPassword(cipher) {
+    const normalizedCipher = String(cipher || '').trim();
+    if (!normalizedCipher || !isSupportedShadowsocksCipher(normalizedCipher)) return '';
+    if (normalizedCipher === 'none') return '';
+
+    const keyBytes = getShadowsocks2022KeyBytes(normalizedCipher);
+    if (keyBytes) {
+        const randomBytes = getRandomBytes(keyBytes);
+        return randomBytes ? bytesToBase64(randomBytes) : '';
+    }
+
+    return generateAsciiPassword(24);
+}
+
+function isValidShadowsocksPasswordForCipher(cipher, password) {
+    const normalizedCipher = String(cipher || '').trim();
+    const normalizedPassword = String(password || '').trim();
+
+    if (!normalizedCipher) return false;
+    if (normalizedCipher === 'none') return normalizedPassword === '';
+
+    const keyBytes = getShadowsocks2022KeyBytes(normalizedCipher);
+    if (!keyBytes) return normalizedPassword !== '';
+
+    return getBase64DecodedLength(normalizedPassword) === keyBytes;
 }
 
 const DEFAULT_NFT_PRIVATE4 = `0.0.0.0/8
@@ -234,6 +519,7 @@ function getSanitizedUiStateForSave(state, cfg) {
     });
     delete cloned.pendingAction;
     delete cloned.tproxyConflicts;
+    delete cloned.localDns53Frontend;
     cloned.nftablesConfig = normalizeNftablesConfig(cloned.nftablesConfig, cfg);
     return cloned;
 }
@@ -298,11 +584,28 @@ const deepMerge = (target, source) => {
 
     window.MihomoHelpers = {
         parsePorts,
+        parsePortSpec,
+        isValidPortSpec,
+        getPortSpecOverlap,
+        formatPortOverlap,
+        isPortCovered,
+        getSuggestedListenerPort,
+        normalizeTunnelListenerNetwork,
+        TUNNEL_LISTENER_NETWORK_OPTIONS,
         parseHosts,
         parseMarkValue,
         getListenPort,
+        normalizeListenAddress,
+        replaceListenPort,
         parseLineList,
         parseCommaList,
+        getShadowsocksCipherOptions,
+        isSupportedShadowsocksCipher,
+        getShadowsocks2022KeyBytes,
+        isShadowsocks2022Cipher,
+        shadowsocksCipherRequiresPassword,
+        generateShadowsocksPassword,
+        isValidShadowsocksPasswordForCipher,
         DEFAULT_NFT_PRIVATE4,
         DEFAULT_NFT_PRIVATE6,
         DEFAULT_NFT_COMMON_PORTS,

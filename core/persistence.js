@@ -24,7 +24,7 @@
             sanitizeNftMarks,
             normalizeNftablesConfig,
             getSanitizedUiStateForSave,
-            getListenPort,
+            normalizeListenAddress,
             deepMerge,
             clearPersistedStorage,
             setCacheWarning,
@@ -204,7 +204,7 @@
             sanitizeNftMarks();
 
             if (config.value && config.value.dns) {
-                config.value.dns.listen = String(getListenPort(config.value.dns.listen, 53));
+                config.value.dns.listen = normalizeListenAddress(config.value.dns.listen, ':53');
             }
         };
 
