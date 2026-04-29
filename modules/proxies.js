@@ -27,65 +27,171 @@
                     return '';
                 }
             };
-        const PROXY_NETWORK_OPTIONS_MAP = {
-            vless: [
-                { value: 'tcp', label: 'TCP' },
-                { value: 'ws', label: 'WebSocket' },
-                { value: 'grpc', label: 'gRPC' },
-                { value: 'h2', label: 'HTTP/2 (h2)' },
-                { value: 'http', label: 'HTTP' },
-                { value: 'xhttp', label: 'xHTTP' }
-            ],
-            vmess: [
-                { value: 'tcp', label: 'TCP' },
-                { value: 'ws', label: 'WebSocket' },
-                { value: 'grpc', label: 'gRPC' },
-                { value: 'h2', label: 'HTTP/2 (h2)' },
-                { value: 'http', label: 'HTTP' }
-            ],
-            trojan: [
-                { value: 'tcp', label: 'TCP' },
-                { value: 'ws', label: 'WebSocket' },
-                { value: 'grpc', label: 'gRPC' }
-            ],
-            masque: [
-                { value: 'quic', label: 'QUIC' },
-                { value: 'h2', label: 'HTTP/2 (h2)' }
-            ]
-        };
-        const PROXY_TOGGLE_SUPPORT = {
-            udp: new Set(['vless', 'vmess', 'trojan', 'ss', 'ssr', 'hysteria2', 'hysteria', 'tuic', 'wireguard', 'socks5', 'snell']),
-            tfo: new Set(['vless', 'vmess', 'trojan', 'ss', 'ssr', 'http', 'socks5', 'snell', 'ssh', 'anytls']),
-            mptcp: new Set(['vless', 'vmess', 'trojan', 'ss', 'http', 'socks5', 'anytls']),
-            reality: new Set(['vless', 'vmess', 'trojan']),
-            smux: new Set(['vless', 'vmess', 'trojan', 'ss', 'ssr', 'http', 'socks5', 'snell', 'ssh', 'anytls', 'mieru', 'sudoku'])
-        };
+        const PROXY_NETWORK_OPTIONS_LIBRARY = Object.freeze({
+            vless: Object.freeze([
+                Object.freeze({ value: 'tcp', label: 'TCP' }),
+                Object.freeze({ value: 'ws', label: 'WebSocket' }),
+                Object.freeze({ value: 'grpc', label: 'gRPC' }),
+                Object.freeze({ value: 'h2', label: 'HTTP/2 (h2)' }),
+                Object.freeze({ value: 'http', label: 'HTTP' }),
+                Object.freeze({ value: 'xhttp', label: 'xHTTP' })
+            ]),
+            vmess: Object.freeze([
+                Object.freeze({ value: 'tcp', label: 'TCP' }),
+                Object.freeze({ value: 'ws', label: 'WebSocket' }),
+                Object.freeze({ value: 'grpc', label: 'gRPC' }),
+                Object.freeze({ value: 'h2', label: 'HTTP/2 (h2)' }),
+                Object.freeze({ value: 'http', label: 'HTTP' })
+            ]),
+            trojan: Object.freeze([
+                Object.freeze({ value: 'tcp', label: 'TCP' }),
+                Object.freeze({ value: 'ws', label: 'WebSocket' }),
+                Object.freeze({ value: 'grpc', label: 'gRPC' })
+            ]),
+            masque: Object.freeze([
+                Object.freeze({ value: 'quic', label: 'QUIC' }),
+                Object.freeze({ value: 'h2', label: 'HTTP/2 (h2)' })
+            ])
+        });
         const TCP_ONLY_PROXY_TOGGLES = new Set(['tfo', 'mptcp', 'smux']);
-        const PROXY_TLS_MODE = {
-            vless: 'toggle',
-            vmess: 'toggle',
-            trojan: 'required',
-            http: 'toggle',
-            socks5: 'toggle',
-            hysteria2: 'implicit',
-            hysteria: 'implicit',
-            tuic: 'implicit',
-            anytls: 'implicit',
-            trusttunnel: 'implicit'
-        };
-        const PROXY_TLS_SERVER_NAME_KEY = {
-            vless: 'servername',
-            vmess: 'servername',
-            trojan: 'servername',
-            http: 'sni',
-            socks5: 'sni',
-            hysteria2: 'sni',
-            hysteria: 'sni',
-            tuic: 'sni',
-            anytls: 'sni',
-            trusttunnel: 'sni'
-        };
-        const PROXY_TLS_CLIENT_FINGERPRINT_TYPES = new Set(['vless', 'vmess', 'trojan', 'anytls', 'trusttunnel']);
+        const DEFAULT_PROXY_CAPABILITY_FEATURES = Object.freeze({
+            topLevelHeaders: false,
+            packetEncoding: false,
+            encryption: false,
+            vmessPadding: false,
+            trojanSsOpts: false,
+            udpOverTcpVersion: false,
+            wireguardProfile: false,
+            masqueProfile: false,
+            tuicProfile: false,
+            recvWindow: false,
+            bbrProfile: false,
+            fastOpen: false,
+            hysteria2Ports: false,
+            sshProfile: false,
+            mieruProfile: false,
+            trustTunnelProfile: false,
+            sudokuProfile: false,
+            passwordAlias: ''
+        });
+        const createProxyCapability = (value = {}) => Object.freeze({
+            networkOptions: value.networkOptions || Object.freeze([]),
+            toggles: Object.freeze({
+                udp: false,
+                tfo: false,
+                mptcp: false,
+                tls: false,
+                reality: false,
+                smux: false,
+                ...(value.toggles || {})
+            }),
+            tlsMode: value.tlsMode || 'none',
+            tlsServerNameKey: value.tlsServerNameKey || '',
+            supportsTlsClientFingerprint: value.supportsTlsClientFingerprint === true,
+            features: Object.freeze({
+                ...DEFAULT_PROXY_CAPABILITY_FEATURES,
+                ...(value.features || {})
+            })
+        });
+        const PROXY_CAPABILITY_SCHEMA = Object.freeze({
+            default: createProxyCapability(),
+            vless: createProxyCapability({
+                networkOptions: PROXY_NETWORK_OPTIONS_LIBRARY.vless,
+                toggles: { udp: true, tfo: true, mptcp: true, tls: true, reality: true, smux: true },
+                tlsMode: 'toggle',
+                tlsServerNameKey: 'servername',
+                supportsTlsClientFingerprint: true,
+                features: { packetEncoding: true, encryption: true }
+            }),
+            vmess: createProxyCapability({
+                networkOptions: PROXY_NETWORK_OPTIONS_LIBRARY.vmess,
+                toggles: { udp: true, tfo: true, mptcp: true, tls: true, smux: true },
+                tlsMode: 'toggle',
+                tlsServerNameKey: 'servername',
+                supportsTlsClientFingerprint: true,
+                features: { packetEncoding: true, vmessPadding: true }
+            }),
+            trojan: createProxyCapability({
+                networkOptions: PROXY_NETWORK_OPTIONS_LIBRARY.trojan,
+                toggles: { udp: true, tfo: true, mptcp: true, tls: true, reality: true, smux: true },
+                tlsMode: 'required',
+                tlsServerNameKey: 'servername',
+                supportsTlsClientFingerprint: true,
+                features: { trojanSsOpts: true }
+            }),
+            ss: createProxyCapability({
+                toggles: { udp: true, tfo: true, mptcp: true, smux: true },
+                features: { udpOverTcpVersion: true }
+            }),
+            ssr: createProxyCapability({
+                toggles: { udp: true, tfo: true, smux: true }
+            }),
+            hysteria2: createProxyCapability({
+                toggles: { udp: true },
+                tlsMode: 'implicit',
+                tlsServerNameKey: 'sni',
+                features: { recvWindow: true, bbrProfile: true, hysteria2Ports: true }
+            }),
+            hysteria: createProxyCapability({
+                toggles: { udp: true },
+                tlsMode: 'implicit',
+                tlsServerNameKey: 'sni',
+                features: { recvWindow: true, fastOpen: true, passwordAlias: 'auth-str' }
+            }),
+            tuic: createProxyCapability({
+                toggles: { udp: true },
+                tlsMode: 'implicit',
+                tlsServerNameKey: 'sni',
+                features: { tuicProfile: true, bbrProfile: true, fastOpen: true }
+            }),
+            masque: createProxyCapability({
+                networkOptions: PROXY_NETWORK_OPTIONS_LIBRARY.masque,
+                features: { masqueProfile: true, bbrProfile: true }
+            }),
+            wireguard: createProxyCapability({
+                toggles: { udp: true },
+                features: { wireguardProfile: true }
+            }),
+            http: createProxyCapability({
+                toggles: { tfo: true, mptcp: true, tls: true, smux: true },
+                tlsMode: 'toggle',
+                tlsServerNameKey: 'sni',
+                features: { topLevelHeaders: true }
+            }),
+            socks5: createProxyCapability({
+                toggles: { udp: true, tfo: true, tls: true, smux: true },
+                tlsMode: 'toggle',
+                tlsServerNameKey: 'sni'
+            }),
+            snell: createProxyCapability({
+                toggles: { udp: true, tfo: true, smux: true },
+                features: { passwordAlias: 'psk' }
+            }),
+            ssh: createProxyCapability({
+                toggles: { tfo: true },
+                features: { sshProfile: true }
+            }),
+            anytls: createProxyCapability({
+                toggles: { tfo: true, mptcp: true },
+                tlsMode: 'implicit',
+                tlsServerNameKey: 'sni',
+                supportsTlsClientFingerprint: true
+            }),
+            mieru: createProxyCapability({
+                toggles: { smux: true },
+                features: { mieruProfile: true }
+            }),
+            sudoku: createProxyCapability({
+                toggles: { tls: true, smux: true },
+                features: { sudokuProfile: true }
+            }),
+            trusttunnel: createProxyCapability({
+                tlsMode: 'implicit',
+                tlsServerNameKey: 'sni',
+                supportsTlsClientFingerprint: true,
+                features: { trustTunnelProfile: true, bbrProfile: true }
+            })
+        });
         const VLESS_FLOW_OPTIONS = new Set(['xtls-rprx-vision']);
         const PACKET_ENCODING_OPTIONS = new Set(['packetaddr', 'xudp']);
         const VMESS_CIPHER_OPTIONS = new Set(['auto', 'aes-128-gcm', 'chacha20-poly1305', 'none', 'zero']);
@@ -130,15 +236,13 @@
             'h-max-reusable-secs',
             'h-keep-alive-period'
         ]);
-        const getProxyNetworkOptions = (type) => PROXY_NETWORK_OPTIONS_MAP[type] || [];
+        const getProxyCapabilitySchema = (type) => PROXY_CAPABILITY_SCHEMA[String(type || '').trim()] || PROXY_CAPABILITY_SCHEMA.default;
+        const getProxyNetworkOptions = (type) => getProxyCapabilitySchema(type).networkOptions;
         const proxySupportsTransport = (type) => getProxyNetworkOptions(type).length > 0;
-        const getProxyTlsMode = (type) => PROXY_TLS_MODE[type] || 'none';
-        const proxySupportsToggle = (type, toggle) => {
-            if (toggle === 'tls') return ['toggle', 'required'].includes(getProxyTlsMode(type));
-            return !!PROXY_TOGGLE_SUPPORT[toggle] && PROXY_TOGGLE_SUPPORT[toggle].has(type);
-        };
-        const proxySupportsTlsClientFingerprint = (type) => PROXY_TLS_CLIENT_FINGERPRINT_TYPES.has(type);
-        const getProxyTlsServerNameKey = (type) => PROXY_TLS_SERVER_NAME_KEY[type] || '';
+        const getProxyTlsMode = (type) => getProxyCapabilitySchema(type).tlsMode;
+        const proxySupportsToggle = (type, toggle) => getProxyCapabilitySchema(type).toggles[toggle] === true;
+        const proxySupportsTlsClientFingerprint = (type) => getProxyCapabilitySchema(type).supportsTlsClientFingerprint === true;
+        const getProxyTlsServerNameKey = (type) => getProxyCapabilitySchema(type).tlsServerNameKey || '';
         const getProxyTlsServerNameValue = (proxy) => String(proxy?.servername || proxy?.sni || '').trim();
         const proxyHasTlsSection = (proxy) => {
             const type = typeof proxy === 'string' ? proxy : proxy?.type;
@@ -165,23 +269,18 @@
         const resolveProxyCapabilities = (proxy = {}) => {
             const type = String(proxy.type || 'vless').trim() || 'vless';
             const networkState = resolveProxyNetworkState(type, proxy.network);
-            const tlsMode = getProxyTlsMode(type);
+            const schema = getProxyCapabilitySchema(type);
             return {
                 type,
                 ...networkState,
-                networkOptions: getProxyNetworkOptions(type),
-                supportsTransport: proxySupportsTransport(type),
-                tlsMode,
+                networkOptions: schema.networkOptions,
+                supportsTransport: schema.networkOptions.length > 0,
+                tlsMode: schema.tlsMode,
                 hasTlsSection: proxyHasTlsSection(proxy),
-                supportsTlsClientFingerprint: proxySupportsTlsClientFingerprint(type),
-                toggles: {
-                    udp: proxySupportsToggle(type, 'udp'),
-                    tfo: proxySupportsToggle(type, 'tfo'),
-                    mptcp: proxySupportsToggle(type, 'mptcp'),
-                    tls: proxySupportsToggle(type, 'tls'),
-                    reality: proxySupportsToggle(type, 'reality'),
-                    smux: proxySupportsToggle(type, 'smux')
-                }
+                supportsTlsClientFingerprint: schema.supportsTlsClientFingerprint,
+                tlsServerNameKey: schema.tlsServerNameKey,
+                toggles: schema.toggles,
+                features: schema.features
             };
         };
         const proxyToggleRequiresTcpNetwork = (toggle) => TCP_ONLY_PROXY_TOGGLES.has(toggle);
@@ -203,7 +302,7 @@
             if (caps.tlsMode === 'required') proxy.tls = true;
             else if (!caps.toggles.tls) proxy.tls = false;
             if (!caps.toggles.reality) proxy.reality = false;
-            if (caps.type !== 'trojan' && proxy['ss-opts'] && typeof proxy['ss-opts'] === 'object') {
+            if (!caps.features.trojanSsOpts && proxy['ss-opts'] && typeof proxy['ss-opts'] === 'object') {
                 proxy['ss-opts'].enabled = false;
             }
             if ((!proxy.smux?.enabled || !proxyToggleAvailableInCurrentNetwork(proxy, 'smux')) && proxy.smux && typeof proxy.smux === 'object') {
@@ -312,10 +411,14 @@
                 const num = Number(portVal);
                 if (!isNaN(num)) portVal = num;
             }
+            const proxyType = String(px.type || 'vless').trim() || 'vless';
+            const typeCapabilities = getProxyCapabilitySchema(proxyType);
+            const typeFeatures = typeCapabilities.features;
+            const defaultNetwork = typeCapabilities.networkOptions[0]?.value || 'tcp';
 
             const base = {
                 name: px.name || `Node-${Math.floor(Math.random() * 1000)}`,
-                type: px.type || 'vless',
+                type: proxyType,
                 server: px.server || '',
                 port: portVal || 443,
                 udp: px.udp !== false,
@@ -403,8 +506,8 @@
                 'max-connections': px['max-connections'] !== undefined && px['max-connections'] !== null ? px['max-connections'] : '',
                 'min-streams': px['min-streams'] !== undefined && px['min-streams'] !== null ? px['min-streams'] : '',
                 'max-streams': px['max-streams'] !== undefined && px['max-streams'] !== null ? px['max-streams'] : '',
-                network: px.type === 'masque' ? (px.network || 'quic') : (px.network || 'tcp'),
-                tls: px.type === 'trojan' ? px.tls !== false : !!px.tls,
+                network: px.network || defaultNetwork,
+                tls: typeCapabilities.tlsMode === 'required' ? px.tls !== false : !!px.tls,
                 'skip-cert-verify': px['skip-cert-verify'] || false,
                 headers: { ...(px.headers || {}) },
                 _proxyHeadersText: formatYamlMapText(px.headers),
@@ -513,7 +616,7 @@
                         : base['http-opts'].headers.Host;
                 }
             }
-            if (px.type === 'tuic' && !base.uuid) base.uuid = px.uuid || '';
+            if (typeFeatures.tuicProfile && !base.uuid) base.uuid = px.uuid || '';
             return base;
         };
         const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -899,7 +1002,7 @@
                 });
             }
 
-            if (parsed.type === 'tuic') {
+            if (caps.features.tuicProfile) {
                 const hasToken = token.length > 0;
                 const hasUuid = uuid.length > 0;
                 const hasPassword = password.length > 0;
@@ -930,95 +1033,95 @@
                 }
             }
 
-            if (parsed.type === 'wireguard' && !privateKey) {
+            if (caps.features.wireguardProfile && !privateKey) {
                 issues.push({
                     level: 'error',
                     message: 'WireGuard 缺少 private-key。'
                 });
             }
 
-            if (parsed.type === 'wireguard' && !publicKey) {
+            if (caps.features.wireguardProfile && !publicKey) {
                 issues.push({
                     level: 'error',
                     message: 'WireGuard 缺少 public-key。'
                 });
             }
 
-            if (parsed.type === 'wireguard' && !ipAddress) {
+            if (caps.features.wireguardProfile && !ipAddress) {
                 issues.push({
                     level: 'error',
                     message: 'WireGuard 缺少本地 IP 地址。'
                 });
-            } else if (parsed.type === 'wireguard' && parsed['remote-dns-resolve'] && dnsEntries.length === 0) {
+            } else if (caps.features.wireguardProfile && parsed['remote-dns-resolve'] && dnsEntries.length === 0) {
                 issues.push({
                     level: 'warning',
                     message: 'WireGuard 开启 remote-dns-resolve 后，建议同时填写 dns。'
                 });
             }
 
-            if (parsed.type === 'masque' && !privateKey) {
+            if (caps.features.masqueProfile && !privateKey) {
                 issues.push({
                     level: 'error',
                     message: 'MASQUE 缺少 private-key。'
                 });
             }
 
-            if (parsed.type === 'masque' && !publicKey) {
+            if (caps.features.masqueProfile && !publicKey) {
                 issues.push({
                     level: 'error',
                     message: 'MASQUE 缺少 public-key。'
                 });
             }
 
-            if (parsed.type === 'masque' && !ipAddress) {
+            if (caps.features.masqueProfile && !ipAddress) {
                 issues.push({
                     level: 'error',
                     message: 'MASQUE 缺少本地 IP 地址。'
                 });
-            } else if (parsed.type === 'masque' && parsed['remote-dns-resolve'] && dnsEntries.length === 0) {
+            } else if (caps.features.masqueProfile && parsed['remote-dns-resolve'] && dnsEntries.length === 0) {
                 issues.push({
                     level: 'warning',
                     message: 'MASQUE 开启 remote-dns-resolve 后，建议同时填写 dns。'
                 });
             }
 
-            if (parsed.type === 'masque' && congestionController && effectiveNetwork !== 'quic') {
+            if (caps.features.masqueProfile && congestionController && effectiveNetwork !== 'quic') {
                 issues.push({
                     level: 'warning',
                     message: 'MASQUE 的 congestion-controller 仅在 QUIC 传输层下生效；当前 H2 模式会忽略它。'
                 });
-            } else if (parsed.type === 'masque' && congestionController && !MASQUE_CONGESTION_CONTROLLER_OPTIONS.has(congestionController)) {
+            } else if (caps.features.masqueProfile && congestionController && !MASQUE_CONGESTION_CONTROLLER_OPTIONS.has(congestionController)) {
                 issues.push({
                     level: 'error',
                     message: `MASQUE 的 congestion-controller 官方当前仅列出 ${Array.from(MASQUE_CONGESTION_CONTROLLER_OPTIONS).join(' / ')}。`
                 });
             }
 
-            if (parsed.type === 'masque' && bbrProfile && effectiveNetwork !== 'quic') {
+            if (caps.features.masqueProfile && bbrProfile && effectiveNetwork !== 'quic') {
                 issues.push({
                     level: 'warning',
                     message: 'MASQUE 的 bbr-profile 仅在 QUIC 传输层下生效。'
                 });
-            } else if (parsed.type === 'masque' && bbrProfile && !BBR_PROFILE_OPTIONS.has(bbrProfile)) {
+            } else if (caps.features.masqueProfile && bbrProfile && !BBR_PROFILE_OPTIONS.has(bbrProfile)) {
                 issues.push({
                     level: 'error',
                     message: `MASQUE 的 bbr-profile 仅支持 ${Array.from(BBR_PROFILE_OPTIONS).join(' / ')}。`
                 });
             }
 
-            if (parsed.type === 'ssh' && !username) {
+            if (caps.features.sshProfile && !username) {
                 issues.push({
                     level: 'error',
                     message: 'SSH 缺少 username。'
                 });
             }
 
-            if (parsed.type === 'ssh' && !sshHasPassword && !sshHasPrivateKey) {
+            if (caps.features.sshProfile && !sshHasPassword && !sshHasPrivateKey) {
                 issues.push({
                     level: 'error',
                     message: 'SSH 至少需要填写 password 或 private-key。'
                 });
-            } else if (parsed.type === 'ssh' && sshPrivateKeyPassphrase && !sshHasPrivateKey) {
+            } else if (caps.features.sshProfile && sshPrivateKeyPassphrase && !sshHasPrivateKey) {
                 issues.push({
                     level: 'warning',
                     message: 'SSH 仅在填写 private-key 时，private-key-passphrase 才会生效。'
@@ -1051,63 +1154,63 @@
                 });
             }
 
-            if (parsed.type === 'mieru' && !username) {
+            if (caps.features.mieruProfile && !username) {
                 issues.push({
                     level: 'error',
                     message: 'Mieru 缺少 username。'
                 });
             }
 
-            if (parsed.type === 'mieru' && !password) {
+            if (caps.features.mieruProfile && !password) {
                 issues.push({
                     level: 'error',
                     message: 'Mieru 缺少 password。'
                 });
             }
 
-            if (parsed.type === 'mieru' && hasMieruPortRange && String(parsed.port || '').trim()) {
+            if (caps.features.mieruProfile && hasMieruPortRange && String(parsed.port || '').trim()) {
                 issues.push({
                     level: 'error',
                     message: 'Mieru 的 port-range 不能与 port 同时使用。'
                 });
             }
 
-            if (parsed.type === 'mieru' && mieruTransport && !MIERU_TRANSPORT_OPTIONS.has(mieruTransport)) {
+            if (caps.features.mieruProfile && mieruTransport && !MIERU_TRANSPORT_OPTIONS.has(mieruTransport)) {
                 issues.push({
                     level: 'error',
                     message: `Mieru 的 transport 仅支持 ${Array.from(MIERU_TRANSPORT_OPTIONS).join(' / ')}。`
                 });
             }
 
-            if (parsed.type === 'mieru' && mieruMultiplexing && !MIERU_MULTIPLEXING_OPTIONS.has(mieruMultiplexing)) {
+            if (caps.features.mieruProfile && mieruMultiplexing && !MIERU_MULTIPLEXING_OPTIONS.has(mieruMultiplexing)) {
                 issues.push({
                     level: 'error',
                     message: `Mieru 的 multiplexing 仅支持 ${Array.from(MIERU_MULTIPLEXING_OPTIONS).join(' / ')}。`
                 });
             }
 
-            if (parsed.type === 'trusttunnel' && !username) {
+            if (caps.features.trustTunnelProfile && !username) {
                 issues.push({
                     level: 'error',
                     message: 'TrustTunnel 缺少 username。'
                 });
             }
 
-            if (parsed.type === 'trusttunnel' && !password) {
+            if (caps.features.trustTunnelProfile && !password) {
                 issues.push({
                     level: 'error',
                     message: 'TrustTunnel 缺少 password。'
                 });
             }
 
-            if (parsed.type === 'trusttunnel' && parsed.quic && congestionController && !QUIC_CONGESTION_CONTROLLER_OPTIONS.has(congestionController)) {
+            if (caps.features.trustTunnelProfile && parsed.quic && congestionController && !QUIC_CONGESTION_CONTROLLER_OPTIONS.has(congestionController)) {
                 issues.push({
                     level: 'error',
                     message: `TrustTunnel 的 congestion-controller 仅支持 ${Array.from(QUIC_CONGESTION_CONTROLLER_OPTIONS).join(' / ')}。`
                 });
             }
 
-            if (parsed.type === 'trusttunnel' && bbrProfile && !BBR_PROFILE_OPTIONS.has(bbrProfile)) {
+            if (caps.features.trustTunnelProfile && bbrProfile && !BBR_PROFILE_OPTIONS.has(bbrProfile)) {
                 issues.push({
                     level: 'error',
                     message: `TrustTunnel 的 bbr-profile 仅支持 ${Array.from(BBR_PROFILE_OPTIONS).join(' / ')}。`
@@ -1168,21 +1271,21 @@
                 });
             }
 
-            if (parsed.type === 'trusttunnel' && !parsed.quic && (trustTunnelMaxConnections > 0 || trustTunnelMinStreams > 0 || trustTunnelMaxStreams > 0)) {
+            if (caps.features.trustTunnelProfile && !parsed.quic && (trustTunnelMaxConnections > 0 || trustTunnelMinStreams > 0 || trustTunnelMaxStreams > 0)) {
                 issues.push({
                     level: 'warning',
                     message: 'TrustTunnel 的 max-connections / min-streams / max-streams 仅在启用 QUIC 时生效。'
                 });
             }
 
-            if (parsed.type === 'trusttunnel' && parsed.quic && trustTunnelMaxConnections > 0 && trustTunnelMaxStreams > 0) {
+            if (caps.features.trustTunnelProfile && parsed.quic && trustTunnelMaxConnections > 0 && trustTunnelMaxStreams > 0) {
                 issues.push({
                     level: 'warning',
                     message: 'TrustTunnel 的 max-connections 与 max-streams 不能同时设置。'
                 });
             }
 
-            if (parsed.type === 'trusttunnel' && parsed.quic && trustTunnelMinStreams > 0 && trustTunnelMaxStreams > 0) {
+            if (caps.features.trustTunnelProfile && parsed.quic && trustTunnelMinStreams > 0 && trustTunnelMaxStreams > 0) {
                 issues.push({
                     level: 'warning',
                     message: 'TrustTunnel 的 min-streams 与 max-streams 不能同时设置。'
@@ -1428,7 +1531,7 @@
                     level: 'warning',
                     message: '证书指纹只会在启用 TLS 或协议自带 TLS 时生效。'
                 });
-            } else if (fingerprint && !serverName && getProxyTlsServerNameKey(parsed.type)) {
+            } else if (fingerprint && !serverName && caps.tlsServerNameKey) {
                 issues.push({
                     level: 'warning',
                     message: '设置证书指纹时，建议同时填写 Server Name / SNI，避免证书匹配异常。'
@@ -1443,7 +1546,7 @@
             const defaults = parseSingleProxyNode({ type: parsed.type });
             const next = compactWithDefaults(parsed, defaults, new Set(['name', 'type', 'server', 'port'])) || {};
             const caps = resolveProxyCapabilities(proxy);
-            const { type, tlsMode, hasTlsSection, supportsTlsClientFingerprint, defaultNetwork, effectiveNetwork } = caps;
+            const { type, tlsMode, hasTlsSection, supportsTlsClientFingerprint, defaultNetwork, effectiveNetwork, features, tlsServerNameKey } = caps;
             if (tlsMode === 'required') next.tls = true;
             else if (tlsMode !== 'toggle') delete next.tls;
             const realityEnabled = !!proxy.reality;
@@ -1451,12 +1554,11 @@
             const smuxEnabled = !!proxy.smux?.enabled;
             const brutalEnabled = !!proxy.smux?.['brutal-opts']?.enabled;
             const obfsEnabled = !!String(proxy.obfs || '').trim();
-            const tlsServerNameKey = getProxyTlsServerNameKey(type);
 
             delete next.reality;
             if (effectiveNetwork === defaultNetwork) delete next.network;
             else next.network = effectiveNetwork;
-            if (parsed.type === 'http') {
+            if (features.topLevelHeaders) {
                 const proxyHeaders = parseYamlMapText(proxy._proxyHeadersText);
                 if (proxyHeaders) next.headers = proxyHeaders;
                 else delete next.headers;
@@ -1535,15 +1637,15 @@
             if (effectiveNetwork !== 'xhttp') delete next['xhttp-opts'];
             if (!proxyToggleAvailableInCurrentNetwork(proxy, 'tfo')) delete next.tfo;
             if (!proxyToggleAvailableInCurrentNetwork(proxy, 'mptcp')) delete next.mptcp;
-            if (!['vless', 'vmess'].includes(parsed.type)) delete next['packet-encoding'];
-            if (parsed.type !== 'vless') delete next.encryption;
-            if (parsed.type !== 'vmess') {
+            if (!features.packetEncoding) delete next['packet-encoding'];
+            if (!features.encryption) delete next.encryption;
+            if (!features.vmessPadding) {
                 delete next['global-padding'];
                 delete next['authenticated-length'];
             }
-            if (parsed.type !== 'trojan' || !proxy['ss-opts']?.enabled) delete next['ss-opts'];
-            if (parsed.type !== 'ss' || !proxy['udp-over-tcp']) delete next['udp-over-tcp-version'];
-            if (parsed.type !== 'wireguard') {
+            if (!features.trojanSsOpts || !proxy['ss-opts']?.enabled) delete next['ss-opts'];
+            if (!features.udpOverTcpVersion || !proxy['udp-over-tcp']) delete next['udp-over-tcp-version'];
+            if (!features.wireguardProfile) {
                 delete next.ipv6;
                 delete next['allowed-ips'];
                 delete next['persistent-keepalive'];
@@ -1566,46 +1668,46 @@
                 else delete next['amnezia-wg-option'];
                 delete next['wg-dns'];
             }
-            if (!['wireguard', 'masque'].includes(parsed.type)) {
+            if (!(features.wireguardProfile || features.masqueProfile)) {
                 delete next.ip;
                 delete next.ipv6;
                 delete next['remote-dns-resolve'];
                 delete next.dns;
-            } else if (parsed.type === 'masque' && proxy['remote-dns-resolve']) {
+            } else if (features.masqueProfile && proxy['remote-dns-resolve']) {
                 next['remote-dns-resolve'] = true;
                 const masqueDns = String(proxy.dns || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
                 if (masqueDns.length > 0) next.dns = masqueDns;
                 else delete next.dns;
-            } else if (parsed.type === 'masque') {
+            } else if (features.masqueProfile) {
                 delete next['remote-dns-resolve'];
                 delete next.dns;
             }
-            if (parsed.type === 'masque' && effectiveNetwork !== 'quic') {
+            if (features.masqueProfile && effectiveNetwork !== 'quic') {
                 delete next['congestion-controller'];
                 delete next['bbr-profile'];
             }
-            if (parsed.type === 'tuic' && next['congestion-controller'] && next['congestion-controller'] !== 'bbr') delete next['bbr-profile'];
-            if (!['tuic'].includes(parsed.type)) {
+            if (features.tuicProfile && next['congestion-controller'] && next['congestion-controller'] !== 'bbr') delete next['bbr-profile'];
+            if (!features.tuicProfile) {
                 delete next.token;
                 delete next['heartbeat-interval'];
                 delete next['disable-sni'];
                 delete next['max-udp-relay-packet-size'];
                 delete next['max-open-streams'];
             }
-            if (!['hysteria', 'hysteria2'].includes(parsed.type)) {
+            if (!features.recvWindow) {
                 delete next['recv-window-conn'];
                 delete next['recv-window'];
                 delete next.disable_mtu_discovery;
             }
-            if (!['tuic', 'hysteria'].includes(parsed.type)) delete next['fast-open'];
-            if (!['hysteria2', 'tuic', 'masque', 'trusttunnel'].includes(parsed.type)) delete next['bbr-profile'];
-            if (parsed.type !== 'hysteria2') {
+            if (!features.fastOpen) delete next['fast-open'];
+            if (!features.bbrProfile) delete next['bbr-profile'];
+            if (!features.hysteria2Ports) {
                 delete next.ports;
                 delete next['hop-interval'];
             } else if (!String(proxy.ports || '').trim()) {
                 delete next['hop-interval'];
             }
-            if (parsed.type !== 'ssh') {
+            if (!features.sshProfile) {
                 delete next['private-key-passphrase'];
                 delete next['host-key'];
                 delete next['host-key-algorithms'];
@@ -1617,13 +1719,13 @@
                 if (hostKeyAlgorithms.length > 0) next['host-key-algorithms'] = hostKeyAlgorithms;
                 else delete next['host-key-algorithms'];
             }
-            if (parsed.type !== 'mieru') {
+            if (!features.mieruProfile) {
                 delete next['port-range'];
                 delete next['traffic-pattern'];
                 delete next.transport;
                 delete next.multiplexing;
             }
-            if (parsed.type !== 'trusttunnel') {
+            if (!features.trustTunnelProfile) {
                 delete next.quic;
                 delete next['max-connections'];
                 delete next['min-streams'];
@@ -1637,7 +1739,7 @@
             } else if (next['congestion-controller'] && next['congestion-controller'] !== 'bbr') {
                 delete next['bbr-profile'];
             }
-            if (parsed.type !== 'sudoku') {
+            if (!features.sudokuProfile) {
                 delete next.key;
                 delete next['aead-method'];
                 delete next['padding-min'];
@@ -1660,10 +1762,10 @@
                 delete next['obfs-host'];
                 delete next['obfs-param'];
             }
-            if (parsed.type === 'hysteria' && next.password) {
+            if (features.passwordAlias === 'auth-str' && next.password) {
                 next['auth-str'] = next.password;
                 delete next.password;
-            } else if (parsed.type === 'snell' && next.password) {
+            } else if (features.passwordAlias === 'psk' && next.password) {
                 next.psk = next.password;
                 delete next.password;
             }
