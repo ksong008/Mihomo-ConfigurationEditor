@@ -54,6 +54,15 @@ const localScripts = [
     'mihomo.app.js'
 ];
 
+const placeholders = {
+    vue: '__MIHOMO_OFFLINE_VUE__',
+    tailwind: '__MIHOMO_OFFLINE_TAILWIND__',
+    jsYaml: '__MIHOMO_OFFLINE_JSYAML__',
+    fontAwesome: '__MIHOMO_OFFLINE_FONT_AWESOME__',
+    localCss: '__MIHOMO_OFFLINE_LOCAL_CSS__',
+    localScripts: '__MIHOMO_OFFLINE_LOCAL_SCRIPTS__'
+};
+
 function parseArgs(argv) {
     const result = { output: defaultOutputPath };
     for (let index = 0; index < argv.length; index += 1) {
@@ -121,6 +130,37 @@ function replaceRange(source, startMarker, endMarker, replacement) {
     }
     const end = endStart + endMarker.length;
     return source.slice(0, start) + replacement + source.slice(end);
+}
+
+function replaceLastScriptBeforeBody(source, replacement) {
+    const bodyClose = source.lastIndexOf('</body>');
+    const loaderStart = source.lastIndexOf('<script>', bodyClose);
+    if (loaderStart === -1 || bodyClose === -1 || loaderStart > bodyClose) {
+        throw new Error('Failed to locate trailing script loader block');
+    }
+    return source.slice(0, loaderStart) + replacement + '\n</body>' + source.slice(bodyClose + '</body>'.length);
+}
+
+function replacePlaceholder(source, placeholder, replacement) {
+    if (!source.includes(placeholder)) {
+        throw new Error(`Missing placeholder: ${placeholder}`);
+    }
+    return source.replace(placeholder, () => replacement);
+}
+
+function assertSingleDocumentShell(source) {
+    const shellOnly = source
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[\s\S]*?<\/style>/gi, '');
+    const docTypeCount = (shellOnly.match(/<!DOCTYPE html>/gi) || []).length;
+    const htmlTagCount = (shellOnly.match(/<html\b/gi) || []).length;
+    const bodyTagCount = (shellOnly.match(/<body\b/gi) || []).length;
+
+    if (docTypeCount !== 1 || htmlTagCount !== 1 || bodyTagCount !== 1) {
+        throw new Error(
+            `Generated html shell looks corrupted (doctype=${docTypeCount}, html=${htmlTagCount}, body=${bodyTagCount})`
+        );
+    }
 }
 
 function guessContentType(url) {
@@ -196,29 +236,14 @@ async function buildOfflineHtml(outputPath) {
     const bundledAt = new Date().toISOString();
     const revision = getGitRevision();
 
-    for (const asset of remoteScripts) {
-        const content = await fetchText(asset.url);
-        sourceHtml = replaceLiteral(sourceHtml, asset.tag, inlineScriptTag(asset.label, content));
-    }
-
-    const fontAwesomeCss = await fetchText(remoteStyle.url);
-    const inlinedFontAwesomeCss = await inlineCssUrls(fontAwesomeCss, remoteStyle.url);
-    sourceHtml = replaceLiteral(sourceHtml, remoteStyle.tag, inlineStyleTag(remoteStyle.label, inlinedFontAwesomeCss));
-
     const localStyleStart = '<link id="mihomo-local-styles" rel="stylesheet">';
     const localStyleEnd = '</script>';
-    sourceHtml = replaceRange(
-        sourceHtml,
-        localStyleStart,
-        localStyleEnd,
-        inlineStyleTag('mihomo.styles.css', localCss)
-    );
-
-    const loaderStart = sourceHtml.lastIndexOf('<script>');
-    const bodyClose = sourceHtml.lastIndexOf('</body>');
-    if (loaderStart === -1 || bodyClose === -1 || loaderStart > bodyClose) {
-        throw new Error('Failed to locate trailing script loader block');
-    }
+    sourceHtml = replaceLiteral(sourceHtml, remoteScripts[0].tag, placeholders.vue);
+    sourceHtml = replaceLiteral(sourceHtml, remoteScripts[1].tag, placeholders.tailwind);
+    sourceHtml = replaceLiteral(sourceHtml, remoteScripts[2].tag, placeholders.jsYaml);
+    sourceHtml = replaceLiteral(sourceHtml, remoteStyle.tag, placeholders.fontAwesome);
+    sourceHtml = replaceRange(sourceHtml, localStyleStart, localStyleEnd, placeholders.localCss);
+    sourceHtml = replaceLastScriptBeforeBody(sourceHtml, placeholders.localScripts);
 
     const banner = inlineScriptTag(
         'offline-build-meta',
@@ -237,12 +262,43 @@ async function buildOfflineHtml(outputPath) {
         })
     );
 
+    const remoteAssetContents = await Promise.all(
+        remoteScripts.map(async (asset) => ({
+            asset,
+            content: await fetchText(asset.url)
+        }))
+    );
+    const fontAwesomeCss = await fetchText(remoteStyle.url);
+    const inlinedFontAwesomeCss = await inlineCssUrls(fontAwesomeCss, remoteStyle.url);
     const inlineBundle = [banner, ...bundledLocalScripts].join('\n\n');
-    sourceHtml =
-        sourceHtml.slice(0, loaderStart) +
-        inlineBundle +
-        '\n</body>' +
-        sourceHtml.slice(bodyClose + '</body>'.length);
+
+    sourceHtml = replacePlaceholder(
+        sourceHtml,
+        placeholders.vue,
+        inlineScriptTag(remoteScripts[0].label, remoteAssetContents[0].content)
+    );
+    sourceHtml = replacePlaceholder(
+        sourceHtml,
+        placeholders.tailwind,
+        inlineScriptTag(remoteScripts[1].label, remoteAssetContents[1].content)
+    );
+    sourceHtml = replacePlaceholder(
+        sourceHtml,
+        placeholders.jsYaml,
+        inlineScriptTag(remoteScripts[2].label, remoteAssetContents[2].content)
+    );
+    sourceHtml = replacePlaceholder(
+        sourceHtml,
+        placeholders.fontAwesome,
+        inlineStyleTag(remoteStyle.label, inlinedFontAwesomeCss)
+    );
+    sourceHtml = replacePlaceholder(
+        sourceHtml,
+        placeholders.localCss,
+        inlineStyleTag('mihomo.styles.css', localCss)
+    );
+    sourceHtml = replacePlaceholder(sourceHtml, placeholders.localScripts, inlineBundle);
+    assertSingleDocumentShell(sourceHtml);
 
     await mkdir(path.dirname(outputPath), { recursive: true });
     await writeFile(outputPath, sourceHtml, 'utf8');
