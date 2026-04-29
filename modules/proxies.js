@@ -60,6 +60,7 @@
             reality: new Set(['vless', 'vmess', 'trojan']),
             smux: new Set(['vless', 'vmess', 'trojan', 'ss', 'ssr', 'http', 'socks5', 'snell', 'ssh', 'anytls', 'mieru', 'sudoku'])
         };
+        const TCP_ONLY_PROXY_TOGGLES = new Set(['tfo', 'mptcp', 'smux']);
         const PROXY_TLS_MODE = {
             vless: 'toggle',
             vmess: 'toggle',
@@ -164,11 +165,15 @@
         const resolveProxyCapabilities = (proxy = {}) => {
             const type = String(proxy.type || 'vless').trim() || 'vless';
             const networkState = resolveProxyNetworkState(type, proxy.network);
+            const tlsMode = getProxyTlsMode(type);
             return {
                 type,
                 ...networkState,
                 networkOptions: getProxyNetworkOptions(type),
                 supportsTransport: proxySupportsTransport(type),
+                tlsMode,
+                hasTlsSection: proxyHasTlsSection(proxy),
+                supportsTlsClientFingerprint: proxySupportsTlsClientFingerprint(type),
                 toggles: {
                     udp: proxySupportsToggle(type, 'udp'),
                     tfo: proxySupportsToggle(type, 'tfo'),
@@ -179,31 +184,29 @@
                 }
             };
         };
-        const proxyShowsTlsSection = (proxy = {}) => proxyHasTlsSection(proxy);
-        const proxyShowsSmuxSection = (proxy = {}) => {
+        const proxyToggleRequiresTcpNetwork = (toggle) => TCP_ONLY_PROXY_TOGGLES.has(toggle);
+        const proxyToggleAvailableInCurrentNetwork = (proxy = {}, toggle) => {
             const caps = resolveProxyCapabilities(proxy);
-            return caps.toggles.smux
-                && (!caps.supportsTransport || caps.effectiveNetwork === 'tcp')
-                && !!proxy?.smux?.enabled;
+            return caps.toggles[toggle] === true
+                && (!proxyToggleRequiresTcpNetwork(toggle) || !caps.supportsTransport || caps.effectiveNetwork === 'tcp');
         };
         const sanitizeProxyByCapabilities = (proxy = {}) => {
             if (!proxy || typeof proxy !== 'object') return proxy;
 
             const caps = resolveProxyCapabilities(proxy);
-            const tlsMode = getProxyTlsMode(caps.type);
 
             proxy.network = caps.effectiveNetwork;
 
             if (!caps.toggles.udp) proxy.udp = false;
-            if (!caps.toggles.tfo || (caps.supportsTransport && caps.effectiveNetwork !== 'tcp')) proxy.tfo = false;
-            if (!caps.toggles.mptcp || (caps.supportsTransport && caps.effectiveNetwork !== 'tcp')) proxy.mptcp = false;
-            if (tlsMode === 'required') proxy.tls = true;
+            if (!proxyToggleAvailableInCurrentNetwork(proxy, 'tfo')) proxy.tfo = false;
+            if (!proxyToggleAvailableInCurrentNetwork(proxy, 'mptcp')) proxy.mptcp = false;
+            if (caps.tlsMode === 'required') proxy.tls = true;
             else if (!caps.toggles.tls) proxy.tls = false;
             if (!caps.toggles.reality) proxy.reality = false;
             if (caps.type !== 'trojan' && proxy['ss-opts'] && typeof proxy['ss-opts'] === 'object') {
                 proxy['ss-opts'].enabled = false;
             }
-            if (!proxyShowsSmuxSection(proxy) && proxy.smux && typeof proxy.smux === 'object') {
+            if ((!proxy.smux?.enabled || !proxyToggleAvailableInCurrentNetwork(proxy, 'smux')) && proxy.smux && typeof proxy.smux === 'object') {
                 proxy.smux.enabled = false;
             }
 
@@ -611,7 +614,8 @@
 
             const issues = [];
             const typeDefaults = parseSingleProxyNode({ type: parsed.type }) || {};
-            const { defaultNetwork, effectiveNetwork, requestedNetwork } = resolveProxyNetworkState(parsed.type, proxy?.network || parsed.network);
+            const caps = resolveProxyCapabilities(proxy);
+            const { defaultNetwork, effectiveNetwork, requestedNetwork, supportsTransport } = caps;
             const smux = parsed.smux || {};
             const smuxEnabled = !!smux.enabled;
             const brutalEnabled = !!smux['brutal-opts']?.enabled;
@@ -697,8 +701,24 @@
             const xhttpDownloadSettings = isPlainObject(xhttpDownloadSettingsSource) ? xhttpDownloadSettingsSource : {};
             const unsupportedXhttpDownloadSettingsKeys = collectUnsupportedXhttpDownloadSettingsKeys(xhttpDownloadSettings);
             const alpnValues = parseScalarListText(parsed.alpn).map((item) => item.toLowerCase());
+            const pushToggleIssue = (enabled, toggle, label, tcpOnlyMessage) => {
+                if (!enabled) return;
+                if (!caps.toggles[toggle]) {
+                    issues.push({
+                        level: 'error',
+                        message: `${parsed.type} 当前不支持 ${label}。`
+                    });
+                    return;
+                }
+                if (proxyToggleRequiresTcpNetwork(toggle) && supportsTransport && effectiveNetwork !== 'tcp') {
+                    issues.push({
+                        level: 'error',
+                        message: tcpOnlyMessage
+                    });
+                }
+            };
 
-            if (proxySupportsTransport(parsed.type) && requestedNetwork && requestedNetwork !== effectiveNetwork) {
+            if (supportsTransport && requestedNetwork && requestedNetwork !== effectiveNetwork) {
                 issues.push({
                     level: 'error',
                     message: `${parsed.type} 不支持 ${requestedNetwork} 传输层，官方文档支持的默认值是 ${defaultNetwork}。`
@@ -729,7 +749,7 @@
                     level: 'error',
                     message: 'VLESS 的 flow 仅应与 TCP 传输层组合使用。'
                 });
-            } else if (parsed.type === 'vless' && flow && !proxyHasTlsSection(proxy)) {
+            } else if (parsed.type === 'vless' && flow && !caps.hasTlsSection) {
                 issues.push({
                     level: 'error',
                     message: 'VLESS 启用 flow 时，需要同时启用 TLS 或 REALITY。'
@@ -1094,36 +1114,15 @@
                 });
             }
 
-            if (realityEnabled && !proxySupportsToggle(parsed.type, 'reality')) {
+            if (realityEnabled && !caps.toggles.reality) {
                 issues.push({
                     level: 'error',
                     message: `${parsed.type} 不支持 REALITY，官方文档当前仅列出 VLESS、VMess、Trojan。`
                 });
             }
 
-            if (parsed.tfo && !proxySupportsToggle(parsed.type, 'tfo')) {
-                issues.push({
-                    level: 'error',
-                    message: `${parsed.type} 当前不支持 TFO。`
-                });
-            } else if (parsed.tfo && proxySupportsTransport(parsed.type) && effectiveNetwork !== 'tcp') {
-                issues.push({
-                    level: 'error',
-                    message: 'TFO 只应与 TCP 传输层组合使用。'
-                });
-            }
-
-            if (parsed.mptcp && !proxySupportsToggle(parsed.type, 'mptcp')) {
-                issues.push({
-                    level: 'error',
-                    message: `${parsed.type} 当前不支持 MPTCP。`
-                });
-            } else if (parsed.mptcp && proxySupportsTransport(parsed.type) && effectiveNetwork !== 'tcp') {
-                issues.push({
-                    level: 'error',
-                    message: 'MPTCP 只应与 TCP 传输层组合使用。'
-                });
-            }
+            pushToggleIssue(!!parsed.tfo, 'tfo', 'TFO', 'TFO 只应与 TCP 传输层组合使用。');
+            pushToggleIssue(!!parsed.mptcp, 'mptcp', 'MPTCP', 'MPTCP 只应与 TCP 传输层组合使用。');
 
             if (realityEnabled && !realityPublicKey) {
                 issues.push({
@@ -1132,17 +1131,7 @@
                 });
             }
 
-            if (smuxEnabled && !proxySupportsToggle(parsed.type, 'smux')) {
-                issues.push({
-                    level: 'error',
-                    message: `${parsed.type} 当前不支持 SMUX。`
-                });
-            } else if (smuxEnabled && proxySupportsTransport(parsed.type) && effectiveNetwork !== 'tcp') {
-                issues.push({
-                    level: 'error',
-                    message: 'SMUX 只应与 TCP 传输层组合使用。'
-                });
-            }
+            pushToggleIssue(smuxEnabled, 'smux', 'SMUX', 'SMUX 只应与 TCP 传输层组合使用。');
 
             if (smuxEnabled && smuxMaxConnections > 0 && smuxMaxStreams > 0 && smuxMaxConnections !== defaultSmuxMaxConnections) {
                 issues.push({
@@ -1427,14 +1416,14 @@
                 });
             }
 
-            if (clientFingerprint && !proxySupportsTlsClientFingerprint(parsed.type)) {
+            if (clientFingerprint && !caps.supportsTlsClientFingerprint) {
                 issues.push({
                     level: 'warning',
                     message: `${parsed.type} 的官方页面没有列出 client-fingerprint，导出时会忽略它。`
                 });
             }
 
-            if (fingerprint && !proxyHasTlsSection(proxy)) {
+            if (fingerprint && !caps.hasTlsSection) {
                 issues.push({
                     level: 'warning',
                     message: '证书指纹只会在启用 TLS 或协议自带 TLS 时生效。'
@@ -1453,7 +1442,8 @@
             if (!parsed) return null;
             const defaults = parseSingleProxyNode({ type: parsed.type });
             const next = compactWithDefaults(parsed, defaults, new Set(['name', 'type', 'server', 'port'])) || {};
-            const tlsMode = getProxyTlsMode(parsed.type);
+            const caps = resolveProxyCapabilities(proxy);
+            const { type, tlsMode, hasTlsSection, supportsTlsClientFingerprint, defaultNetwork, effectiveNetwork } = caps;
             if (tlsMode === 'required') next.tls = true;
             else if (tlsMode !== 'toggle') delete next.tls;
             const realityEnabled = !!proxy.reality;
@@ -1461,9 +1451,7 @@
             const smuxEnabled = !!proxy.smux?.enabled;
             const brutalEnabled = !!proxy.smux?.['brutal-opts']?.enabled;
             const obfsEnabled = !!String(proxy.obfs || '').trim();
-            const tlsSectionEnabled = proxyHasTlsSection(proxy);
-            const tlsServerNameKey = getProxyTlsServerNameKey(parsed.type);
-            const { defaultNetwork, effectiveNetwork } = resolveProxyNetworkState(parsed.type, proxy.network || parsed.network);
+            const tlsServerNameKey = getProxyTlsServerNameKey(type);
 
             delete next.reality;
             if (effectiveNetwork === defaultNetwork) delete next.network;
@@ -1545,8 +1533,8 @@
             if (parsed.network !== 'httpupgrade') delete next['httpupgrade-opts'];
             if (effectiveNetwork !== 'http') delete next['http-opts'];
             if (effectiveNetwork !== 'xhttp') delete next['xhttp-opts'];
-            if (!proxySupportsToggle(parsed.type, 'tfo') || (proxySupportsTransport(parsed.type) && effectiveNetwork !== 'tcp')) delete next.tfo;
-            if (!proxySupportsToggle(parsed.type, 'mptcp') || (proxySupportsTransport(parsed.type) && effectiveNetwork !== 'tcp')) delete next.mptcp;
+            if (!proxyToggleAvailableInCurrentNetwork(proxy, 'tfo')) delete next.tfo;
+            if (!proxyToggleAvailableInCurrentNetwork(proxy, 'mptcp')) delete next.mptcp;
             if (!['vless', 'vmess'].includes(parsed.type)) delete next['packet-encoding'];
             if (parsed.type !== 'vless') delete next.encryption;
             if (parsed.type !== 'vmess') {
@@ -1679,8 +1667,8 @@
                 next.psk = next.password;
                 delete next.password;
             }
-            if (!realityEnabled || !proxySupportsToggle(parsed.type, 'reality')) delete next['reality-opts'];
-            if (!tlsSectionEnabled) {
+            if (!realityEnabled || !caps.toggles.reality) delete next['reality-opts'];
+            if (!hasTlsSection) {
                 delete next.servername;
                 delete next.sni;
                 delete next.certificate;
@@ -1695,10 +1683,10 @@
                 delete next.servername;
                 delete next.sni;
                 if (tlsServerNameKey && serverNameValue) next[tlsServerNameKey] = serverNameValue;
-                if (!proxySupportsTlsClientFingerprint(parsed.type)) delete next['client-fingerprint'];
+                if (!supportsTlsClientFingerprint) delete next['client-fingerprint'];
             }
             if (!echEnabled) delete next['ech-opts'];
-            if (!smuxEnabled || !proxySupportsToggle(parsed.type, 'smux') || (proxySupportsTransport(parsed.type) && effectiveNetwork !== 'tcp')) delete next.smux;
+            if (!smuxEnabled || !proxyToggleAvailableInCurrentNetwork(proxy, 'smux')) delete next.smux;
             if (next.smux && !brutalEnabled) delete next.smux['brutal-opts'];
             if (next['xhttp-opts'] && !Object.keys(next['xhttp-opts']['reuse-settings'] || {}).length) delete next['xhttp-opts']['reuse-settings'];
             if (next['xhttp-opts'] && !Object.keys(next['xhttp-opts']['download-settings'] || {}).length) delete next['xhttp-opts']['download-settings'];
@@ -1714,8 +1702,6 @@
             proxySupportsToggle,
             resolveProxyCapabilities,
             sanitizeProxyByCapabilities,
-            proxyShowsTlsSection,
-            proxyShowsSmuxSection,
             proxyHasTlsSection,
             proxySupportsTlsClientFingerprint,
             getProxyValidationIssues,
