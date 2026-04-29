@@ -40,6 +40,20 @@ This repository contains a static HTML/Vue frontend for editing common `mihomo` 
 
 3. Visit `http://127.0.0.1:8000/mihomo.html` if you started the local server.
 
+## Offline Build
+
+To generate a fully offline single-file build that embeds CDN dependencies, local CSS, and all application scripts:
+
+```bash
+node scripts/build-offline-html.mjs
+```
+
+The generated file is written to `dist/mihomo.offline.html` by default. You can override the output path:
+
+```bash
+node scripts/build-offline-html.mjs --output /tmp/mihomo.html
+```
+
 ## Usage
 
 1. Open the editor in a browser.
@@ -52,6 +66,7 @@ This repository contains a static HTML/Vue frontend for editing common `mihomo` 
 - The app is implemented as a static frontend using HTML, CSS, and plain JavaScript modules.
 - Frontend dependencies are loaded from CDN references declared in `mihomo.html`.
 - Most feature logic is organized under `core/` and `modules/` to keep the entry file thin.
+- `scripts/build-offline-html.mjs` converts the modular source page into a standalone offline `html` bundle for release publishing.
 
 ## Contributing
 
