@@ -9,7 +9,7 @@
     window.MihomoFeatureModules.createDnsModule = function (ctx) {
         const { ref, computed, watch, config, uiState } = ctx;
         const { parseCommaList, getListenPort, normalizeListenAddress, replaceListenPort } = window.MihomoHelpers;
-        const DEFAULT_FAKE_IP_RANGE6 = 'fdfe:dcba:9876::1/64';
+        const DEFAULT_FAKE_IP_RANGE6 = 'fc00::/18';
 
         const normalizeDnsListenText = (val, fallback = ':53') => normalizeListenAddress(val, fallback);
 

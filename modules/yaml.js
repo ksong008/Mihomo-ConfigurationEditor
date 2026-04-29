@@ -18,7 +18,7 @@
             normalizeListenAddress,
             normalizeTunnelListenerNetwork
         } = window.MihomoHelpers;
-        const DEFAULT_FAKE_IP_RANGE6 = 'fdfe:dcba:9876::1/64';
+        const DEFAULT_FAKE_IP_RANGE6 = 'fc00::/18';
 
         const yamlSections = ref({ general: '', experimental: '', network: '', proxies: '', providers: '', ruleProviders: '', groups: '', subRules: '', rules: '' });
         const fullYaml = ref('');

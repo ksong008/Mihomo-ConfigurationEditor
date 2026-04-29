@@ -213,5 +213,5 @@ test('fake-ip with dns ipv6 auto-emits fake-ip-range6', async () => {
 
     yamlModule.buildYaml();
 
-    assert.match(yamlModule.fullYaml.value, /"fake-ip-range6": "fdfe:dcba:9876::1\/64"/);
+    assert.match(yamlModule.fullYaml.value, /"fake-ip-range6": "fc00::\/18"/);
 });
