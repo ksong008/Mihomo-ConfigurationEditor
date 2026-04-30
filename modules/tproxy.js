@@ -188,6 +188,252 @@
             return script;
         });
 
+        const cleanNftablesScript = computed(() => {
+            const nft = uiState.value.nftablesConfig || {};
+
+            const table = (((nft.nftTable || 'mihomo').trim()) || 'mihomo').replace(/[^\w-]+/g, '_');
+            const tproxyPort = Number(config.value['tproxy-port'] || nft.tproxyPort || 7894);
+            const dnsPort = getListenPort(config.value.dns && config.value.dns.listen, 53);
+
+            const proxyMark = parseMarkValue(nft.tproxyMarkHex, 111);
+            const routeMark = parseMarkValue(nft.routeMarkHex, 112);
+
+            const ingressIface = (nft.ingressIface || '').trim();
+            const egressIface = (nft.egressIface || config.value['interface-name'] || '').trim();
+
+            const proxyUid = String(nft.proxyUid || '').trim();
+            const proxyGid = String(nft.proxyGid || '').trim();
+            const hasUidGid = !!(proxyUid && proxyGid);
+
+            const ipv6 = !!nft.tproxyIpv6;
+            const hijackDns = !!nft.hijackDns;
+            const bypassCnIp = !!nft.bypassCnIp;
+            const filterPorts = !!nft.filterPorts;
+
+            const commonPorts = parseCommaList(nft.commonPorts).join(', ');
+            const fakeIpRange = (config.value.dns && config.value.dns['enhanced-mode'] === 'fake-ip' && config.value.dns['fake-ip-range'])
+                ? config.value.dns['fake-ip-range']
+                : '';
+
+            const private4 = parseLineList(nft.privateIps).filter(cidr => !fakeIpRange || cidr !== fakeIpRange);
+            const private6 = parseLineList(nft.privateIpsV6);
+            const cn4 = parseLineList(nft.cnIps);
+            const cn6 = parseLineList(nft.cnIpsV6);
+
+            const formatDefine = (name, value) => `define ${name.padEnd(13, ' ')} = ${value}`;
+            const appendBlankLine = () => {
+                if (lines[lines.length - 1] !== '') lines.push('');
+            };
+            const appendBlock = (header, bodyLines) => {
+                lines.push(`${header} {`);
+                bodyLines.forEach((line) => {
+                    lines.push(`    ${line}`);
+                });
+                lines.push('}');
+            };
+            const appendRule = (chain, rule) => {
+                lines.push(`add rule inet ${table} ${chain} ${rule}`);
+            };
+
+            const lines = [
+                '#!/usr/sbin/nft -f',
+                '',
+                formatDefine('TPROXY_PORT', tproxyPort),
+                formatDefine('PROXY_MARK', proxyMark),
+                formatDefine('ROUTE_MARK', routeMark)
+            ];
+
+            if (hasUidGid) {
+                lines.push(formatDefine('PROXY_UID', proxyUid));
+                lines.push(formatDefine('PROXY_GID', proxyGid));
+            }
+
+            if (ingressIface) {
+                lines.push(formatDefine('INGRESS_IFACE', `"${ingressIface}"`));
+            }
+
+            if (egressIface) {
+                lines.push(formatDefine('EGRESS_IFACE', `"${egressIface}"`));
+            }
+
+            lines.push(
+                `add table inet ${table}`,
+                `flush table inet ${table}`
+            );
+
+            appendBlankLine();
+            appendBlock(`add set inet ${table} private_ip`, [
+                'type ipv4_addr;',
+                'flags interval;',
+                `elements = { ${private4.length ? private4.join(', ') : '127.0.0.0/8'} };`
+            ]);
+
+            if (ipv6) {
+                appendBlankLine();
+                appendBlock(`add set inet ${table} private_ip6`, [
+                    'type ipv6_addr;',
+                    'flags interval;',
+                    `elements = { ${private6.length ? private6.join(', ') : '::1/128'} };`
+                ]);
+            }
+
+            if (bypassCnIp && cn4.length) {
+                appendBlankLine();
+                appendBlock(`add set inet ${table} cn_ip`, [
+                    'type ipv4_addr;',
+                    'flags interval;',
+                    `elements = { ${cn4.join(', ')} };`
+                ]);
+            }
+
+            if (bypassCnIp && ipv6 && cn6.length) {
+                appendBlankLine();
+                appendBlock(`add set inet ${table} cn_ip6`, [
+                    'type ipv6_addr;',
+                    'flags interval;',
+                    `elements = { ${cn6.join(', ')} };`
+                ]);
+            }
+
+            if (hijackDns) {
+                appendBlankLine();
+                appendBlock(`add chain inet ${table} prerouting_dns`, [
+                    'type nat hook prerouting priority dstnat;',
+                    'policy accept;'
+                ]);
+                if (ingressIface) {
+                    appendRule('prerouting_dns', 'iifname != "lo" iifname != $INGRESS_IFACE accept');
+                }
+                appendRule('prerouting_dns', `meta l4proto { tcp, udp } th dport 53 redirect to :${dnsPort}`);
+
+                appendBlankLine();
+                appendBlock(`add chain inet ${table} output_dns`, [
+                    'type nat hook output priority dstnat;',
+                    'policy accept;'
+                ]);
+                if (hasUidGid) {
+                    appendRule('output_dns', 'meta skuid $PROXY_UID meta skgid $PROXY_GID accept');
+                } else {
+                    appendRule('output_dns', 'oifname "lo" accept');
+                }
+                appendRule('output_dns', `meta l4proto { tcp, udp } th dport 53 redirect to :${dnsPort}`);
+            }
+
+            appendBlankLine();
+            appendBlock(`add chain inet ${table} prerouting_tproxy`, [
+                'type filter hook prerouting priority mangle;',
+                'policy accept;'
+            ]);
+            if (ingressIface) {
+                appendRule('prerouting_tproxy', 'iifname != "lo" iifname != $INGRESS_IFACE accept');
+            }
+            if (hijackDns) {
+                appendRule('prerouting_tproxy', 'meta l4proto { tcp, udp } th dport 53 accept');
+            }
+            appendRule('prerouting_tproxy', 'fib daddr type local accept');
+            appendRule('prerouting_tproxy', 'ip daddr @private_ip accept');
+            if (bypassCnIp && cn4.length) {
+                appendRule('prerouting_tproxy', 'ip daddr @cn_ip accept');
+            }
+            if (!ipv6) {
+                appendRule('prerouting_tproxy', 'meta nfproto ipv6 accept');
+            }
+            if (filterPorts && commonPorts) {
+                if (fakeIpRange) {
+                    appendRule('prerouting_tproxy', `ip daddr != ${fakeIpRange} tcp dport != { ${commonPorts} } accept`);
+                    appendRule('prerouting_tproxy', `ip daddr != ${fakeIpRange} udp dport != { ${commonPorts} } accept`);
+                } else {
+                    appendRule('prerouting_tproxy', `tcp dport != { ${commonPorts} } accept`);
+                    appendRule('prerouting_tproxy', `udp dport != { ${commonPorts} } accept`);
+                }
+            }
+            appendRule('prerouting_tproxy', 'meta l4proto { tcp, udp } th dport $TPROXY_PORT reject with icmpx type host-unreachable');
+            appendRule('prerouting_tproxy', 'meta l4proto tcp socket transparent 1 meta mark set $PROXY_MARK accept');
+            appendRule('prerouting_tproxy', 'meta l4proto { tcp, udp } tproxy to :$TPROXY_PORT meta mark set $PROXY_MARK');
+
+            appendBlankLine();
+            appendBlock(`add chain inet ${table} output_tproxy`, [
+                'type route hook output priority mangle;',
+                'policy accept;'
+            ]);
+            if (egressIface) {
+                appendRule('output_tproxy', 'oifname != $EGRESS_IFACE accept');
+            }
+            appendRule('output_tproxy', 'ct direction reply accept');
+            appendRule('output_tproxy', 'meta mark $ROUTE_MARK accept');
+            if (hasUidGid) {
+                appendRule('output_tproxy', 'meta skuid $PROXY_UID meta skgid $PROXY_GID meta mark set $ROUTE_MARK accept');
+            }
+            if (hijackDns) {
+                appendRule('output_tproxy', 'meta l4proto { tcp, udp } th dport 53 accept');
+            }
+            appendRule('output_tproxy', 'fib daddr type local accept');
+            appendRule('output_tproxy', 'ip daddr @private_ip accept');
+            if (bypassCnIp && cn4.length) {
+                appendRule('output_tproxy', 'ip daddr @cn_ip accept');
+            }
+            if (!ipv6) {
+                appendRule('output_tproxy', 'meta nfproto ipv6 accept');
+            }
+            if (filterPorts && commonPorts) {
+                if (fakeIpRange) {
+                    appendRule('output_tproxy', `ip daddr != ${fakeIpRange} tcp dport != { ${commonPorts} } accept`);
+                    appendRule('output_tproxy', `ip daddr != ${fakeIpRange} udp dport != { ${commonPorts} } accept`);
+                } else {
+                    appendRule('output_tproxy', `tcp dport != { ${commonPorts} } accept`);
+                    appendRule('output_tproxy', `udp dport != { ${commonPorts} } accept`);
+                }
+            }
+            appendRule('output_tproxy', 'meta l4proto { tcp, udp } meta mark set $PROXY_MARK');
+
+            if (ipv6) {
+                appendBlankLine();
+                appendBlock(`add chain inet ${table} prerouting_tproxy_v6`, [
+                    'type filter hook prerouting priority mangle;',
+                    'policy accept;'
+                ]);
+                if (ingressIface) {
+                    appendRule('prerouting_tproxy_v6', 'iifname != "lo" iifname != $INGRESS_IFACE accept');
+                }
+                if (hijackDns) {
+                    appendRule('prerouting_tproxy_v6', 'meta l4proto { tcp, udp } th dport 53 accept');
+                }
+                appendRule('prerouting_tproxy_v6', 'fib daddr type local accept');
+                appendRule('prerouting_tproxy_v6', 'ip6 daddr @private_ip6 accept');
+                if (bypassCnIp && cn6.length) {
+                    appendRule('prerouting_tproxy_v6', 'ip6 daddr @cn_ip6 accept');
+                }
+                appendRule('prerouting_tproxy_v6', 'meta l4proto { tcp, udp } th dport $TPROXY_PORT reject with icmpx type host-unreachable');
+                appendRule('prerouting_tproxy_v6', 'meta l4proto tcp socket transparent 1 meta mark set $PROXY_MARK accept');
+                appendRule('prerouting_tproxy_v6', 'meta l4proto { tcp, udp } tproxy to :$TPROXY_PORT meta mark set $PROXY_MARK');
+
+                appendBlankLine();
+                appendBlock(`add chain inet ${table} output_tproxy_v6`, [
+                    'type route hook output priority mangle;',
+                    'policy accept;'
+                ]);
+                if (egressIface) {
+                    appendRule('output_tproxy_v6', 'oifname != $EGRESS_IFACE accept');
+                }
+                appendRule('output_tproxy_v6', 'ct direction reply accept');
+                appendRule('output_tproxy_v6', 'meta mark $ROUTE_MARK accept');
+                if (hasUidGid) {
+                    appendRule('output_tproxy_v6', 'meta skuid $PROXY_UID meta skgid $PROXY_GID meta mark set $ROUTE_MARK accept');
+                }
+                if (hijackDns) {
+                    appendRule('output_tproxy_v6', 'meta l4proto { tcp, udp } th dport 53 accept');
+                }
+                appendRule('output_tproxy_v6', 'fib daddr type local accept');
+                appendRule('output_tproxy_v6', 'ip6 daddr @private_ip6 accept');
+                if (bypassCnIp && cn6.length) {
+                    appendRule('output_tproxy_v6', 'ip6 daddr @cn_ip6 accept');
+                }
+                appendRule('output_tproxy_v6', 'meta l4proto { tcp, udp } meta mark set $PROXY_MARK');
+            }
+
+            return lines.join('\n') + '\n';
+        });
+
         const nftablesScript = computed(() => {
             const nft = uiState.value.nftablesConfig || {};
 
@@ -334,7 +580,7 @@ ${bypassCnIp && cn6.length ? `        ip6 daddr @cn_ip6 accept comment "大陆 I
             return script;
         });
 
-        const getCleanNftables = () => { return nftablesScript.value; };
+        const getCleanNftables = () => cleanNftablesScript.value;
 
         const installScript = computed(() => {
             return `#!/bin/bash\n# 一键部署 Mihomo 透明代理持久化环境\nmkdir -p /etc/mihomo\n\n# 1. 写入 nftables 规则\ncat > /etc/mihomo/tproxy.nft << 'EOF'\n${getCleanNftables()}\nEOF\n\n# 2. 写入 Systemd 服务\ncat > /etc/systemd/system/mihomo-tproxy.service << 'EOF'\n${systemdService.value}\nEOF\n\n# 3. 重新加载并启用服务\nsystemctl daemon-reload\nsystemctl enable --now mihomo-tproxy\necho "Mihomo 透明代理规则已持久化部署并启动！"`;
@@ -378,6 +624,7 @@ ${bypassCnIp && cn6.length ? `        ip6 daddr @cn_ip6 accept comment "大陆 I
             resetNftMarksSafe,
             routingCommands,
             copyCommands,
+            cleanNftablesScript,
             nftablesScript,
             copyNftables,
             downloadNftables,
