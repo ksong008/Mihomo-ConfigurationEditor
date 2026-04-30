@@ -220,218 +220,235 @@
             const cn4 = parseLineList(nft.cnIps);
             const cn6 = parseLineList(nft.cnIpsV6);
 
-            const formatDefine = (name, value) => `define ${name.padEnd(13, ' ')} = ${value}`;
-            const appendBlankLine = () => {
-                if (lines[lines.length - 1] !== '') lines.push('');
-            };
-            const appendBlock = (header, bodyLines) => {
-                lines.push(`${header} {`);
-                bodyLines.forEach((line) => {
-                    lines.push(`    ${line}`);
-                });
-                lines.push('}');
-            };
-            const appendRule = (chain, rule) => {
-                lines.push(`add rule inet ${table} ${chain} ${rule}`);
-            };
-
-            const lines = [
-                '#!/usr/sbin/nft -f',
-                '',
-                formatDefine('TPROXY_PORT', tproxyPort),
-                formatDefine('PROXY_MARK', proxyMark),
-                formatDefine('ROUTE_MARK', routeMark)
+            const defineLines = [
+                `define TPROXY_PORT   = ${tproxyPort}`,
+                `define PROXY_MARK    = ${proxyMark}`,
+                `define ROUTE_MARK    = ${routeMark}`
             ];
 
             if (hasUidGid) {
-                lines.push(formatDefine('PROXY_UID', proxyUid));
-                lines.push(formatDefine('PROXY_GID', proxyGid));
+                defineLines.push(`define PROXY_UID     = ${proxyUid}`);
+                defineLines.push(`define PROXY_GID     = ${proxyGid}`);
             }
 
             if (ingressIface) {
-                lines.push(formatDefine('INGRESS_IFACE', `"${ingressIface}"`));
+                defineLines.push(`define INGRESS_IFACE = "${ingressIface}"`);
             }
 
             if (egressIface) {
-                lines.push(formatDefine('EGRESS_IFACE', `"${egressIface}"`));
+                defineLines.push(`define EGRESS_IFACE  = "${egressIface}"`);
             }
 
-            lines.push(
-                `add table inet ${table}`,
-                `flush table inet ${table}`
-            );
+            const tableLines = [];
+            const pushTableLine = (line = '') => tableLines.push(line);
+            const pushTableBlock = (header, bodyLines) => {
+                pushTableLine(`${header} {`);
+                bodyLines.forEach((line) => pushTableLine(`    ${line}`));
+                pushTableLine('}');
+            };
 
-            appendBlankLine();
-            appendBlock(`add set inet ${table} private_ip`, [
-                'type ipv4_addr;',
-                'flags interval;',
-                `elements = { ${private4.length ? private4.join(', ') : '127.0.0.0/8'} };`
+            pushTableBlock('set private_ip', [
+                'type ipv4_addr',
+                'flags interval',
+                `elements = { ${private4.length ? private4.join(', ') : '127.0.0.0/8'} }`
             ]);
 
             if (ipv6) {
-                appendBlankLine();
-                appendBlock(`add set inet ${table} private_ip6`, [
-                    'type ipv6_addr;',
-                    'flags interval;',
-                    `elements = { ${private6.length ? private6.join(', ') : '::1/128'} };`
+                pushTableLine();
+                pushTableBlock('set private_ip6', [
+                    'type ipv6_addr',
+                    'flags interval',
+                    `elements = { ${private6.length ? private6.join(', ') : '::1/128'} }`
                 ]);
             }
 
             if (bypassCnIp && cn4.length) {
-                appendBlankLine();
-                appendBlock(`add set inet ${table} cn_ip`, [
-                    'type ipv4_addr;',
-                    'flags interval;',
-                    `elements = { ${cn4.join(', ')} };`
+                pushTableLine();
+                pushTableBlock('set cn_ip', [
+                    'type ipv4_addr',
+                    'flags interval',
+                    `elements = { ${cn4.join(', ')} }`
                 ]);
             }
 
             if (bypassCnIp && ipv6 && cn6.length) {
-                appendBlankLine();
-                appendBlock(`add set inet ${table} cn_ip6`, [
-                    'type ipv6_addr;',
-                    'flags interval;',
-                    `elements = { ${cn6.join(', ')} };`
+                pushTableLine();
+                pushTableBlock('set cn_ip6', [
+                    'type ipv6_addr',
+                    'flags interval',
+                    `elements = { ${cn6.join(', ')} }`
                 ]);
             }
 
             if (hijackDns) {
-                appendBlankLine();
-                appendBlock(`add chain inet ${table} prerouting_dns`, [
-                    'type nat hook prerouting priority dstnat;',
-                    'policy accept;'
-                ]);
+                pushTableLine();
+                const preroutingDnsRules = [];
                 if (ingressIface) {
-                    appendRule('prerouting_dns', 'iifname != "lo" iifname != $INGRESS_IFACE accept');
+                    preroutingDnsRules.push('iifname != "lo" iifname != $INGRESS_IFACE accept');
                 }
-                appendRule('prerouting_dns', `meta l4proto { tcp, udp } th dport 53 redirect to :${dnsPort}`);
-
-                appendBlankLine();
-                appendBlock(`add chain inet ${table} output_dns`, [
-                    'type nat hook output priority dstnat;',
-                    'policy accept;'
+                preroutingDnsRules.push(`meta l4proto { tcp, udp } th dport 53 redirect to :${dnsPort}`);
+                pushTableBlock('chain prerouting_dns', [
+                    'type nat hook prerouting priority dstnat; policy accept;',
+                    ...preroutingDnsRules
                 ]);
+
+                pushTableLine();
+                const outputDnsRules = [];
                 if (hasUidGid) {
-                    appendRule('output_dns', 'meta skuid $PROXY_UID meta skgid $PROXY_GID accept');
+                    outputDnsRules.push('meta skuid $PROXY_UID meta skgid $PROXY_GID accept');
                 } else {
-                    appendRule('output_dns', 'oifname "lo" accept');
+                    outputDnsRules.push('oifname "lo" accept');
                 }
-                appendRule('output_dns', `meta l4proto { tcp, udp } th dport 53 redirect to :${dnsPort}`);
+                outputDnsRules.push(`meta l4proto { tcp, udp } th dport 53 redirect to :${dnsPort}`);
+                pushTableBlock('chain output_dns', [
+                    'type nat hook output priority dstnat; policy accept;',
+                    ...outputDnsRules
+                ]);
             }
 
-            appendBlankLine();
-            appendBlock(`add chain inet ${table} prerouting_tproxy`, [
-                'type filter hook prerouting priority mangle;',
-                'policy accept;'
-            ]);
+            pushTableLine();
+            const preroutingRules = [];
             if (ingressIface) {
-                appendRule('prerouting_tproxy', 'iifname != "lo" iifname != $INGRESS_IFACE accept');
+                preroutingRules.push('iifname != "lo" iifname != $INGRESS_IFACE accept');
             }
             if (hijackDns) {
-                appendRule('prerouting_tproxy', 'meta l4proto { tcp, udp } th dport 53 accept');
+                preroutingRules.push('meta l4proto { tcp, udp } th dport 53 accept');
             }
-            appendRule('prerouting_tproxy', 'fib daddr type local accept');
-            appendRule('prerouting_tproxy', 'ip daddr @private_ip accept');
+            preroutingRules.push(
+                'fib daddr type local accept',
+                'ip daddr @private_ip accept'
+            );
             if (bypassCnIp && cn4.length) {
-                appendRule('prerouting_tproxy', 'ip daddr @cn_ip accept');
+                preroutingRules.push('ip daddr @cn_ip accept');
             }
             if (!ipv6) {
-                appendRule('prerouting_tproxy', 'meta nfproto ipv6 accept');
+                preroutingRules.push('meta nfproto ipv6 accept');
             }
             if (filterPorts && commonPorts) {
                 if (fakeIpRange) {
-                    appendRule('prerouting_tproxy', `ip daddr != ${fakeIpRange} tcp dport != { ${commonPorts} } accept`);
-                    appendRule('prerouting_tproxy', `ip daddr != ${fakeIpRange} udp dport != { ${commonPorts} } accept`);
+                    preroutingRules.push(`ip daddr != ${fakeIpRange} tcp dport != { ${commonPorts} } accept`);
+                    preroutingRules.push(`ip daddr != ${fakeIpRange} udp dport != { ${commonPorts} } accept`);
                 } else {
-                    appendRule('prerouting_tproxy', `tcp dport != { ${commonPorts} } accept`);
-                    appendRule('prerouting_tproxy', `udp dport != { ${commonPorts} } accept`);
+                    preroutingRules.push(`tcp dport != { ${commonPorts} } accept`);
+                    preroutingRules.push(`udp dport != { ${commonPorts} } accept`);
                 }
             }
-            appendRule('prerouting_tproxy', 'meta l4proto { tcp, udp } th dport $TPROXY_PORT reject with icmpx type host-unreachable');
-            appendRule('prerouting_tproxy', 'meta l4proto tcp socket transparent 1 meta mark set $PROXY_MARK accept');
-            appendRule('prerouting_tproxy', 'meta l4proto { tcp, udp } tproxy to :$TPROXY_PORT meta mark set $PROXY_MARK');
-
-            appendBlankLine();
-            appendBlock(`add chain inet ${table} output_tproxy`, [
-                'type route hook output priority mangle;',
-                'policy accept;'
+            preroutingRules.push(
+                'meta l4proto { tcp, udp } th dport $TPROXY_PORT reject with icmpx type host-unreachable',
+                'meta l4proto tcp socket transparent 1 meta mark set $PROXY_MARK accept',
+                'meta l4proto { tcp, udp } tproxy to :$TPROXY_PORT meta mark set $PROXY_MARK'
+            );
+            pushTableBlock('chain prerouting_tproxy', [
+                'type filter hook prerouting priority mangle; policy accept;',
+                ...preroutingRules
             ]);
+
+            pushTableLine();
+            const outputRules = [];
             if (egressIface) {
-                appendRule('output_tproxy', 'oifname != $EGRESS_IFACE accept');
+                outputRules.push('oifname != $EGRESS_IFACE accept');
             }
-            appendRule('output_tproxy', 'ct direction reply accept');
-            appendRule('output_tproxy', 'meta mark $ROUTE_MARK accept');
+            outputRules.push(
+                'ct direction reply accept',
+                'meta mark $ROUTE_MARK accept'
+            );
             if (hasUidGid) {
-                appendRule('output_tproxy', 'meta skuid $PROXY_UID meta skgid $PROXY_GID meta mark set $ROUTE_MARK accept');
+                outputRules.push('meta skuid $PROXY_UID meta skgid $PROXY_GID meta mark set $ROUTE_MARK accept');
             }
             if (hijackDns) {
-                appendRule('output_tproxy', 'meta l4proto { tcp, udp } th dport 53 accept');
+                outputRules.push('meta l4proto { tcp, udp } th dport 53 accept');
             }
-            appendRule('output_tproxy', 'fib daddr type local accept');
-            appendRule('output_tproxy', 'ip daddr @private_ip accept');
+            outputRules.push(
+                'fib daddr type local accept',
+                'ip daddr @private_ip accept'
+            );
             if (bypassCnIp && cn4.length) {
-                appendRule('output_tproxy', 'ip daddr @cn_ip accept');
+                outputRules.push('ip daddr @cn_ip accept');
             }
             if (!ipv6) {
-                appendRule('output_tproxy', 'meta nfproto ipv6 accept');
+                outputRules.push('meta nfproto ipv6 accept');
             }
             if (filterPorts && commonPorts) {
                 if (fakeIpRange) {
-                    appendRule('output_tproxy', `ip daddr != ${fakeIpRange} tcp dport != { ${commonPorts} } accept`);
-                    appendRule('output_tproxy', `ip daddr != ${fakeIpRange} udp dport != { ${commonPorts} } accept`);
+                    outputRules.push(`ip daddr != ${fakeIpRange} tcp dport != { ${commonPorts} } accept`);
+                    outputRules.push(`ip daddr != ${fakeIpRange} udp dport != { ${commonPorts} } accept`);
                 } else {
-                    appendRule('output_tproxy', `tcp dport != { ${commonPorts} } accept`);
-                    appendRule('output_tproxy', `udp dport != { ${commonPorts} } accept`);
+                    outputRules.push(`tcp dport != { ${commonPorts} } accept`);
+                    outputRules.push(`udp dport != { ${commonPorts} } accept`);
                 }
             }
-            appendRule('output_tproxy', 'meta l4proto { tcp, udp } meta mark set $PROXY_MARK');
+            outputRules.push('meta l4proto { tcp, udp } meta mark set $PROXY_MARK');
+            pushTableBlock('chain output_tproxy', [
+                'type route hook output priority mangle; policy accept;',
+                ...outputRules
+            ]);
 
             if (ipv6) {
-                appendBlankLine();
-                appendBlock(`add chain inet ${table} prerouting_tproxy_v6`, [
-                    'type filter hook prerouting priority mangle;',
-                    'policy accept;'
-                ]);
+                pushTableLine();
+                const preroutingV6Rules = [];
                 if (ingressIface) {
-                    appendRule('prerouting_tproxy_v6', 'iifname != "lo" iifname != $INGRESS_IFACE accept');
+                    preroutingV6Rules.push('iifname != "lo" iifname != $INGRESS_IFACE accept');
                 }
                 if (hijackDns) {
-                    appendRule('prerouting_tproxy_v6', 'meta l4proto { tcp, udp } th dport 53 accept');
+                    preroutingV6Rules.push('meta l4proto { tcp, udp } th dport 53 accept');
                 }
-                appendRule('prerouting_tproxy_v6', 'fib daddr type local accept');
-                appendRule('prerouting_tproxy_v6', 'ip6 daddr @private_ip6 accept');
+                preroutingV6Rules.push(
+                    'fib daddr type local accept',
+                    'ip6 daddr @private_ip6 accept'
+                );
                 if (bypassCnIp && cn6.length) {
-                    appendRule('prerouting_tproxy_v6', 'ip6 daddr @cn_ip6 accept');
+                    preroutingV6Rules.push('ip6 daddr @cn_ip6 accept');
                 }
-                appendRule('prerouting_tproxy_v6', 'meta l4proto { tcp, udp } th dport $TPROXY_PORT reject with icmpx type host-unreachable');
-                appendRule('prerouting_tproxy_v6', 'meta l4proto tcp socket transparent 1 meta mark set $PROXY_MARK accept');
-                appendRule('prerouting_tproxy_v6', 'meta l4proto { tcp, udp } tproxy to :$TPROXY_PORT meta mark set $PROXY_MARK');
-
-                appendBlankLine();
-                appendBlock(`add chain inet ${table} output_tproxy_v6`, [
-                    'type route hook output priority mangle;',
-                    'policy accept;'
+                preroutingV6Rules.push(
+                    'meta l4proto { tcp, udp } th dport $TPROXY_PORT reject with icmpx type host-unreachable',
+                    'meta l4proto tcp socket transparent 1 meta mark set $PROXY_MARK accept',
+                    'meta l4proto { tcp, udp } tproxy to :$TPROXY_PORT meta mark set $PROXY_MARK'
+                );
+                pushTableBlock('chain prerouting_tproxy_v6', [
+                    'type filter hook prerouting priority mangle; policy accept;',
+                    ...preroutingV6Rules
                 ]);
+
+                pushTableLine();
+                const outputV6Rules = [];
                 if (egressIface) {
-                    appendRule('output_tproxy_v6', 'oifname != $EGRESS_IFACE accept');
+                    outputV6Rules.push('oifname != $EGRESS_IFACE accept');
                 }
-                appendRule('output_tproxy_v6', 'ct direction reply accept');
-                appendRule('output_tproxy_v6', 'meta mark $ROUTE_MARK accept');
+                outputV6Rules.push(
+                    'ct direction reply accept',
+                    'meta mark $ROUTE_MARK accept'
+                );
                 if (hasUidGid) {
-                    appendRule('output_tproxy_v6', 'meta skuid $PROXY_UID meta skgid $PROXY_GID meta mark set $ROUTE_MARK accept');
+                    outputV6Rules.push('meta skuid $PROXY_UID meta skgid $PROXY_GID meta mark set $ROUTE_MARK accept');
                 }
                 if (hijackDns) {
-                    appendRule('output_tproxy_v6', 'meta l4proto { tcp, udp } th dport 53 accept');
+                    outputV6Rules.push('meta l4proto { tcp, udp } th dport 53 accept');
                 }
-                appendRule('output_tproxy_v6', 'fib daddr type local accept');
-                appendRule('output_tproxy_v6', 'ip6 daddr @private_ip6 accept');
+                outputV6Rules.push(
+                    'fib daddr type local accept',
+                    'ip6 daddr @private_ip6 accept'
+                );
                 if (bypassCnIp && cn6.length) {
-                    appendRule('output_tproxy_v6', 'ip6 daddr @cn_ip6 accept');
+                    outputV6Rules.push('ip6 daddr @cn_ip6 accept');
                 }
-                appendRule('output_tproxy_v6', 'meta l4proto { tcp, udp } meta mark set $PROXY_MARK');
+                outputV6Rules.push('meta l4proto { tcp, udp } meta mark set $PROXY_MARK');
+                pushTableBlock('chain output_tproxy_v6', [
+                    'type route hook output priority mangle; policy accept;',
+                    ...outputV6Rules
+                ]);
             }
 
-            return lines.join('\n') + '\n';
+            return [
+                '#!/usr/sbin/nft -f',
+                '',
+                ...defineLines,
+                `destroy table inet ${table}`,
+                '',
+                `table inet ${table} {`,
+                ...tableLines.map((line) => line ? `    ${line}` : ''),
+                '}',
+                ''
+            ].join('\n');
         });
 
         const nftablesScript = computed(() => {

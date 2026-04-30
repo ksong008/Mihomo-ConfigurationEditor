@@ -24,7 +24,13 @@ async function createRuntime() {
         btoa: globalThis.btoa,
         crypto: globalThis.crypto,
         setTimeout,
-        clearTimeout
+        clearTimeout,
+        alert: () => {},
+        navigator: {
+            clipboard: {
+                writeText: async () => {}
+            }
+        }
     };
 
     sandbox.window = {
@@ -43,6 +49,7 @@ async function createRuntime() {
     const context = vm.createContext(sandbox);
     await loadBrowserScript(context, 'mihomo.helpers.js');
     await loadBrowserScript(context, 'core/state.js');
+    await loadBrowserScript(context, 'modules/tproxy.js');
     await loadBrowserScript(context, 'modules/yaml.js');
 
     return context;
@@ -69,6 +76,33 @@ function createYamlHarness(runtime) {
         config,
         uiState,
         yamlModule
+    };
+}
+
+function createTproxyHarness(runtime) {
+    const { getDefaultConfig, getDefaultUiState } = runtime.window.MihomoCore.createStateModule();
+    const config = { value: getDefaultConfig() };
+    const uiState = { value: getDefaultUiState() };
+
+    const tproxyModule = runtime.window.MihomoFeatureModules.createTproxyModule({
+        watch: (source, cb, options = {}) => {
+            if (options.immediate) cb(source());
+        },
+        computed: (getter) => ({
+            get value() {
+                return getter();
+            }
+        }),
+        config,
+        uiState,
+        dnsListenPort: { value: 53 },
+        ensureSafeDnsListenPortForTransparentProxy: () => false
+    });
+
+    return {
+        config,
+        uiState,
+        tproxyModule
     };
 }
 
@@ -214,4 +248,24 @@ test('fake-ip with dns ipv6 auto-emits fake-ip-range6', async () => {
     yamlModule.buildYaml();
 
     assert.match(yamlModule.fullYaml.value, /"fake-ip-range6": "fc00::\/18"/);
+});
+
+test('clean nft export uses block ruleset with define-based interfaces', async () => {
+    const runtime = await runtimePromise;
+    const { config, uiState, tproxyModule } = createTproxyHarness(runtime);
+
+    uiState.value.tproxyEnable = true;
+    uiState.value.nftablesConfig.ingressIface = 'br-lan';
+    uiState.value.nftablesConfig.egressIface = 'eth0';
+    config.value.dns.listen = ':53';
+
+    const script = tproxyModule.cleanNftablesScript.value;
+
+    assert.match(script, /^#!\/usr\/sbin\/nft -f/m);
+    assert.match(script, /^define INGRESS_IFACE = "br-lan"$/m);
+    assert.match(script, /^define EGRESS_IFACE  = "eth0"$/m);
+    assert.match(script, /^destroy table inet mihomo$/m);
+    assert.match(script, /^table inet mihomo \{$/m);
+    assert.match(script, /^\s+chain prerouting_tproxy \{$/m);
+    assert.doesNotMatch(script, /^add rule /m);
 });
