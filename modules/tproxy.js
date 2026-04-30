@@ -142,9 +142,9 @@
             const proxyMark = parseMarkValue(uiState.value.nftablesConfig?.tproxyMarkHex, 111);
             const ipv6 = !!uiState.value.nftablesConfig?.tproxyIpv6;
 
-            let cmds = `ip rule add fwmark ${proxyMark} table ${proxyMark}\nip route add local default dev lo table ${proxyMark}`;
+            let cmds = `ip rule add fwmark ${proxyMark} table ${proxyMark}\nip route add local 0.0.0.0/0 dev lo table ${proxyMark}`;
             if (ipv6) {
-                cmds += `\nip -6 rule add fwmark ${proxyMark} table ${proxyMark}\nip -6 route add local default dev lo table ${proxyMark}`;
+                cmds += `\nip -6 rule add fwmark ${proxyMark} table ${proxyMark}\nip -6 route add local ::/0 dev lo table ${proxyMark}`;
             }
             return cmds;
         });
@@ -170,18 +170,18 @@
             script += `ExecStartPre=-/usr/sbin/nft delete table inet ${nftTable}\n`;
             script += `ExecStart=/usr/sbin/nft -f /etc/mihomo/tproxy.nft\n`;
             script += `ExecStart=/sbin/ip rule add fwmark ${proxyMark} table ${proxyMark}\n`;
-            script += `ExecStart=/sbin/ip route add local default dev lo table ${proxyMark}\n`;
+            script += `ExecStart=/sbin/ip route add local 0.0.0.0/0 dev lo table ${proxyMark}\n`;
             if (ipv6) {
                 script += `ExecStart=/sbin/ip -6 rule add fwmark ${proxyMark} table ${proxyMark}\n`;
-                script += `ExecStart=/sbin/ip -6 route add local default dev lo table ${proxyMark}\n`;
+                script += `ExecStart=/sbin/ip -6 route add local ::/0 dev lo table ${proxyMark}\n`;
             }
 
             script += `\n# 停止时删除路由与 nft 表（忽略不存在错误）\n`;
             script += `ExecStop=-/sbin/ip rule del fwmark ${proxyMark} table ${proxyMark}\n`;
-            script += `ExecStop=-/sbin/ip route del local default dev lo table ${proxyMark}\n`;
+            script += `ExecStop=-/sbin/ip route del local 0.0.0.0/0 dev lo table ${proxyMark}\n`;
             if (ipv6) {
                 script += `ExecStop=-/sbin/ip -6 rule del fwmark ${proxyMark} table ${proxyMark}\n`;
-                script += `ExecStop=-/sbin/ip -6 route del local default dev lo table ${proxyMark}\n`;
+                script += `ExecStop=-/sbin/ip -6 route del local ::/0 dev lo table ${proxyMark}\n`;
             }
             script += `ExecStop=-/usr/sbin/nft delete table inet ${nftTable}\n`;
             script += `\n[Install]\nWantedBy=multi-user.target`;

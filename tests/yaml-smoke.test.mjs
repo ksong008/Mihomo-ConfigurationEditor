@@ -269,3 +269,17 @@ test('clean nft export uses block ruleset with define-based interfaces', async (
     assert.match(script, /^\s+chain prerouting_tproxy \{$/m);
     assert.doesNotMatch(script, /^add rule /m);
 });
+
+test('tproxy routing commands use explicit default CIDR', async () => {
+    const runtime = await runtimePromise;
+    const { uiState, tproxyModule } = createTproxyHarness(runtime);
+
+    uiState.value.nftablesConfig.tproxyIpv6 = true;
+
+    assert.match(tproxyModule.routingCommands.value, /ip route add local 0\.0\.0\.0\/0 dev lo table 111/);
+    assert.match(tproxyModule.routingCommands.value, /ip -6 route add local ::\/0 dev lo table 111/);
+    assert.match(tproxyModule.systemdService.value, /ExecStart=\/sbin\/ip route add local 0\.0\.0\.0\/0 dev lo table 111/);
+    assert.match(tproxyModule.systemdService.value, /ExecStop=-\/sbin\/ip route del local 0\.0\.0\.0\/0 dev lo table 111/);
+    assert.match(tproxyModule.systemdService.value, /ExecStart=\/sbin\/ip -6 route add local ::\/0 dev lo table 111/);
+    assert.match(tproxyModule.systemdService.value, /ExecStop=-\/sbin\/ip -6 route del local ::\/0 dev lo table 111/);
+});
