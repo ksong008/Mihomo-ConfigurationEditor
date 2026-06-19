@@ -194,6 +194,26 @@ function assertSingleDocumentShell(source) {
     }
 }
 
+function assertOfflineBundle(source) {
+    assertSingleDocumentShell(source);
+    const tagShell = source
+        .replace(/<script\b([^>]*)>[\s\S]*?<\/script>/gi, '<script$1></script>')
+        .replace(/<style\b([^>]*)>[\s\S]*?<\/style>/gi, '<style$1></style>');
+
+    if (/<script\b[^>]*\bsrc=/i.test(tagShell)) {
+        throw new Error('Generated offline bundle still contains external script tags');
+    }
+    if (/<link\b[^>]*\brel=["']stylesheet["']/i.test(tagShell)) {
+        throw new Error('Generated offline bundle still contains stylesheet link tags');
+    }
+
+    Object.values(placeholders).forEach((placeholder) => {
+        if (source.includes(placeholder)) {
+            throw new Error(`Generated offline bundle still contains placeholder: ${placeholder}`);
+        }
+    });
+}
+
 function guessContentType(url) {
     const pathname = new URL(url).pathname.toLowerCase();
     if (pathname.endsWith('.woff2')) return 'font/woff2';
@@ -330,7 +350,7 @@ async function buildOfflineHtml(outputPath) {
         inlineStyleTag('mihomo.styles.css', localCss)
     );
     sourceHtml = replacePlaceholder(sourceHtml, placeholders.localScripts, inlineBundle);
-    assertSingleDocumentShell(sourceHtml);
+    assertOfflineBundle(sourceHtml);
 
     await mkdir(path.dirname(outputPath), { recursive: true });
     await writeFile(outputPath, sourceHtml, 'utf8');
@@ -357,6 +377,7 @@ if (isCliEntrypoint()) {
 }
 
 export {
+    assertOfflineBundle,
     buildOfflineHtml,
     defaultOutputPath,
     extractLocalScriptsFromHtml,

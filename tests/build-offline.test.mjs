@@ -4,6 +4,7 @@ import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
+    assertOfflineBundle,
     defaultOutputPath,
     extractLocalScriptsFromHtml,
     normalizeLocalScriptPath,
@@ -47,4 +48,30 @@ test('offline builder argument parser keeps the default output stable', () => {
     assert.equal(parseArgs(['--output', '/tmp/mihomo.offline.html']).output, '/tmp/mihomo.offline.html');
     assert.throws(() => parseArgs(['--output']), /Missing value/);
     assert.throws(() => parseArgs(['--unknown']), /Unknown argument/);
+});
+
+test('offline builder rejects half-inlined bundles', () => {
+    const validBundle = [
+        '<!DOCTYPE html>',
+        '<html><head>',
+        '<style>body { color: #111; }</style>',
+        '</head><body>',
+        '<div id="app"></div>',
+        '<script>window.appReady = true;</script>',
+        '</body></html>'
+    ].join('');
+
+    assert.doesNotThrow(() => assertOfflineBundle(validBundle));
+    assert.throws(
+        () => assertOfflineBundle(validBundle.replace('</head>', '<script src="https://example.com/app.js"></script></head>')),
+        /external script/
+    );
+    assert.throws(
+        () => assertOfflineBundle(validBundle.replace('</head>', '<link rel="stylesheet" href="https://example.com/app.css"></head>')),
+        /stylesheet link/
+    );
+    assert.throws(
+        () => assertOfflineBundle(validBundle.replace('</body>', '__MIHOMO_OFFLINE_LOCAL_SCRIPTS__</body>')),
+        /placeholder/
+    );
 });
