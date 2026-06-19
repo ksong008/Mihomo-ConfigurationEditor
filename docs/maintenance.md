@@ -7,6 +7,7 @@ This project is a static Vue application. Keep changes small, testable, and comp
 - `mihomo.html` owns the page shell and Vue template.
 - `mihomo.styles.css` owns local styles loaded by the source page and inlined into offline builds.
 - `mihomo.helpers.js` contains shared browser helpers used by `core/` and `modules/`.
+- `core/provider-model.js` contains provider and rule-provider state constructors plus provider URL helpers.
 - `core/` contains state, bootstrap, persistence, import/export, provider, and UI runtime modules.
 - `modules/proxy-schema.js` contains proxy capability matrices and static protocol option sets.
 - `modules/` contains feature modules for proxies, validation, DNS, rules, TProxy, and YAML generation.

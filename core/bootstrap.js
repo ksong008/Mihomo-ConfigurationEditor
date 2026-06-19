@@ -31,6 +31,7 @@
         !window.MihomoCore ||
         !window.MihomoCore.createStateModule ||
         !window.MihomoCore.createUiRuntimeModule ||
+        !window.MihomoCore.ProviderModel ||
         !window.MihomoCore.createProvidersModule ||
         !window.MihomoCore.createImportExportModule ||
         !window.MihomoCore.createPersistenceModule ||
@@ -42,7 +43,7 @@
         !window.MihomoFeatureModules.createRulesModule ||
         !window.MihomoFeatureModules.createYamlModule
     ) {
-        throw new Error('功能模块未加载，请确认先引入 ./core/state.js ./core/ui-runtime.js ./core/providers.js ./core/import-export.js ./core/persistence.js ./modules/proxies.js ./modules/validation.js ./modules/dns.js ./modules/tproxy.js ./modules/rules.js ./modules/yaml.js');
+        throw new Error('功能模块未加载，请确认先引入 ./core/state.js ./core/ui-runtime.js ./core/provider-model.js ./core/providers.js ./core/import-export.js ./core/persistence.js ./modules/proxy-schema.js ./modules/proxies.js ./modules/validation.js ./modules/dns.js ./modules/tproxy.js ./modules/rules.js ./modules/yaml.js');
     }
 
     const STORAGE_VERSION = 20;

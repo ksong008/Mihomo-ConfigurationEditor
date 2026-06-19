@@ -23,6 +23,16 @@
             getProxyTlsMode,
             askConfirm
         } = ctx;
+        const providerModel = window.MihomoCore && window.MihomoCore.ProviderModel;
+        if (!providerModel) {
+            throw new Error('ProviderModel 未加载，请确认先引入 ./core/provider-model.js');
+        }
+        const {
+            cloneJsonValue,
+            createProviderState,
+            createRuleProviderState,
+            getRuleProviderUrl: buildRuleProviderUrl
+        } = providerModel;
         const scrollProviderCardIntoView = (selector) => {
             window.requestAnimationFrame(() => {
                 window.requestAnimationFrame(() => {
@@ -71,13 +81,6 @@
                 p.healthCheckTimeout = source.healthCheckTimeout;
                 p.healthExpectedStatus = source.healthExpectedStatus;
             });
-        };
-        const cloneJsonValue = (value, fallback = null) => {
-            try {
-                return JSON.parse(JSON.stringify(value));
-            } catch (err) {
-                return fallback;
-            }
         };
         const normalizeProviderFallbackPayloadState = () => {
             const proxyMap = new Map();
@@ -742,92 +745,17 @@
 
         const addProvider = () => {
             const nextName = `Provider-${(providersList.value || []).length + 1}`;
-            providersList.value.push({
-                name: nextName,
-                type: 'http',
-                url: '',
-                path: '',
-                interval: 3600,
-                proxy: '',
-                sizeLimit: '',
-                ageSecretKey: '',
-                headers: '',
-                filter: '',
-                excludeFilter: '',
-                excludeType: '',
-                healthCheckEnable: true,
-                healthUrl: 'https://www.gstatic.com/generate_204',
-                healthCheckInterval: 600,
-                overrideDialerProxy: '',
-                overrideAdditionalPrefix: '',
-                overrideAdditionalSuffix: '',
-                overrideProxyName: '',
-                overrideUdp: '',
-                overrideUdpOverTcp: '',
-                overrideTfo: '',
-                overrideMptcp: '',
-                overrideSkipCertVerify: '',
-                overrideUp: '',
-                overrideDown: '',
-                overrideInterfaceName: '',
-                overrideRoutingMark: '',
-                overrideIpVersion: '',
-                inlineProxies: [],
-                _fallbackPayloadProxyNames: [],
-                _fallbackPayload: [],
-                _unsupportedOverrideKeys: [],
-                _unsupportedOverride: {},
-                lazy: true,
-                healthCheckLazy: true,
-                healthCheckTimeout: 5000,
-                healthExpectedStatus: ''
-            });
+            providersList.value.push(createProviderState({ name: nextName }));
             scrollProviderCardIntoView(`[data-provider-kind="subscription"][data-provider-name="${CSS.escape(nextName)}"]`);
         };
         const addInlineChainProvider = () => {
             const nextName = `Chain-${(providersList.value || []).length + 1}`;
-            providersList.value.push({
+            providersList.value.push(createProviderState({
                 name: nextName,
                 type: 'inline',
                 _chainMode: 'inline',
-                _sourceProviderName: '',
-                url: '',
-                path: '',
-                interval: 3600,
-                proxy: '',
-                sizeLimit: '',
-                ageSecretKey: '',
-                headers: '',
-                filter: '',
-                excludeFilter: '',
-                excludeType: '',
-                healthCheckEnable: true,
-                healthUrl: 'https://www.gstatic.com/generate_204',
-                healthCheckInterval: 600,
-                overrideDialerProxy: '',
-                overrideAdditionalPrefix: '',
-                overrideAdditionalSuffix: '',
-                overrideProxyName: '',
-                overrideUdp: '',
-                overrideUdpOverTcp: '',
-                overrideTfo: '',
-                overrideMptcp: '',
-                overrideSkipCertVerify: '',
-                overrideUp: '',
-                overrideDown: '',
-                overrideInterfaceName: '',
-                overrideRoutingMark: '',
-                overrideIpVersion: '',
-                inlineProxies: [],
-                _fallbackPayloadProxyNames: [],
-                _fallbackPayload: [],
-                _unsupportedOverrideKeys: [],
-                _unsupportedOverride: {},
-                lazy: true,
-                healthCheckLazy: true,
-                healthCheckTimeout: 5000,
-                healthExpectedStatus: ''
-            });
+                _sourceProviderName: ''
+            }));
             window.requestAnimationFrame(() => {
                 const detail = document.getElementById('inline-chain-details');
                 if (detail && detail.tagName === 'DETAILS') detail.open = true;
@@ -836,48 +764,12 @@
         };
         const addSourceChainProvider = () => {
             const nextName = `Provider-Chain-${(providersList.value || []).length + 1}`;
-            providersList.value.push({
+            providersList.value.push(createProviderState({
                 name: nextName,
                 type: 'http',
                 _chainMode: 'provider',
-                _sourceProviderName: '',
-                url: '',
-                path: '',
-                interval: 3600,
-                proxy: '',
-                sizeLimit: '',
-                ageSecretKey: '',
-                headers: '',
-                filter: '',
-                excludeFilter: '',
-                excludeType: '',
-                healthCheckEnable: true,
-                healthUrl: 'https://www.gstatic.com/generate_204',
-                healthCheckInterval: 600,
-                overrideDialerProxy: '',
-                overrideAdditionalPrefix: '',
-                overrideAdditionalSuffix: '',
-                overrideProxyName: '',
-                overrideUdp: '',
-                overrideUdpOverTcp: '',
-                overrideTfo: '',
-                overrideMptcp: '',
-                overrideSkipCertVerify: '',
-                overrideUp: '',
-                overrideDown: '',
-                overrideInterfaceName: '',
-                overrideRoutingMark: '',
-                overrideIpVersion: '',
-                inlineProxies: [],
-                _fallbackPayloadProxyNames: [],
-                _fallbackPayload: [],
-                _unsupportedOverrideKeys: [],
-                _unsupportedOverride: {},
-                lazy: true,
-                healthCheckLazy: true,
-                healthCheckTimeout: 5000,
-                healthExpectedStatus: ''
-            });
+                _sourceProviderName: ''
+            }));
             window.requestAnimationFrame(() => {
                 const detail = document.getElementById('inline-chain-details');
                 if (detail && detail.tagName === 'DETAILS') detail.open = true;
@@ -893,23 +785,7 @@
         const removeProvider = (idx) => providersList.value.splice(idx, 1);
 
         const addRuleProvider = () => {
-            ruleProvidersList.value.push({
-                name: '',
-                type: 'http',
-                file: '',
-                behavior: 'domain',
-                format: 'mrs',
-                interval: 86400,
-                autoUrl: true,
-                customUrl: '',
-                path: '',
-                pathInBundle: '',
-                proxy: '',
-                sizeLimit: '',
-                headers: '',
-                payload: '',
-                _collapsed: false
-            });
+            ruleProvidersList.value.push(createRuleProviderState());
             scrollToBottom();
         };
 
@@ -1200,15 +1076,9 @@
         };
 
         const getRuleProviderUrl = (rp) => {
-            if (!rp.autoUrl) return rp.customUrl;
-            const targetName = rp.file ? rp.file.trim() : '';
-            if (!targetName) return '';
-            const base = uiState.value.useMirrorForRuleProviders
-                ? 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo'
-                : 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo';
-            const folder = rp.behavior === 'ipcidr' ? 'geoip' : 'geosite';
-            const ext = rp.format === 'text' ? 'list' : rp.format;
-            return `${base}/${folder}/${targetName}.${ext}`;
+            return buildRuleProviderUrl(rp, {
+                useMirrorForRuleProviders: uiState.value.useMirrorForRuleProviders
+            });
         };
 
         const clearLists = () => {
