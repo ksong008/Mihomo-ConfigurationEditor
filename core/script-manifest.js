@@ -25,6 +25,7 @@
         './modules/validation-dns.js',
         './modules/validation.js',
         './modules/dns.js',
+        './modules/tproxy-builders.js',
         './modules/tproxy.js',
         './modules/rule-parser.js',
         './modules/rules.js',

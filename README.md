@@ -87,6 +87,7 @@ node scripts/verify.mjs --skip-offline-build
 - Import normalization helpers live in `core/import-model.js`; `core/import-export.js` applies imports to UI state and handles file operations.
 - Proxy node parsing, validation, and YAML export helpers are split from proxy UI orchestration in `modules/proxy-node-utils.js`, `modules/proxy-node-model.js`, `modules/proxy-node-validation.js`, and `modules/proxy-node-yaml.js`.
 - Shared validation utilities live in `modules/validation-helpers.js`; DNS validation helpers live in `modules/validation-dns.js`.
+- TProxy script generators live in `modules/tproxy-builders.js`; `modules/tproxy.js` keeps the UI state and copy/download actions.
 - `scripts/build-offline-html.mjs` converts the modular source page into a standalone offline `html` bundle for release publishing.
 - Maintenance workflow details are documented in `docs/maintenance.md`.
 

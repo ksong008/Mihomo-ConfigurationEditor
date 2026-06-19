@@ -58,6 +58,7 @@ test('source html local script loader references existing files in safe order', 
     assert.ok(scripts.indexOf('modules/validation-helpers.js') < scripts.indexOf('modules/validation.js'));
     assert.ok(scripts.indexOf('modules/validation-helpers.js') < scripts.indexOf('modules/validation-dns.js'));
     assert.ok(scripts.indexOf('modules/validation-dns.js') < scripts.indexOf('modules/validation.js'));
+    assert.ok(scripts.indexOf('modules/tproxy-builders.js') < scripts.indexOf('modules/tproxy.js'));
     assert.ok(scripts.indexOf('modules/rule-parser.js') < scripts.indexOf('modules/rules.js'));
     assert.ok(scripts.indexOf('modules/yaml-builders.js') < scripts.indexOf('modules/yaml.js'));
     assert.ok(scripts.indexOf('modules/yaml.js') < scripts.indexOf('mihomo.app.js'));
