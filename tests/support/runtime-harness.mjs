@@ -32,6 +32,7 @@ async function createRuntime(options = {}) {
     const sandbox = {
         console,
         Buffer,
+        URL,
         Uint8Array,
         atob: globalThis.atob,
         btoa: globalThis.btoa,

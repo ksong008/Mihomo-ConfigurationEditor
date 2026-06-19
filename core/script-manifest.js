@@ -17,6 +17,7 @@
         './modules/proxy-node-validation.js',
         './modules/proxy-node-yaml.js',
         './modules/proxies.js',
+        './modules/validation-helpers.js',
         './modules/validation.js',
         './modules/dns.js',
         './modules/tproxy.js',

@@ -82,6 +82,7 @@ node scripts/verify.mjs --skip-offline-build
 - Local browser script load order is declared in `core/script-manifest.js`.
 - Most feature logic is organized under `core/` and `modules/` to keep the entry file thin.
 - Proxy node parsing, validation, and YAML export helpers are split from proxy UI orchestration in `modules/proxy-node-utils.js`, `modules/proxy-node-model.js`, `modules/proxy-node-validation.js`, and `modules/proxy-node-yaml.js`.
+- Shared validation utilities live in `modules/validation-helpers.js`.
 - `scripts/build-offline-html.mjs` converts the modular source page into a standalone offline `html` bundle for release publishing.
 - Maintenance workflow details are documented in `docs/maintenance.md`.
 
