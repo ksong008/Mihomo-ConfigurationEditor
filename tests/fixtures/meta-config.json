@@ -1,0 +1,86 @@
+{
+  "global-client-fingerprint": "chrome",
+  "dns": {
+    "enable": true,
+    "listen": ":1053",
+    "ipv6": true,
+    "ipv6-timeout": 300,
+    "cache-max-size": 4096,
+    "nameserver": [
+      "https://dns.alidns.com/dns-query"
+    ]
+  },
+  "proxies": [
+    {
+      "name": "tls-node",
+      "type": "vless",
+      "server": "vless.example.com",
+      "port": 443,
+      "uuid": "00000000-0000-0000-0000-000000000000",
+      "tls": true
+    },
+    {
+      "name": "snell-v5",
+      "type": "snell",
+      "server": "snell.example.com",
+      "port": 2345,
+      "psk": "secret",
+      "version": 5,
+      "udp": true,
+      "reuse": true
+    },
+    {
+      "name": "ovpn",
+      "type": "openvpn",
+      "server": "vpn.example.com",
+      "port": 1194,
+      "username": "user",
+      "password": "pass",
+      "proto": "tcp",
+      "cipher": "AES-256-GCM",
+      "auth": "SHA512",
+      "remote-dns-resolve": true,
+      "dns": [
+        "1.1.1.1"
+      ]
+    }
+  ],
+  "proxy-providers": {
+    "remote": {
+      "type": "http",
+      "url": "https://example.com/provider.yaml",
+      "path": "./providers/remote.yaml",
+      "age-secret-key": "AGE-SECRET-KEY-demo",
+      "override": {
+        "tfo": true,
+        "ip-version": "ipv4"
+      }
+    }
+  },
+  "rule-providers": {
+    "geo-cn": {
+      "type": "file",
+      "behavior": "domain",
+      "format": "mrs",
+      "path": "./rules/cn.mrs",
+      "path-in-bundle": "geo/geosite/cn.mrs"
+    }
+  },
+  "proxy-groups": [
+    {
+      "name": "Auto",
+      "type": "url-test",
+      "proxies": [
+        "snell-v5"
+      ],
+      "use": [
+        "remote"
+      ],
+      "empty-fallback": "DIRECT"
+    }
+  ],
+  "rules": [
+    "RULE-SET,geo-cn,PASS-RULE",
+    "MATCH,Auto"
+  ]
+}

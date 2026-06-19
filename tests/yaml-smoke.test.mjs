@@ -1,60 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import path from 'node:path';
-import vm from 'node:vm';
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, '..');
-
-const dumpLikeYaml = (value) => JSON.stringify(value, null, 2);
-
-async function loadBrowserScript(context, relativePath) {
-    const source = await readFile(path.join(ROOT, relativePath), 'utf8');
-    vm.runInContext(source, context, { filename: relativePath });
-}
-
-async function createRuntime() {
-    const sandbox = {
-        console,
-        Buffer,
-        Uint8Array,
-        atob: globalThis.atob,
-        btoa: globalThis.btoa,
-        crypto: globalThis.crypto,
-        setTimeout,
-        clearTimeout,
-        alert: () => {},
-        navigator: {
-            clipboard: {
-                writeText: async () => {}
-            }
-        }
-    };
-
-    sandbox.window = {
-        crypto: globalThis.crypto
-    };
-    sandbox.window.window = sandbox.window;
-    sandbox.window.globalThis = sandbox;
-
-    sandbox.jsyaml = {
-        dump: dumpLikeYaml,
-        load: JSON.parse
-    };
-    sandbox.window.jsyaml = sandbox.jsyaml;
-    sandbox.globalThis = sandbox;
-
-    const context = vm.createContext(sandbox);
-    await loadBrowserScript(context, 'mihomo.helpers.js');
-    await loadBrowserScript(context, 'core/state.js');
-    await loadBrowserScript(context, 'modules/proxies.js');
-    await loadBrowserScript(context, 'modules/tproxy.js');
-    await loadBrowserScript(context, 'modules/yaml.js');
-
-    return context;
-}
+import { createRuntime } from './support/runtime-harness.mjs';
 
 function createYamlHarness(runtime) {
     const { getDefaultConfig, getDefaultUiState } = runtime.window.MihomoCore.createStateModule();
