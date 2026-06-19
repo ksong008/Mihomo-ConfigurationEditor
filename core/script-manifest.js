@@ -8,6 +8,7 @@
         './core/ui-runtime.js',
         './core/provider-model.js',
         './core/provider-group-model.js',
+        './core/provider-fallback-model.js',
         './core/providers.js',
         './core/import-model.js',
         './core/import-export.js',

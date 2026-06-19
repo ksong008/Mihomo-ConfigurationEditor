@@ -31,6 +31,10 @@
         if (!providerGroupModel) {
             throw new Error('ProviderGroupModel 未加载，请确认先引入 ./core/provider-group-model.js');
         }
+        const providerFallbackModel = window.MihomoCore && window.MihomoCore.ProviderFallbackModel;
+        if (!providerFallbackModel) {
+            throw new Error('ProviderFallbackModel 未加载，请确认先引入 ./core/provider-fallback-model.js');
+        }
         const {
             cloneJsonValue,
             createProviderState,
@@ -47,6 +51,14 @@
             groupIncludesAllProxies,
             groupIncludesAllProviders
         } = providerGroupModel;
+        const {
+            normalizeProviderFallbackPayloadState: normalizeProviderFallbackPayload,
+            getInlinePayloadPreview: buildInlinePayloadPreview,
+            getProviderFallbackSnapshotNames,
+            getProviderFallbackDetachedNames: buildProviderFallbackDetachedNames,
+            removeProviderFallbackPayloadNode,
+            getProviderFallbackPayloadPreview: buildProviderFallbackPayloadPreview
+        } = providerFallbackModel;
         const scrollProviderCardIntoView = (selector) => {
             window.requestAnimationFrame(() => {
                 window.requestAnimationFrame(() => {
@@ -97,57 +109,11 @@
             });
         };
         const normalizeProviderFallbackPayloadState = () => {
-            const proxyMap = new Map();
-            (config.value.proxies || []).forEach((px) => {
-                const name = String(px?.name || '').trim();
-                if (!name || proxyMap.has(name)) return;
-                proxyMap.set(name, px);
-            });
-
-            const sameStringList = (left, right) => {
-                if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
-                return left.every((item, index) => item === right[index]);
-            };
-            const serialize = (value) => {
-                try {
-                    return JSON.stringify(value);
-                } catch (err) {
-                    return '';
-                }
-            };
-
-            (providersList.value || []).forEach((provider) => {
-                if (!provider || provider._chainMode || !['http', 'file'].includes(provider.type)) return;
-
-                const selectedNames = Array.from(new Set(
-                    (Array.isArray(provider._fallbackPayloadProxyNames) ? provider._fallbackPayloadProxyNames : [])
-                        .map((item) => String(item || '').trim())
-                        .filter(Boolean)
-                ));
-                const snapshotMap = new Map();
-                (Array.isArray(provider._fallbackPayload) ? provider._fallbackPayload : []).forEach((item) => {
-                    if (!item || typeof item !== 'object') return;
-                    const name = String(item.name || '').trim();
-                    if (!name || snapshotMap.has(name)) return;
-                    snapshotMap.set(name, cloneJsonValue(item, item));
-                });
-
-                const nextPayload = selectedNames
-                    .map((name) => {
-                        const liveProxy = proxyMap.get(name);
-                        if (liveProxy) {
-                            return sanitizeProxyNodeForYaml(liveProxy);
-                        }
-                        return snapshotMap.get(name) || null;
-                    })
-                    .filter(Boolean);
-
-                if (!sameStringList(provider._fallbackPayloadProxyNames, selectedNames)) {
-                    provider._fallbackPayloadProxyNames = selectedNames;
-                }
-                if (serialize(provider._fallbackPayload) !== serialize(nextPayload)) {
-                    provider._fallbackPayload = nextPayload;
-                }
+            normalizeProviderFallbackPayload({
+                providers: providersList.value,
+                proxies: config.value.proxies,
+                cloneJsonValue,
+                sanitizeProxyNodeForYaml
             });
         };
         const normalizeProxyTransportState = () => {
@@ -1037,63 +1003,27 @@
         };
 
         const getInlinePayloadPreview = (inlineProxies) => {
-            if (!inlineProxies || inlineProxies.length === 0) return '[]';
-            const nodes = inlineProxies.map(name => {
-                const px = (config.value.proxies || []).find(x => x.name === name);
-                if (!px) return null;
-                return sanitizeProxyNodeForYaml(px);
-            }).filter(Boolean);
-            try {
-                return jsyaml.dump(nodes, { indent: 2, lineWidth: -1, sortKeys: false });
-            } catch (e) {
-                return '# Preview Error';
-            }
-        };
-        const getProviderFallbackSnapshotNames = (provider) => {
-            if (!provider || !Array.isArray(provider._fallbackPayload)) return [];
-            return provider._fallbackPayload
-                .map((item) => String(item?.name || '').trim())
-                .filter(Boolean);
+            return buildInlinePayloadPreview({
+                inlineProxies,
+                proxies: config.value.proxies,
+                sanitizeProxyNodeForYaml,
+                dumpYaml: jsyaml.dump
+            });
         };
         const getProviderFallbackDetachedNames = (provider) => {
-            const liveNames = new Set((config.value.proxies || []).map((item) => String(item?.name || '').trim()).filter(Boolean));
-            return getProviderFallbackSnapshotNames(provider).filter((name) => !liveNames.has(name));
-        };
-        const removeProviderFallbackPayloadNode = (provider, name) => {
-            if (!provider || typeof provider !== 'object') return;
-            const target = String(name || '').trim();
-            if (!target) return;
-            if (Array.isArray(provider._fallbackPayloadProxyNames)) {
-                provider._fallbackPayloadProxyNames = provider._fallbackPayloadProxyNames
-                    .map((item) => String(item || '').trim())
-                    .filter((item) => item && item !== target);
-            }
-            if (Array.isArray(provider._fallbackPayload)) {
-                provider._fallbackPayload = provider._fallbackPayload.filter((item) => String(item?.name || '').trim() !== target);
-            }
+            return buildProviderFallbackDetachedNames({
+                provider,
+                proxies: config.value.proxies
+            });
         };
         const getProviderFallbackPayloadPreview = (provider) => {
-            if (!provider) return '[]';
-            const names = Array.isArray(provider._fallbackPayloadProxyNames) ? provider._fallbackPayloadProxyNames : [];
-            const snapshotMap = new Map();
-            (Array.isArray(provider._fallbackPayload) ? provider._fallbackPayload : []).forEach((item) => {
-                const name = String(item?.name || '').trim();
-                if (name && !snapshotMap.has(name)) snapshotMap.set(name, cloneJsonValue(item, item));
+            return buildProviderFallbackPayloadPreview({
+                provider,
+                proxies: config.value.proxies,
+                cloneJsonValue,
+                sanitizeProxyNodeForYaml,
+                dumpYaml: jsyaml.dump
             });
-
-            const nodes = Array.from(new Set(names.map((item) => String(item || '').trim()).filter(Boolean)))
-                .map((name) => {
-                    const liveProxy = (config.value.proxies || []).find((px) => String(px?.name || '').trim() === name);
-                    if (liveProxy) return sanitizeProxyNodeForYaml(liveProxy);
-                    return snapshotMap.get(name) || null;
-                })
-                .filter(Boolean);
-
-            try {
-                return jsyaml.dump(nodes, { indent: 2, lineWidth: -1, sortKeys: false });
-            } catch (e) {
-                return '# Preview Error';
-            }
         };
 
         return {

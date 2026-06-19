@@ -10,6 +10,7 @@ const defaultRuntimeScripts = [
     'mihomo.helpers.js',
     'core/state.js',
     'core/provider-group-model.js',
+    'core/provider-fallback-model.js',
     'modules/proxy-schema.js',
     'modules/proxy-node-utils.js',
     'modules/proxy-node-model.js',
