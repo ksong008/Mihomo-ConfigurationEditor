@@ -45,12 +45,12 @@
         throw new Error('功能模块未加载，请确认先引入 ./core/state.js ./core/ui-runtime.js ./core/providers.js ./core/import-export.js ./core/persistence.js ./modules/proxies.js ./modules/validation.js ./modules/dns.js ./modules/tproxy.js ./modules/rules.js ./modules/yaml.js');
     }
 
-    const STORAGE_VERSION = 19;
+    const STORAGE_VERSION = 20;
     const STORAGE_KEY_PREFIX = 'mihomo_web_config';
     const STORAGE_KEY = `${STORAGE_KEY_PREFIX}_v${STORAGE_VERSION}`;
     const STORAGE_BACKUP_KEY = `${STORAGE_KEY}_backup`;
-    const RESTORE_LEGACY_STORAGE_KEYS = ['mihomo_web_config_v17'];
-    const CLEANUP_STORAGE_KEYS = ['mihomo_web_config_v17', 'mihomo_web_config_v18', 'mihomo_web_config_v18_backup'];
+    const RESTORE_LEGACY_STORAGE_KEYS = ['mihomo_web_config_v19', 'mihomo_web_config_v19_backup', 'mihomo_web_config_v18', 'mihomo_web_config_v18_backup', 'mihomo_web_config_v17'];
+    const CLEANUP_STORAGE_KEYS = ['mihomo_web_config_v17', 'mihomo_web_config_v18', 'mihomo_web_config_v18_backup', 'mihomo_web_config_v19', 'mihomo_web_config_v19_backup'];
 
     createApp({
         setup() {
@@ -507,6 +507,7 @@
                 ensureGroupCollapseState,
                 removeGroupProxyMember,
                 getAvailableGroupMembers,
+                getAvailableEmptyFallbackMembers,
                 getOrderedAvailableGroupMembers,
                 groupIncludesAllProxies,
                 groupIncludesAllProviders,
@@ -725,6 +726,7 @@
                 collapseAllGroups,
                 expandAllGroups,
                 getAvailableGroupMembers,
+                getAvailableEmptyFallbackMembers,
                 getOrderedAvailableGroupMembers,
                 getOrderedGroupUseProviders,
                 groupIncludesAllProxies,

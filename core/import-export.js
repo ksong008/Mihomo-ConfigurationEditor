@@ -254,6 +254,7 @@
                             'client-auth-cert': String(item['client-auth-cert'] || ''),
                             'ech-key': String(item['ech-key'] || ''),
                             'ech-cert': String(item['ech-cert'] || ''),
+                            ...(item['allow-insecure'] !== undefined ? { 'allow-insecure': item['allow-insecure'] === true } : {}),
                             users,
                             _usersText: formatYamlSequenceText(users),
                             _shadowTlsText: formatYamlObjectText(item['shadow-tls']),
@@ -285,13 +286,22 @@
             }
 
             if (data.proxies !== undefined) {
+                const importedGlobalFingerprint = String(data['global-client-fingerprint'] || '').trim();
+                const fingerprintProxyTypes = new Set(['vless', 'vmess', 'trojan', 'anytls', 'trusttunnel']);
                 data.proxies = ensureArray(data.proxies)
                     .filter(isPlainObject)
-                    .map((item, idx) => ({
-                        ...item,
-                        name: String(item.name || item.server || `Node-${idx + 1}`).trim() || `Node-${idx + 1}`,
-                        type: String(item.type || 'vless').trim() || 'vless'
-                    }));
+                    .map((item, idx) => {
+                        const type = String(item.type || 'vless').trim() || 'vless';
+                        const next = {
+                            ...item,
+                            name: String(item.name || item.server || `Node-${idx + 1}`).trim() || `Node-${idx + 1}`,
+                            type
+                        };
+                        if (importedGlobalFingerprint && fingerprintProxyTypes.has(type) && !String(next['client-fingerprint'] || '').trim()) {
+                            next['client-fingerprint'] = importedGlobalFingerprint;
+                        }
+                        return next;
+                    });
             }
 
             if (data['proxy-groups'] !== undefined) {
@@ -322,6 +332,7 @@
                             'include-all-proxies': g['include-all-proxies'] === true,
                             'include-all-providers': g['include-all-providers'] === true,
                             'expected-status': String(g['expected-status'] || ''),
+                            'empty-fallback': String(g['empty-fallback'] || ''),
                             hidden: g.hidden === true,
                             icon: String(g.icon || '')
                         };
@@ -428,6 +439,7 @@
                         type,
                         path: String(p.path || ''),
                         proxy: String(p.proxy || p['dialer-proxy'] || ''),
+                        'age-secret-key': String(p['age-secret-key'] || ''),
                         header: normalizeYamlMapLike(p.header),
                         filter: String(p.filter || ''),
                         'exclude-filter': String(p['exclude-filter'] || ''),
@@ -509,6 +521,7 @@
                         behavior: String(p.behavior || 'domain'),
                         format: String(p.format || 'mrs'),
                         proxy: String(p.proxy || ''),
+                        'path-in-bundle': String(p['path-in-bundle'] || ''),
                         header: normalizeYamlMapLike(p.header)
                     };
 
@@ -606,6 +619,7 @@
                 if (uiState.value.nftablesConfig) uiState.value.nftablesConfig.egressIface = data['interface-name'] || '';
             }
             if (data['geodata-mode'] !== undefined) config.value['geodata-mode'] = data['geodata-mode'];
+            config.value['geosite-matcher'] = data['geosite-matcher'] !== undefined ? data['geosite-matcher'] : getDefaultConfig()['geosite-matcher'];
             if (data['unified-delay'] !== undefined) config.value['unified-delay'] = data['unified-delay'];
             if (data['tcp-concurrent'] !== undefined) config.value['tcp-concurrent'] = data['tcp-concurrent'];
             if (data['global-client-fingerprint'] !== undefined) config.value['global-client-fingerprint'] = data['global-client-fingerprint'];
@@ -634,12 +648,15 @@
             config.value['keep-alive-interval'] = data['keep-alive-interval'] !== undefined ? data['keep-alive-interval'] : getDefaultConfig()['keep-alive-interval'];
             config.value['keep-alive-idle'] = data['keep-alive-idle'] !== undefined ? data['keep-alive-idle'] : getDefaultConfig()['keep-alive-idle'];
             config.value['disable-keep-alive'] = data['disable-keep-alive'] !== undefined ? data['disable-keep-alive'] : getDefaultConfig()['disable-keep-alive'];
+            config.value['inbound-tfo'] = data['inbound-tfo'] !== undefined ? data['inbound-tfo'] : getDefaultConfig()['inbound-tfo'];
+            config.value['inbound-mptcp'] = data['inbound-mptcp'] !== undefined ? data['inbound-mptcp'] : getDefaultConfig()['inbound-mptcp'];
             if (data['find-process-mode'] !== undefined) config.value['find-process-mode'] = data['find-process-mode'];
             if (data.profile) config.value.profile = { ...config.value.profile, ...data.profile };
             if (data['external-controller'] !== undefined) config.value['external-controller'] = data['external-controller'];
             config.value['external-controller-unix'] = data['external-controller-unix'] !== undefined ? data['external-controller-unix'] : getDefaultConfig()['external-controller-unix'];
             config.value['external-controller-pipe'] = data['external-controller-pipe'] !== undefined ? data['external-controller-pipe'] : getDefaultConfig()['external-controller-pipe'];
             config.value['external-controller-tls'] = data['external-controller-tls'] !== undefined ? data['external-controller-tls'] : getDefaultConfig()['external-controller-tls'];
+            config.value['external-doh-server'] = data['external-doh-server'] !== undefined ? data['external-doh-server'] : getDefaultConfig()['external-doh-server'];
             if (data.secret !== undefined) config.value.secret = data.secret;
             if (data['external-ui'] !== undefined) config.value['external-ui'] = data['external-ui'];
             config.value['external-ui-name'] = data['external-ui-name'] !== undefined ? data['external-ui-name'] : getDefaultConfig()['external-ui-name'];
@@ -736,7 +753,7 @@
 
             if (data.dns) {
                 config.value.dns.enable = true;
-                ['listen', 'ipv6', 'enhanced-mode', 'fake-ip-range', 'fake-ip-range6', 'fake-ip-filter-mode', 'fake-ip-ttl', 'cache-algorithm', 'prefer-h3', 'respect-rules', 'use-hosts', 'use-system-hosts', 'direct-nameserver-follow-policy'].forEach(k => {
+                ['listen', 'ipv6', 'ipv6-timeout', 'enhanced-mode', 'fake-ip-range', 'fake-ip-range6', 'fake-ip-filter-mode', 'fake-ip-ttl', 'cache-algorithm', 'cache-max-size', 'prefer-h3', 'respect-rules', 'use-hosts', 'use-system-hosts', 'direct-nameserver-follow-policy'].forEach(k => {
                     if (data.dns[k] !== undefined) config.value.dns[k] = data.dns[k];
                 });
                 config.value.dns.listen = normalizeListenAddress(config.value.dns.listen, ':53');
@@ -846,6 +863,7 @@
                         interval: 3600,
                         proxy: '',
                         sizeLimit: '',
+                        ageSecretKey: '',
                         headers: '',
                         filter: '',
                         excludeFilter: '',
@@ -881,6 +899,7 @@
                     prov.path = p.path || '';
                     prov.proxy = p.proxy || '';
                     prov.sizeLimit = p['size-limit'] !== undefined && p['size-limit'] !== null ? String(p['size-limit']) : '';
+                    prov.ageSecretKey = p['age-secret-key'] || '';
                     prov.headers = formatYamlMapText(p.header);
                     prov.filter = p.filter || '';
                     prov.excludeFilter = p['exclude-filter'] || '';
@@ -968,6 +987,7 @@
                         autoUrl: false,
                         customUrl: '',
                         path: p.path || '',
+                        pathInBundle: p['path-in-bundle'] || '',
                         proxy: p.proxy || '',
                         sizeLimit: p['size-limit'] !== undefined && p['size-limit'] !== null ? String(p['size-limit']) : '',
                         headers: formatYamlMapText(p.header),
@@ -1019,6 +1039,7 @@
                         'include-all-proxies': g['include-all-proxies'] === true,
                         'include-all-providers': g['include-all-providers'] === true,
                         'expected-status': g['expected-status'] || '',
+                        'empty-fallback': g['empty-fallback'] || '',
                         hidden: g.hidden === true,
                         icon: g.icon || '',
                         _collapsed: typeof g._collapsed === 'boolean' ? g._collapsed : true

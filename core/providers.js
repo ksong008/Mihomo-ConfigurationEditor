@@ -61,6 +61,7 @@
                 p.interval = source.interval;
                 p.proxy = source.proxy;
                 p.sizeLimit = source.sizeLimit;
+                p.ageSecretKey = source.ageSecretKey;
                 p.headers = source.headers;
                 p.lazy = source.lazy;
                 p.healthCheckEnable = source.healthCheckEnable;
@@ -216,6 +217,7 @@
                 'include-all-proxies': false,
                 'include-all-providers': false,
                 'expected-status': '',
+                'empty-fallback': '',
                 hidden: false,
                 icon: '',
                 _collapsed: false
@@ -276,18 +278,21 @@
             g.proxies.splice(idx, 1);
         };
 
+        const BUILTIN_PROXY_TARGETS = Object.freeze(['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'PASS-RULE', 'COMPATIBLE']);
+
+        const getManualProxyNames = () => (config.value.proxies || [])
+            .map((p) => String(p?.name || '').trim())
+            .filter(Boolean);
+
+        const getProxyGroupNames = (currentGroupName = '') => (config.value['proxy-groups'] || [])
+            .map((group) => String(group?.name || '').trim())
+            .filter((name) => name && name !== currentGroupName);
+
         const getValidStaticGroupMemberNames = (currentGroupName = '') => {
-            const names = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE']);
+            const names = new Set(BUILTIN_PROXY_TARGETS);
 
-            (config.value.proxies || []).forEach((p) => {
-                const name = String(p?.name || '').trim();
-                if (name) names.add(name);
-            });
-
-            (config.value['proxy-groups'] || []).forEach((group) => {
-                const name = String(group?.name || '').trim();
-                if (name && name !== currentGroupName) names.add(name);
-            });
+            getManualProxyNames().forEach((name) => names.add(name));
+            getProxyGroupNames(currentGroupName).forEach((name) => names.add(name));
 
             return names;
         };
@@ -325,9 +330,11 @@
         );
 
         const getAvailableGroupMembers = (currentGroupName) => {
-            let groups = (config.value['proxy-groups'] || []).map(g => g.name);
-            if (currentGroupName) groups = groups.filter(n => n !== currentGroupName);
-            return ['DIRECT', 'REJECT', ...groups, ...(config.value.proxies || []).map(p => p.name)];
+            return [...BUILTIN_PROXY_TARGETS, ...getProxyGroupNames(currentGroupName), ...getManualProxyNames()];
+        };
+
+        const getAvailableEmptyFallbackMembers = () => {
+            return [...BUILTIN_PROXY_TARGETS, ...getManualProxyNames()];
         };
 
         const getOrderedAvailableGroupMembers = (g) => {
@@ -743,6 +750,7 @@
                 interval: 3600,
                 proxy: '',
                 sizeLimit: '',
+                ageSecretKey: '',
                 headers: '',
                 filter: '',
                 excludeFilter: '',
@@ -788,6 +796,7 @@
                 interval: 3600,
                 proxy: '',
                 sizeLimit: '',
+                ageSecretKey: '',
                 headers: '',
                 filter: '',
                 excludeFilter: '',
@@ -837,6 +846,7 @@
                 interval: 3600,
                 proxy: '',
                 sizeLimit: '',
+                ageSecretKey: '',
                 headers: '',
                 filter: '',
                 excludeFilter: '',
@@ -893,6 +903,7 @@
                 autoUrl: true,
                 customUrl: '',
                 path: '',
+                pathInBundle: '',
                 proxy: '',
                 sizeLimit: '',
                 headers: '',
@@ -1281,6 +1292,7 @@
             ensureGroupCollapseState,
             removeGroupProxyMember,
             getAvailableGroupMembers,
+            getAvailableEmptyFallbackMembers,
             getOrderedAvailableGroupMembers,
             groupIncludesAllProxies,
             groupIncludesAllProviders,

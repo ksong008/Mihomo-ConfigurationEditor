@@ -30,9 +30,9 @@
             normalizeTunnelListenerNetwork
         } = window.MihomoHelpers;
 
-        const BUILTIN_RULE_TARGETS = ['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE'];
+        const BUILTIN_RULE_TARGETS = ['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'PASS-RULE', 'COMPATIBLE'];
         const URL_TEST_GROUP_TYPES = new Set(['url-test', 'fallback', 'load-balance']);
-        const SUPPORTED_PROXY_GROUP_TYPES = new Set(['select', 'url-test', 'fallback', 'load-balance', 'relay']);
+        const SUPPORTED_PROXY_GROUP_TYPES = new Set(['select', 'url-test', 'fallback', 'load-balance']);
         const SUPPORTED_PROXY_PROVIDER_TYPES = new Set(['http', 'file', 'inline']);
         const SUPPORTED_RULE_PROVIDER_TYPES = new Set(['http', 'file', 'inline']);
         const SUPPORTED_RULE_PROVIDER_BEHAVIORS = new Set(['domain', 'ipcidr', 'classical']);
@@ -773,7 +773,7 @@
                 }
 
                 if (!SUPPORTED_SIMPLE_LISTENER_TYPES.has(type)) {
-                    pushIssue('error', `${label} 使用了当前编辑器未完整支持的 listener 类型 "${type}"；重新导出时会丢失协议私有字段。`);
+                    pushIssue('warning', `${label} 使用了当前编辑器未完整支持的 listener 类型 "${type}"；协议私有字段会按原样保留，但不会参与细项校验。`);
                     return;
                 }
 
@@ -948,6 +948,7 @@
                 const chainMode = text(provider && provider._chainMode);
                 const sourceProviderName = text(provider && provider._sourceProviderName);
                 const downloadProxy = text((provider && provider.proxy) || (provider && provider.downloadProxy));
+                const ageSecretKey = text(provider && provider.ageSecretKey);
                 const overrideDialerProxy = text(provider && provider.overrideDialerProxy);
                 const overrideUdp = text(provider && provider.overrideUdp).toLowerCase();
                 const overrideUdpOverTcp = text(provider && provider.overrideUdpOverTcp).toLowerCase();
@@ -989,6 +990,9 @@
                 }
                 if (text(provider && provider.sizeLimit) && !isValidNonNegativeNumberText(provider && provider.sizeLimit)) {
                     pushIssue('error', `${label} 的 size-limit 必须是大于等于 0 的数字。`);
+                }
+                if (ageSecretKey && !ageSecretKey.startsWith('AGE-SECRET-KEY-')) {
+                    pushIssue('warning', `${label} 的 age-secret-key 通常应以 AGE-SECRET-KEY- 开头。`);
                 }
                 validateYamlHeaders(provider && provider.headers, label, pushIssue);
                 validateProxyNameOverride(provider && provider.overrideProxyName, label, pushIssue);
@@ -1085,6 +1089,7 @@
                 const behavior = text(provider && provider.behavior) || 'domain';
                 const format = text(provider && provider.format) || 'mrs';
                 const proxyRef = text(provider && provider.proxy);
+                const pathInBundle = text(provider && provider.pathInBundle);
 
                 if (!name) {
                     pushIssue('error', `${label} 缺少名称。`);
@@ -1125,6 +1130,12 @@
                 if (type === 'inline' && splitLines(provider && provider.payload).length === 0) {
                     pushIssue('warning', `${label} 的 inline payload 为空。`);
                 }
+                if (type === 'inline' && pathInBundle) {
+                    pushIssue('warning', `${label} 是 inline 类型，path-in-bundle 不会导出。`);
+                }
+                if (pathInBundle && /^[/\\]/.test(pathInBundle)) {
+                    pushIssue('warning', `${label} 的 path-in-bundle 通常应填写包内相对路径。`);
+                }
             });
 
             if (dns && dns.enable) {
@@ -1140,6 +1151,12 @@
 
                 if (!isValidListenAddress(dnsListen)) {
                     pushIssue('error', `DNS.listen "${dnsListen || '(空)'}" 不是有效的监听地址/端口。`);
+                }
+                if (text(dns['cache-max-size']) && !isValidNonNegativeNumberText(dns['cache-max-size'])) {
+                    pushIssue('error', 'DNS.cache-max-size 必须是大于等于 0 的数字。');
+                }
+                if (dns.ipv6 && text(dns['ipv6-timeout']) && !isValidNonNegativeNumberText(dns['ipv6-timeout'])) {
+                    pushIssue('error', 'DNS.ipv6-timeout 必须是大于等于 0 的数字。');
                 }
 
                 const bootstrapSources = [];
@@ -1246,6 +1263,7 @@
                 const includeAll = !!(group && group['include-all'] && type !== 'relay');
                 const includeAllProxies = !!(group && !includeAll && group['include-all-proxies']);
                 const includeAllProviders = !!(group && !includeAll && group['include-all-providers']);
+                const emptyFallback = text(group && group['empty-fallback']);
                 const reliesOnlyOnProviderMembers = URL_TEST_GROUP_TYPES.has(type)
                     && !includeAll
                     && !includeAllProxies
@@ -1266,6 +1284,10 @@
                 }
                 if (missingProviders.length > 0) {
                     pushIssue('error', `${label} 的 use 引用了不存在的代理提供者：${missingProviders.join(', ')}`);
+                }
+                const validEmptyFallbackTargets = new Set([...BUILTIN_RULE_TARGETS, ...proxyNames]);
+                if (emptyFallback && !validEmptyFallbackTargets.has(emptyFallback)) {
+                    pushIssue('error', `${label} 的 empty-fallback 必须引用内建代理或手动节点，当前目标不存在或不是可用代理："${emptyFallback}"。`);
                 }
                 if (group && group['include-all'] && group['include-all-proxies']) {
                     pushIssue('warning', `${label} 同时开启了 include-all 和 include-all-proxies；导出时会以 include-all 为准。`);

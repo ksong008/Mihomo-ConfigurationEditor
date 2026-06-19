@@ -118,6 +118,14 @@
         };
         const sanitizeListenerForYaml = (listener) => {
             const type = String(listener.type || '').trim();
+            const supportedListenerTypes = new Set(['mixed', 'http', 'socks', 'redir', 'tproxy', 'shadowsocks', 'tunnel']);
+            if (!supportedListenerTypes.has(type)) {
+                const preserved = { ...listener, type };
+                delete preserved._usersText;
+                delete preserved._shadowTlsText;
+                delete preserved._kcpTunText;
+                return pruneEmptyYamlValue(preserved);
+            }
             const nextListener = {
                 name: String(listener.name || '').trim(),
                 type,
@@ -188,12 +196,13 @@
                     if (!outGeneral[k] && outGeneral[k] !== 0) delete outGeneral[k];
                 });
 
-                if (raw['global-client-fingerprint']) outGeneral['global-client-fingerprint'] = raw['global-client-fingerprint'];
                 if (raw['bind-address']) outGeneral['bind-address'] = raw['bind-address'];
                 if (raw.secret) outGeneral.secret = raw.secret;
                 if (raw['keep-alive-interval'] !== '' && raw['keep-alive-interval'] !== undefined) outGeneral['keep-alive-interval'] = raw['keep-alive-interval'];
                 if (raw['keep-alive-idle'] !== '' && raw['keep-alive-idle'] !== undefined) outGeneral['keep-alive-idle'] = raw['keep-alive-idle'];
                 if (raw['disable-keep-alive'] !== undefined) outGeneral['disable-keep-alive'] = raw['disable-keep-alive'];
+                if (raw['inbound-tfo']) outGeneral['inbound-tfo'] = true;
+                if (raw['inbound-mptcp']) outGeneral['inbound-mptcp'] = true;
                 if (raw['external-ui']) outGeneral['external-ui'] = raw['external-ui'];
                 if (raw['external-ui-name']) outGeneral['external-ui-name'] = raw['external-ui-name'];
                 if (raw['external-ui-url']) outGeneral['external-ui-url'] = raw['external-ui-url'];
@@ -202,6 +211,7 @@
                 if (raw['geodata-loader'] && raw['geodata-loader'] !== defaultConfig['geodata-loader']) {
                     outGeneral['geodata-loader'] = raw['geodata-loader'];
                 }
+                if (raw['geosite-matcher']) outGeneral['geosite-matcher'] = raw['geosite-matcher'];
                 if (raw['global-ua']) outGeneral['global-ua'] = raw['global-ua'];
                 if (raw['etag-support'] !== undefined && raw['etag-support'] !== defaultConfig['etag-support']) {
                     outGeneral['etag-support'] = raw['etag-support'];
@@ -209,6 +219,7 @@
                 if (raw['external-controller-unix']) outGeneral['external-controller-unix'] = raw['external-controller-unix'];
                 if (raw['external-controller-pipe']) outGeneral['external-controller-pipe'] = raw['external-controller-pipe'];
                 if (raw['external-controller-tls']) outGeneral['external-controller-tls'] = raw['external-controller-tls'];
+                if (raw['external-doh-server']) outGeneral['external-doh-server'] = raw['external-doh-server'];
 
                 const lanAllowedIps = parseText(uiState.value.generalLanAllowedIps);
                 if (lanAllowedIps.length > 0) outGeneral['lan-allowed-ips'] = lanAllowedIps;
@@ -391,6 +402,8 @@
                     if (raw.dns['cache-algorithm'] === defaultConfig.dns?.['cache-algorithm']) {
                         delete outNetwork.dns['cache-algorithm'];
                     }
+                    if (!Number(raw.dns['cache-max-size'])) delete outNetwork.dns['cache-max-size'];
+                    if (!raw.dns.ipv6 || !Number(raw.dns['ipv6-timeout'])) delete outNetwork.dns['ipv6-timeout'];
                     if (outNetwork.dns['enhanced-mode'] === 'fake-ip') {
                         outNetwork.dns['fake-ip-filter-mode'] = raw.dns['fake-ip-filter-mode'];
                         if (raw.dns.ipv6) {
@@ -472,7 +485,7 @@
                 const providerNames = (providersList.value || []).map(p => p.name).filter(Boolean);
                 const groupNames = (raw['proxy-groups'] || []).map(g => g.name).filter(Boolean);
                 const proxyNames = (raw.proxies || []).map(p => p.name).filter(Boolean);
-                const validStaticMembers = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE', ...groupNames, ...proxyNames]);
+                const validStaticMembers = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'PASS-RULE', 'COMPATIBLE', ...groupNames, ...proxyNames]);
                 const defaultRuleTarget = groupNames[0] || 'DIRECT';
                 const normalizeRuleTarget = (target) => validStaticMembers.has(target) ? target : defaultRuleTarget;
                 const getRuleTarget = (rule) => rule && rule.type === 'SUB-RULE'
@@ -523,6 +536,7 @@
                             interval: source.interval,
                             proxy: source.proxy,
                             sizeLimit: source.sizeLimit,
+                            ageSecretKey: source.ageSecretKey,
                             headers: source.headers,
                             lazy: source.lazy,
                             healthCheckEnable: source.healthCheckEnable,
@@ -623,6 +637,7 @@
                                 const parsedHeaders = parseYamlMapText(effectiveProvider.headers);
                                 const sizeLimitText = String(effectiveProvider.sizeLimit ?? '').trim();
                                 const sizeLimit = Number(sizeLimitText);
+                                const ageSecretKey = String(effectiveProvider.ageSecretKey ?? '').trim();
                                 const healthCheck = {
                                     enable: effectiveProvider.healthCheckEnable !== false,
                                     interval: Number(effectiveProvider.healthCheckInterval) > 0 ? Number(effectiveProvider.healthCheckInterval) : 600,
@@ -641,6 +656,7 @@
                                     prov['size-limit'] = sizeLimit;
                                 }
                                 if (parsedHeaders) prov.header = parsedHeaders;
+                                if (ageSecretKey) prov['age-secret-key'] = ageSecretKey;
                                 if (healthExpectedStatus) healthCheck['expected-status'] = healthExpectedStatus;
                                 prov['health-check'] = healthCheck;
                                 const fallbackPayloadNodes = buildProviderPayloadNodes(effectiveProvider);
@@ -712,6 +728,7 @@
                             const parsedRuleProviderHeaders = parseYamlMapText(rp.headers);
                             const sizeLimitText = String(rp.sizeLimit ?? '').trim();
                             const sizeLimit = Number(sizeLimitText);
+                            const pathInBundle = String(rp.pathInBundle ?? '').trim();
 
                             rProv.path = ruleProviderPath;
                             rProv.url = url;
@@ -721,8 +738,10 @@
                                 rProv['size-limit'] = sizeLimit;
                             }
                             if (parsedRuleProviderHeaders) rProv.header = parsedRuleProviderHeaders;
+                            if (pathInBundle) rProv['path-in-bundle'] = pathInBundle;
                         } else if (rp.type === 'file') {
                             rProv.path = rp.path || `./rules/${rp.name}.${getRuleProviderPathExt(rp.format)}`;
+                            if (String(rp.pathInBundle ?? '').trim()) rProv['path-in-bundle'] = String(rp.pathInBundle).trim();
                         } else if (rp.type === 'inline') {
                             rProv.payload = parseText(rp.payload);
                         }
@@ -740,6 +759,10 @@
                         if (!includeAll && g['include-all-providers']) cg['include-all-providers'] = true;
                         if (g.hidden) cg.hidden = true;
                         if (g.icon) cg.icon = g.icon;
+                        const validEmptyFallbackMembers = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'PASS-RULE', 'COMPATIBLE', ...proxyNames]);
+                        if (g['empty-fallback'] && validEmptyFallbackMembers.has(String(g['empty-fallback']).trim())) {
+                            cg['empty-fallback'] = String(g['empty-fallback']).trim();
+                        }
 
                         if(g.type === 'load-balance') cg.strategy = g.strategy || 'consistent-hashing';
 

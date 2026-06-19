@@ -72,6 +72,7 @@
             mieruProfile: false,
             trustTunnelProfile: false,
             sudokuProfile: false,
+            openvpnProfile: false,
             passwordAlias: ''
         });
         const createProxyCapability = (value = {}) => Object.freeze({
@@ -190,18 +191,28 @@
                 tlsServerNameKey: 'sni',
                 supportsTlsClientFingerprint: true,
                 features: { trustTunnelProfile: true, bbrProfile: true }
+            }),
+            openvpn: createProxyCapability({
+                toggles: { udp: true, tfo: true, mptcp: true },
+                features: { openvpnProfile: true }
             })
         });
         const VLESS_FLOW_OPTIONS = new Set(['xtls-rprx-vision']);
         const PACKET_ENCODING_OPTIONS = new Set(['packetaddr', 'xudp']);
         const VMESS_CIPHER_OPTIONS = new Set(['auto', 'aes-128-gcm', 'chacha20-poly1305', 'none', 'zero']);
         const HYSTERIA_PROTOCOL_OPTIONS = new Set(['udp', 'wechat-video', 'faketcp']);
-        const HYSTERIA2_OBFS_OPTIONS = new Set(['salamander']);
+        const HYSTERIA2_OBFS_OPTIONS = new Set(['salamander', 'gecko']);
         const BBR_PROFILE_OPTIONS = new Set(['standard', 'conservative', 'aggressive']);
         const TUIC_UDP_RELAY_MODE_OPTIONS = new Set(['native', 'quic']);
         const QUIC_CONGESTION_CONTROLLER_OPTIONS = new Set(['bbr', 'cubic', 'new_reno']);
         const MASQUE_CONGESTION_CONTROLLER_OPTIONS = new Set(['bbr']);
-        const SNELL_VERSION_OPTIONS = new Set(['1', '2', '3']);
+        const OPENVPN_PROTO_OPTIONS = new Set(['udp', 'tcp']);
+        const OPENVPN_DEV_OPTIONS = new Set(['tun']);
+        const OPENVPN_CIPHER_OPTIONS = new Set(['AES-128-GCM', 'AES-192-GCM', 'AES-256-GCM', 'AES-128-CBC', 'AES-192-CBC', 'AES-256-CBC', 'CHACHA20-POLY1305']);
+        const OPENVPN_AUTH_OPTIONS = new Set(['MD5', 'SHA1', 'SHA256', 'SHA384', 'SHA512']);
+        const OPENVPN_COMP_LZO_OPTIONS = new Set(['yes', 'no', 'adaptive']);
+        const SNELL_VERSION_OPTIONS = new Set(['1', '2', '3', '4', '5']);
+        const SNELL_UDP_VERSION_OPTIONS = new Set(['3', '4', '5']);
         const MIERU_TRANSPORT_OPTIONS = new Set(['TCP', 'UDP']);
         const MIERU_MULTIPLEXING_OPTIONS = new Set(['MULTIPLEXING_OFF', 'MULTIPLEXING_LOW', 'MULTIPLEXING_MIDDLE', 'MULTIPLEXING_HIGH']);
         const XHTTP_MODE_OPTIONS = new Set(['auto', 'stream-one', 'stream-up', 'packet-up']);
@@ -244,6 +255,28 @@
         const proxySupportsTlsClientFingerprint = (type) => getProxyCapabilitySchema(type).supportsTlsClientFingerprint === true;
         const getProxyTlsServerNameKey = (type) => getProxyCapabilitySchema(type).tlsServerNameKey || '';
         const getProxyTlsServerNameValue = (proxy) => String(proxy?.servername || proxy?.sni || '').trim();
+        const normalizeOpenvpnProtoValue = (value) => {
+            const raw = String(value || '').trim().toLowerCase();
+            if (!raw) return 'udp';
+            if (raw === 'udp4') return 'udp';
+            if (raw === 'tcp-client' || raw === 'tcp4' || raw === 'tcp4-client') return 'tcp';
+            return raw;
+        };
+        const normalizeOpenvpnCipherValue = (value) => {
+            const raw = String(value || '').trim().toUpperCase();
+            if (!raw) return 'AES-128-GCM';
+            if (raw === 'AES-CBC') return 'AES-128-CBC';
+            return raw;
+        };
+        const normalizeOpenvpnAuthValue = (value) => {
+            const raw = String(value || '').trim().toUpperCase();
+            if (!raw) return 'SHA256';
+            if (raw === 'SHA-1') return 'SHA1';
+            return raw;
+        };
+        const normalizeOpenvpnCompLzoValue = (value) => {
+            return String(value || '').trim().toLowerCase();
+        };
         const proxyHasTlsSection = (proxy) => {
             const type = typeof proxy === 'string' ? proxy : proxy?.type;
             const tlsMode = getProxyTlsMode(type);
@@ -421,7 +454,7 @@
                 type: proxyType,
                 server: px.server || '',
                 port: portVal || 443,
-                udp: px.udp !== false,
+                udp: proxyType === 'snell' ? px.udp === true : px.udp !== false,
                 tfo: px.tfo || false,
                 mptcp: px.mptcp || false,
                 ip: px.ip || '',
@@ -438,7 +471,16 @@
                 alterId: px.alterId || 0,
                 password: px['auth-str'] || px.psk || px.password || '',
                 username: px.username || '',
-                cipher: px.cipher || 'auto',
+                cipher: proxyType === 'openvpn' ? normalizeOpenvpnCipherValue(px.cipher) : (px.cipher || 'auto'),
+                proto: proxyType === 'openvpn' ? normalizeOpenvpnProtoValue(px.proto) : (px.proto || 'udp'),
+                dev: proxyType === 'openvpn' ? String(px.dev || 'tun').trim().toLowerCase() : (px.dev || 'tun'),
+                auth: proxyType === 'openvpn' ? normalizeOpenvpnAuthValue(px.auth) : (px.auth || 'SHA256'),
+                'comp-lzo': proxyType === 'openvpn' ? normalizeOpenvpnCompLzoValue(px['comp-lzo']) : (px['comp-lzo'] || ''),
+                ca: px.ca || '',
+                cert: px.cert || '',
+                'tls-crypt': px['tls-crypt'] || '',
+                ping: px.ping !== undefined && px.ping !== null ? px.ping : '',
+                'ping-restart': px['ping-restart'] !== undefined && px['ping-restart'] !== null ? px['ping-restart'] : '',
                 'aead-method': px['aead-method'] || 'chacha20-poly1305',
                 'padding-min': px['padding-min'] !== undefined && px['padding-min'] !== null ? px['padding-min'] : '',
                 'padding-max': px['padding-max'] !== undefined && px['padding-max'] !== null ? px['padding-max'] : '',
@@ -461,7 +503,10 @@
                 'protocol-param': px['protocol-param'] || '',
                 obfs: px.obfs || '',
                 'obfs-param': px['obfs-param'] || '',
-                version: px.version || '4',
+                version: proxyType === 'snell'
+                    ? String(px.version ?? '').trim().replace(/^v/i, '')
+                    : (px.version || '4'),
+                reuse: px.reuse || false,
                 'public-key': px['public-key'] || '',
                 'private-key': px['private-key'] || '',
                 'private-key-passphrase': px['private-key-passphrase'] || '',
@@ -475,11 +520,13 @@
                 dns: px.dns ? (Array.isArray(px.dns) ? px.dns.join('\n') : String(px.dns)) : '',
                 _amneziaWgOptionText: formatYamlObjectText(px['amnezia-wg-option']),
                 workers: px.workers || 2,
-                mtu: px.mtu || 1420,
+                mtu: px.mtu !== undefined && px.mtu !== null ? px.mtu : (proxyType === 'openvpn' ? '' : 1420),
                 'wg-dns': px.dns ? (Array.isArray(px.dns) ? px.dns.join(',') : px.dns) : '',
                 up: px.up || '100 Mbps',
                 down: px.down || '100 Mbps',
                 'obfs-password': px['obfs-password'] || '',
+                'obfs-min-packet-size': px['obfs-min-packet-size'] !== undefined && px['obfs-min-packet-size'] !== null ? px['obfs-min-packet-size'] : '',
+                'obfs-max-packet-size': px['obfs-max-packet-size'] !== undefined && px['obfs-max-packet-size'] !== null ? px['obfs-max-packet-size'] : '',
                 ports: px.ports || '',
                 'hop-interval': px['hop-interval'] || '',
                 'congestion-controller': px['congestion-controller'] || 'bbr',
@@ -766,6 +813,18 @@
             const hy2Ports = String(parsed.ports || '').trim();
             const hy2HopInterval = String(parsed['hop-interval'] || '').trim();
             const bbrProfile = String(parsed['bbr-profile'] || '').trim();
+            const openvpnProto = String(parsed.proto || '').trim().toLowerCase();
+            const openvpnDev = String(parsed.dev || '').trim().toLowerCase();
+            const openvpnCipher = String(parsed.cipher || '').trim().toUpperCase();
+            const openvpnAuth = String(parsed.auth || '').trim().toUpperCase();
+            const openvpnCompLzo = String(parsed['comp-lzo'] || '').trim().toLowerCase();
+            const openvpnCa = String(parsed.ca || '').trim();
+            const openvpnCert = String(parsed.cert || '').trim();
+            const openvpnKey = String(parsed.key || '').trim();
+            const openvpnUsername = String(parsed.username || '').trim();
+            const openvpnPing = String(parsed.ping ?? '').trim();
+            const openvpnPingRestart = String(parsed['ping-restart'] ?? '').trim();
+            const openvpnMtu = String(parsed.mtu ?? '').trim();
             const wsHttpUpgradeEnabled = !!parsed['ws-opts']?.['v2ray-http-upgrade'];
             const wsHttpUpgradeFastOpenEnabled = !!parsed['ws-opts']?.['v2ray-http-upgrade-fast-open'];
             const xhttpOptions = parsed['xhttp-opts'] || {};
@@ -974,6 +1033,27 @@
                     level: 'error',
                     message: 'Hysteria2 启用 obfs 时，必须填写 obfs-password。'
                 });
+            } else if (parsed.type === 'hysteria2' && hysteria2Obfs === 'gecko') {
+                const minPacket = Number(parsed['obfs-min-packet-size']);
+                const maxPacket = Number(parsed['obfs-max-packet-size']);
+                if (String(parsed['obfs-min-packet-size'] || '').trim() && (!Number.isInteger(minPacket) || minPacket <= 0)) {
+                    issues.push({
+                        level: 'error',
+                        message: 'Hysteria2 gecko 的 obfs-min-packet-size 必须是正整数。'
+                    });
+                }
+                if (String(parsed['obfs-max-packet-size'] || '').trim() && (!Number.isInteger(maxPacket) || maxPacket <= 0)) {
+                    issues.push({
+                        level: 'error',
+                        message: 'Hysteria2 gecko 的 obfs-max-packet-size 必须是正整数。'
+                    });
+                }
+                if (Number.isInteger(minPacket) && Number.isInteger(maxPacket) && minPacket > 0 && maxPacket > 0 && minPacket > maxPacket) {
+                    issues.push({
+                        level: 'error',
+                        message: 'Hysteria2 gecko 的 obfs-min-packet-size 不能大于 obfs-max-packet-size。'
+                    });
+                }
             }
 
             if (parsed.type === 'hysteria2' && hy2Ports && !isValidPortRangeListText(hy2Ports)) {
@@ -1140,10 +1220,17 @@
                     level: 'error',
                     message: `Snell 的 version 仅支持 ${Array.from(SNELL_VERSION_OPTIONS).join(' / ')}。`
                 });
-            } else if (parsed.type === 'snell' && parsed.udp && snellVersion !== '3') {
+            } else if (parsed.type === 'snell' && parsed.udp && !SNELL_UDP_VERSION_OPTIONS.has(snellVersion)) {
                 issues.push({
                     level: 'error',
-                    message: 'Snell 仅在 version 3 时支持 UDP；当前版本缺失或不为 3。'
+                    message: 'Snell 仅在 version 3 / 4 / 5 时支持 UDP；留空会使用官方默认 version 1。'
+                });
+            }
+
+            if (parsed.type === 'snell' && parsed.reuse && !['4', '5'].includes(snellVersion)) {
+                issues.push({
+                    level: 'warning',
+                    message: 'Snell 的 reuse 仅在 version 4 / 5 时生效。'
                 });
             }
 
@@ -1215,6 +1302,86 @@
                     level: 'error',
                     message: `TrustTunnel 的 bbr-profile 仅支持 ${Array.from(BBR_PROFILE_OPTIONS).join(' / ')}。`
                 });
+            }
+
+            if (caps.features.openvpnProfile) {
+                if (openvpnProto && !OPENVPN_PROTO_OPTIONS.has(openvpnProto)) {
+                    issues.push({
+                        level: 'error',
+                        message: `OpenVPN 的 proto 仅支持 ${Array.from(OPENVPN_PROTO_OPTIONS).join(' / ')}。`
+                    });
+                }
+                if (openvpnDev && !OPENVPN_DEV_OPTIONS.has(openvpnDev)) {
+                    issues.push({
+                        level: 'error',
+                        message: 'OpenVPN 当前仅支持 dev=tun。'
+                    });
+                }
+                if (openvpnCipher && !OPENVPN_CIPHER_OPTIONS.has(openvpnCipher)) {
+                    issues.push({
+                        level: 'error',
+                        message: `OpenVPN 的 cipher 仅支持 ${Array.from(OPENVPN_CIPHER_OPTIONS).join(' / ')}。`
+                    });
+                }
+                if (openvpnAuth && !OPENVPN_AUTH_OPTIONS.has(openvpnAuth)) {
+                    issues.push({
+                        level: 'error',
+                        message: `OpenVPN 的 auth 仅支持 ${Array.from(OPENVPN_AUTH_OPTIONS).join(' / ')}。`
+                    });
+                }
+                if (openvpnCompLzo && !OPENVPN_COMP_LZO_OPTIONS.has(openvpnCompLzo)) {
+                    issues.push({
+                        level: 'error',
+                        message: `OpenVPN 的 comp-lzo 仅支持 ${Array.from(OPENVPN_COMP_LZO_OPTIONS).join(' / ')}。`
+                    });
+                }
+                if (!openvpnCa) {
+                    issues.push({
+                        level: 'error',
+                        message: 'OpenVPN 缺少 ca PEM 内容。'
+                    });
+                } else if (!/-----BEGIN CERTIFICATE-----/.test(openvpnCa)) {
+                    issues.push({
+                        level: 'warning',
+                        message: 'OpenVPN 的 ca 通常需要填写 .ovpn 中 <ca>...</ca> 内的 PEM 证书内容。'
+                    });
+                }
+                if ((openvpnCert && !openvpnKey) || (!openvpnCert && openvpnKey)) {
+                    issues.push({
+                        level: 'error',
+                        message: 'OpenVPN 使用证书认证时 cert 和 key 必须同时填写。'
+                    });
+                }
+                if (!openvpnUsername && !(openvpnCert && openvpnKey)) {
+                    issues.push({
+                        level: 'error',
+                        message: 'OpenVPN 需要 username/password 认证，或同时填写 cert 与 key。'
+                    });
+                }
+                if (openvpnPing && !isValidIntegerText(openvpnPing, { min: 0 })) {
+                    issues.push({
+                        level: 'error',
+                        message: 'OpenVPN 的 ping 必须是大于等于 0 的整数秒值。'
+                    });
+                }
+                if (openvpnPingRestart && !isValidIntegerText(openvpnPingRestart, { min: 0 })) {
+                    issues.push({
+                        level: 'error',
+                        message: 'OpenVPN 的 ping-restart 必须是大于等于 0 的整数秒值。'
+                    });
+                }
+                if (openvpnMtu && !isValidIntegerText(openvpnMtu, { min: 1 })) {
+                    issues.push({
+                        level: 'error',
+                        message: 'OpenVPN 的 mtu 必须是正整数。'
+                    });
+                }
+                if (parsed['remote-dns-resolve'] && dnsEntries.length === 0) {
+                    issues.push({
+                        level: 'warning',
+                        message: 'OpenVPN 开启 remote-dns-resolve 后，建议同时填写 dns。'
+                    });
+                }
             }
 
             if (realityEnabled && !caps.toggles.reality) {
@@ -1645,13 +1812,19 @@
             }
             if (!features.trojanSsOpts || !proxy['ss-opts']?.enabled) delete next['ss-opts'];
             if (!features.udpOverTcpVersion || !proxy['udp-over-tcp']) delete next['udp-over-tcp-version'];
-            if (!features.wireguardProfile) {
+            if (!features.wireguardProfile && !features.openvpnProfile) {
                 delete next.ipv6;
                 delete next['allowed-ips'];
                 delete next['persistent-keepalive'];
                 delete next['remote-dns-resolve'];
                 delete next.dns;
                 delete next['amnezia-wg-option'];
+            } else if (features.openvpnProfile) {
+                delete next.ipv6;
+                delete next['allowed-ips'];
+                delete next['persistent-keepalive'];
+                delete next['amnezia-wg-option'];
+                delete next['wg-dns'];
             } else {
                 const allowedIps = String(proxy['allowed-ips'] || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
                 if (allowedIps.length > 0) next['allowed-ips'] = allowedIps;
@@ -1668,11 +1841,23 @@
                 else delete next['amnezia-wg-option'];
                 delete next['wg-dns'];
             }
-            if (!(features.wireguardProfile || features.masqueProfile)) {
+            if (!(features.wireguardProfile || features.masqueProfile || features.openvpnProfile)) {
                 delete next.ip;
                 delete next.ipv6;
                 delete next['remote-dns-resolve'];
                 delete next.dns;
+            } else if (features.openvpnProfile) {
+                delete next.ip;
+                delete next.ipv6;
+                if (proxy['remote-dns-resolve']) {
+                    next['remote-dns-resolve'] = true;
+                    const openvpnDns = String(proxy.dns || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+                    if (openvpnDns.length > 0) next.dns = openvpnDns;
+                    else delete next.dns;
+                } else {
+                    delete next['remote-dns-resolve'];
+                    delete next.dns;
+                }
             } else if (features.masqueProfile && proxy['remote-dns-resolve']) {
                 next['remote-dns-resolve'] = true;
                 const masqueDns = String(proxy.dns || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
@@ -1740,7 +1925,7 @@
                 delete next['bbr-profile'];
             }
             if (!features.sudokuProfile) {
-                delete next.key;
+                if (!features.openvpnProfile) delete next.key;
                 delete next['aead-method'];
                 delete next['padding-min'];
                 delete next['padding-max'];
@@ -1757,10 +1942,31 @@
                 if (httpmask) next.httpmask = httpmask;
                 else delete next.httpmask;
             }
+            if (!features.openvpnProfile) {
+                delete next.proto;
+                delete next.dev;
+                delete next.auth;
+                delete next['comp-lzo'];
+                delete next.ca;
+                delete next.cert;
+                delete next['tls-crypt'];
+                delete next.ping;
+                delete next['ping-restart'];
+            }
+            if (parsed.type !== 'snell') {
+                delete next.reuse;
+            } else if (!['4', '5'].includes(String(parsed.version || '').trim())) {
+                delete next.reuse;
+            }
             if (!obfsEnabled) {
                 delete next['obfs-password'];
+                delete next['obfs-min-packet-size'];
+                delete next['obfs-max-packet-size'];
                 delete next['obfs-host'];
                 delete next['obfs-param'];
+            } else if (parsed.type !== 'hysteria2' || parsed.obfs !== 'gecko') {
+                delete next['obfs-min-packet-size'];
+                delete next['obfs-max-packet-size'];
             }
             if (features.passwordAlias === 'auth-str' && next.password) {
                 next['auth-str'] = next.password;

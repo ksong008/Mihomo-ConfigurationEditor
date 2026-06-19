@@ -49,6 +49,7 @@ async function createRuntime() {
     const context = vm.createContext(sandbox);
     await loadBrowserScript(context, 'mihomo.helpers.js');
     await loadBrowserScript(context, 'core/state.js');
+    await loadBrowserScript(context, 'modules/proxies.js');
     await loadBrowserScript(context, 'modules/tproxy.js');
     await loadBrowserScript(context, 'modules/yaml.js');
 
@@ -248,6 +249,92 @@ test('fake-ip with dns ipv6 auto-emits fake-ip-range6', async () => {
     yamlModule.buildYaml();
 
     assert.match(yamlModule.fullYaml.value, /"fake-ip-range6": "fc00::\/18"/);
+});
+
+test('openvpn proxy preserves current upstream fields during yaml sanitization', async () => {
+    const runtime = await runtimePromise;
+    const proxiesModule = runtime.window.MihomoFeatureModules.createProxiesModule();
+    const proxy = proxiesModule.parseSingleProxyNode({
+        name: 'ovpn',
+        type: 'openvpn',
+        server: 'vpn.example.com',
+        port: 1194,
+        proto: 'tcp',
+        cipher: 'AES-192-CBC',
+        auth: 'SHA512',
+        'comp-lzo': 'yes',
+        username: 'user',
+        password: 'pass',
+        ca: '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----',
+        cert: '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----',
+        key: '-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----',
+        'tls-crypt': '-----BEGIN OpenVPN Static key V1-----\n00\n-----END OpenVPN Static key V1-----',
+        ping: 10,
+        'ping-restart': 60,
+        mtu: 1500,
+        'remote-dns-resolve': true,
+        dns: ['1.1.1.1', '8.8.8.8']
+    });
+
+    const sanitized = proxiesModule.sanitizeProxyNodeForYaml(proxy);
+
+    assert.equal(sanitized.type, 'openvpn');
+    assert.equal(sanitized.proto, 'tcp');
+    assert.equal(sanitized.cipher, 'AES-192-CBC');
+    assert.equal(sanitized.auth, 'SHA512');
+    assert.equal(sanitized['comp-lzo'], 'yes');
+    assert.equal(sanitized.ca, '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----');
+    assert.equal(sanitized.cert, '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----');
+    assert.equal(sanitized.key, '-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----');
+    assert.equal(sanitized['tls-crypt'], '-----BEGIN OpenVPN Static key V1-----\n00\n-----END OpenVPN Static key V1-----');
+    assert.equal(sanitized.ping, 10);
+    assert.equal(sanitized['ping-restart'], 60);
+    assert.equal(sanitized.mtu, 1500);
+    assert.equal(sanitized['remote-dns-resolve'], true);
+    assert.deepEqual(Array.from(sanitized.dns), ['1.1.1.1', '8.8.8.8']);
+});
+
+test('snell proxy follows upstream version and reuse rules', async () => {
+    const runtime = await runtimePromise;
+    const proxiesModule = runtime.window.MihomoFeatureModules.createProxiesModule();
+
+    const defaultVersionProxy = proxiesModule.parseSingleProxyNode({
+        name: 'snell-default',
+        type: 'snell',
+        server: 'snell.example.com',
+        port: 2345,
+        psk: 'secret'
+    });
+    const defaultSanitized = proxiesModule.sanitizeProxyNodeForYaml(defaultVersionProxy);
+
+    assert.equal(defaultVersionProxy.version, '');
+    assert.equal(defaultVersionProxy.udp, false);
+    assert.equal(defaultSanitized.version, undefined);
+    assert.equal(defaultSanitized.udp, undefined);
+    assert.equal(defaultSanitized.reuse, undefined);
+
+    const v4Proxy = proxiesModule.parseSingleProxyNode({
+        name: 'snell-v4',
+        type: 'snell',
+        server: 'snell.example.com',
+        port: 2345,
+        psk: 'secret',
+        version: 4,
+        udp: true,
+        reuse: true
+    });
+    const v4Sanitized = proxiesModule.sanitizeProxyNodeForYaml(v4Proxy);
+
+    assert.equal(v4Sanitized.version, '4');
+    assert.equal(v4Sanitized.udp, true);
+    assert.equal(v4Sanitized.reuse, true);
+
+    const invalidUdpIssues = proxiesModule.getProxyValidationIssues({
+        ...v4Proxy,
+        version: '2',
+        udp: true
+    });
+    assert.ok(invalidUdpIssues.some((issue) => issue.level === 'error' && issue.message.includes('version 3 / 4 / 5')));
 });
 
 test('clean nft export uses block ruleset with define-based interfaces', async () => {
