@@ -11,6 +11,7 @@ This project is a static Vue application. Keep changes small, testable, and comp
 - `core/provider-model.js` contains provider and rule-provider state constructors plus provider URL helpers.
 - `core/provider-group-model.js` contains proxy group member candidate, ordering, and pruning helpers.
 - `core/provider-fallback-model.js` contains provider payload fallback snapshot and preview helpers.
+- `core/provider-rename-model.js` contains provider, proxy, and group rename propagation helpers.
 - `core/import-model.js` contains import normalization helpers used by import/export workflows.
 - `core/` contains state, bootstrap, persistence, import/export, provider, and UI runtime modules.
 - `modules/proxy-schema.js` contains proxy capability matrices and static protocol option sets.

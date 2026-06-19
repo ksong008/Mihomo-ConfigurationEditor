@@ -35,6 +35,10 @@
         if (!providerFallbackModel) {
             throw new Error('ProviderFallbackModel 未加载，请确认先引入 ./core/provider-fallback-model.js');
         }
+        const providerRenameModel = window.MihomoCore && window.MihomoCore.ProviderRenameModel;
+        if (!providerRenameModel) {
+            throw new Error('ProviderRenameModel 未加载，请确认先引入 ./core/provider-rename-model.js');
+        }
         const {
             cloneJsonValue,
             createProviderState,
@@ -59,6 +63,8 @@
             removeProviderFallbackPayloadNode,
             getProviderFallbackPayloadPreview: buildProviderFallbackPayloadPreview
         } = providerFallbackModel;
+        const { createProviderRenameTracker } = providerRenameModel;
+        const renameTracker = createProviderRenameTracker();
         const scrollProviderCardIntoView = (selector) => {
             window.requestAnimationFrame(() => {
                 window.requestAnimationFrame(() => {
@@ -829,27 +835,11 @@
             }
         };
 
-        const providerNameSnapshots = new WeakMap();
-        const proxyNameSnapshots = new WeakMap();
-        const groupNameSnapshots = new WeakMap();
-
         const ensureRenameSnapshots = () => {
-            (providersList.value || []).forEach((p) => {
-                if (p && typeof p === 'object' && !providerNameSnapshots.has(p)) {
-                    providerNameSnapshots.set(p, String(p.name || ''));
-                }
-            });
-
-            (config.value.proxies || []).forEach((px) => {
-                if (px && typeof px === 'object' && !proxyNameSnapshots.has(px)) {
-                    proxyNameSnapshots.set(px, String(px.name || ''));
-                }
-            });
-
-            (config.value['proxy-groups'] || []).forEach((g) => {
-                if (g && typeof g === 'object' && !groupNameSnapshots.has(g)) {
-                    groupNameSnapshots.set(g, String(g.name || ''));
-                }
+            renameTracker.ensureSnapshots({
+                providers: providersList.value,
+                proxies: config.value.proxies,
+                groups: config.value['proxy-groups']
             });
         };
 
@@ -868,122 +858,37 @@
             { immediate: true, flush: 'sync' }
         );
 
-        const replaceNameInList = (list, oldName, newName) => {
-            if (!Array.isArray(list) || oldName === newName) return;
-            for (let i = 0; i < list.length; i++) {
-                if (list[i] === oldName) list[i] = newName;
-            }
-        };
-
-        const replaceDialerProxyName = (target, oldName, newName, key = 'dialer-proxy') => {
-            if (!target || typeof target !== 'object' || oldName === newName) return;
-            if (target[key] === oldName) target[key] = newName;
-        };
-
-        const replaceProviderDialerRefs = (oldName, newName) => {
-            (providersList.value || []).forEach((p) => {
-                if (!p || typeof p !== 'object') return;
-                if (p.proxy === oldName) p.proxy = newName;
-                if (p.overrideDialerProxy === oldName) p.overrideDialerProxy = newName;
-            });
-        };
-
-        const replaceRuleProviderProxyRefs = (oldName, newName) => {
-            (ruleProvidersList.value || []).forEach((rp) => {
-                if (!rp || typeof rp !== 'object') return;
-                if (rp.proxy === oldName) rp.proxy = newName;
-            });
-        };
-
-        const replaceProviderInlineProxyRefs = (oldName, newName) => {
-            (providersList.value || []).forEach((p) => {
-                if (!p || typeof p !== 'object') return;
-                replaceNameInList(p.inlineProxies, oldName, newName);
-                replaceNameInList(p._fallbackPayloadProxyNames, oldName, newName);
-                if (Array.isArray(p._fallbackPayload)) {
-                    p._fallbackPayload.forEach((item) => {
-                        if (item && typeof item === 'object' && item.name === oldName) {
-                            item.name = newName;
-                        }
-                    });
-                }
-            });
-        };
-        const replaceProviderSourceRefs = (oldName, newName) => {
-            (providersList.value || []).forEach((p) => {
-                if (!p || typeof p !== 'object') return;
-                if (p._sourceProviderName === oldName) p._sourceProviderName = newName;
-            });
-        };
-
-        const replaceRuleTargets = (oldName, newName) => {
-            (uiState.value.rules || []).forEach((r) => {
-                if (r && r.target === oldName) r.target = newName;
-            });
-        };
-
         const updateProviderName = (p, newName) => {
-            if (!p || typeof p !== 'object') return;
-            const oldName = providerNameSnapshots.has(p) ? providerNameSnapshots.get(p) : String(p.name || '');
-            p.name = newName;
-
-            if (oldName === newName) return;
-
-            (config.value['proxy-groups'] || []).forEach((g) => {
-                replaceNameInList(g.use, oldName, newName);
+            renameTracker.updateProviderName({
+                provider: p,
+                newName,
+                providers: providersList.value,
+                groups: config.value['proxy-groups']
             });
-            replaceProviderSourceRefs(oldName, newName);
-
-            providerNameSnapshots.set(p, String(newName || ''));
         };
 
         const updateProxyName = (px, newName) => {
-            if (!px || typeof px !== 'object') return;
-            const oldName = proxyNameSnapshots.has(px) ? proxyNameSnapshots.get(px) : String(px.name || '');
-            px.name = newName;
-
-            if (oldName === newName) return;
-
-            (config.value['proxy-groups'] || []).forEach((g) => {
-                replaceNameInList(g.proxies, oldName, newName);
+            renameTracker.updateProxyName({
+                proxy: px,
+                newName,
+                providers: providersList.value,
+                ruleProviders: ruleProvidersList.value,
+                proxies: config.value.proxies,
+                groups: config.value['proxy-groups'],
+                rules: uiState.value.rules
             });
-
-            replaceProviderDialerRefs(oldName, newName);
-            replaceRuleProviderProxyRefs(oldName, newName);
-            replaceProviderInlineProxyRefs(oldName, newName);
-
-            (config.value.proxies || []).forEach((item) => {
-                if (item !== px) replaceDialerProxyName(item, oldName, newName);
-            });
-
-            replaceRuleTargets(oldName, newName);
-            proxyNameSnapshots.set(px, String(newName || ''));
         };
 
         const updateGroupName = (g, newName) => {
-            if (!g || typeof g !== 'object') return;
-            const oldName = groupNameSnapshots.has(g) ? groupNameSnapshots.get(g) : String(g.name || '');
-            g.name = newName;
-
-            if (oldName === newName) return;
-
-            (config.value['proxy-groups'] || []).forEach((item) => {
-                replaceNameInList(item.proxies, oldName, newName);
+            renameTracker.updateGroupName({
+                group: g,
+                newName,
+                providers: providersList.value,
+                ruleProviders: ruleProvidersList.value,
+                proxies: config.value.proxies,
+                groups: config.value['proxy-groups'],
+                rules: uiState.value.rules
             });
-
-            replaceProviderDialerRefs(oldName, newName);
-            replaceRuleProviderProxyRefs(oldName, newName);
-
-            (config.value.proxies || []).forEach((px) => {
-                replaceDialerProxyName(px, oldName, newName);
-            });
-
-            replaceRuleTargets(oldName, newName);
-
-            if (Array.isArray(g.proxies)) {
-                g.proxies = g.proxies.filter((name) => String(name || '').trim() !== String(g.name || '').trim());
-            }
-            groupNameSnapshots.set(g, String(newName || ''));
         };
 
         const getRuleProviderUrl = (rp) => {

@@ -82,6 +82,7 @@ node scripts/verify.mjs --skip-offline-build
 - Local browser script load order is declared in `core/script-manifest.js`.
 - Proxy group candidate and pruning helpers live in `core/provider-group-model.js`.
 - Provider payload fallback snapshot and preview helpers live in `core/provider-fallback-model.js`.
+- Provider, proxy, and group rename propagation helpers live in `core/provider-rename-model.js`.
 - Most feature logic is organized under `core/` and `modules/` to keep the entry file thin.
 - Import normalization helpers live in `core/import-model.js`; `core/import-export.js` applies imports to UI state and handles file operations.
 - Proxy node parsing, validation, and YAML export helpers are split from proxy UI orchestration in `modules/proxy-node-utils.js`, `modules/proxy-node-model.js`, `modules/proxy-node-validation.js`, and `modules/proxy-node-yaml.js`.
