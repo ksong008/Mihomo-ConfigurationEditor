@@ -54,6 +54,20 @@ The generated file is written to `dist/mihomo.offline.html` by default. You can 
 node scripts/build-offline-html.mjs --output /tmp/mihomo.html
 ```
 
+## Verification
+
+Run the project checks before publishing or changing configuration logic:
+
+```bash
+node scripts/verify.mjs
+```
+
+This runs JavaScript syntax checks, Node smoke tests, the offline HTML build, and `git diff --check`. If you only want the local checks without downloading CDN assets for the offline bundle:
+
+```bash
+node scripts/verify.mjs --skip-offline-build
+```
+
 ## Usage
 
 1. Open the editor in a browser.

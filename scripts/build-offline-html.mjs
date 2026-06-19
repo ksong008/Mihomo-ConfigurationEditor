@@ -37,23 +37,6 @@ const remoteStyle = {
     tag: '<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">'
 };
 
-const localScripts = [
-    'mihomo.helpers.js',
-    'core/state.js',
-    'core/ui-runtime.js',
-    'core/providers.js',
-    'core/import-export.js',
-    'core/persistence.js',
-    'core/bootstrap.js',
-    'modules/proxies.js',
-    'modules/validation.js',
-    'modules/dns.js',
-    'modules/tproxy.js',
-    'modules/rules.js',
-    'modules/yaml.js',
-    'mihomo.app.js'
-];
-
 const placeholders = {
     vue: '__MIHOMO_OFFLINE_VUE__',
     tailwind: '__MIHOMO_OFFLINE_TAILWIND__',
@@ -62,6 +45,54 @@ const placeholders = {
     localCss: '__MIHOMO_OFFLINE_LOCAL_CSS__',
     localScripts: '__MIHOMO_OFFLINE_LOCAL_SCRIPTS__'
 };
+
+function normalizeLocalScriptPath(rawPath) {
+    const normalized = String(rawPath || '').trim();
+    if (!normalized.startsWith('./')) {
+        throw new Error(`Local script must use a relative ./ path: ${rawPath}`);
+    }
+
+    const relativePath = normalized.slice(2);
+    if (!relativePath || relativePath.includes('..') || path.isAbsolute(relativePath)) {
+        throw new Error(`Unsafe local script path: ${rawPath}`);
+    }
+
+    return relativePath;
+}
+
+function extractLocalScriptsFromHtml(source) {
+    const startMarker = 'const scripts = [';
+    const start = source.lastIndexOf(startMarker);
+    if (start === -1) {
+        throw new Error('Failed to locate local script loader list');
+    }
+
+    const rest = source.slice(start + startMarker.length);
+    const end = rest.indexOf('];');
+    if (end === -1) {
+        throw new Error('Failed to locate end of local script loader list');
+    }
+
+    const scriptBlock = rest.slice(0, end);
+    const scripts = [];
+    const seen = new Set();
+    const literalPattern = /['"]([^'"]+)['"]/g;
+
+    for (const match of scriptBlock.matchAll(literalPattern)) {
+        const relativePath = normalizeLocalScriptPath(match[1]);
+        if (seen.has(relativePath)) {
+            throw new Error(`Duplicate local script in loader list: ${relativePath}`);
+        }
+        seen.add(relativePath);
+        scripts.push(relativePath);
+    }
+
+    if (scripts.length === 0) {
+        throw new Error('Local script loader list is empty');
+    }
+
+    return scripts;
+}
 
 function parseArgs(argv) {
     const result = { output: defaultOutputPath };
@@ -233,6 +264,7 @@ function getGitRevision() {
 async function buildOfflineHtml(outputPath) {
     let sourceHtml = await readFile(sourceHtmlPath, 'utf8');
     const localCss = await readFile(localCssPath, 'utf8');
+    const localScripts = extractLocalScriptsFromHtml(sourceHtml);
     const bundledAt = new Date().toISOString();
     const revision = getGitRevision();
 
@@ -313,7 +345,21 @@ async function main() {
     );
 }
 
-main().catch((error) => {
-    console.error(error instanceof Error ? error.message : error);
-    process.exit(1);
-});
+function isCliEntrypoint() {
+    return path.resolve(process.argv[1] || '') === __filename;
+}
+
+if (isCliEntrypoint()) {
+    main().catch((error) => {
+        console.error(error instanceof Error ? error.message : error);
+        process.exit(1);
+    });
+}
+
+export {
+    buildOfflineHtml,
+    defaultOutputPath,
+    extractLocalScriptsFromHtml,
+    normalizeLocalScriptPath,
+    parseArgs
+};
