@@ -60,6 +60,7 @@ const runtimePromise = createRuntime({
         'mihomo.helpers.js',
         'core/state.js',
         'modules/proxy-schema.js',
+        'modules/proxy-node-utils.js',
         'modules/proxies.js',
         'modules/rule-parser.js',
         'modules/rules.js',

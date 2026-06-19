@@ -10,6 +10,7 @@ const defaultRuntimeScripts = [
     'mihomo.helpers.js',
     'core/state.js',
     'modules/proxy-schema.js',
+    'modules/proxy-node-utils.js',
     'modules/proxies.js',
     'modules/tproxy.js',
     'modules/yaml-builders.js',

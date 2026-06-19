@@ -12,6 +12,7 @@
         './core/persistence.js',
         './core/bootstrap.js',
         './modules/proxy-schema.js',
+        './modules/proxy-node-utils.js',
         './modules/proxies.js',
         './modules/validation.js',
         './modules/dns.js',
