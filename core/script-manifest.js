@@ -14,6 +14,7 @@
         './modules/proxy-schema.js',
         './modules/proxy-node-utils.js',
         './modules/proxy-node-model.js',
+        './modules/proxy-node-validation.js',
         './modules/proxies.js',
         './modules/validation.js',
         './modules/dns.js',
