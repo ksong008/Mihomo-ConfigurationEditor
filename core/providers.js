@@ -27,12 +27,26 @@
         if (!providerModel) {
             throw new Error('ProviderModel 未加载，请确认先引入 ./core/provider-model.js');
         }
+        const providerGroupModel = window.MihomoCore && window.MihomoCore.ProviderGroupModel;
+        if (!providerGroupModel) {
+            throw new Error('ProviderGroupModel 未加载，请确认先引入 ./core/provider-group-model.js');
+        }
         const {
             cloneJsonValue,
             createProviderState,
             createRuleProviderState,
             getRuleProviderUrl: buildRuleProviderUrl
         } = providerModel;
+        const {
+            getAvailableGroupMembers: buildAvailableGroupMembers,
+            getAvailableEmptyFallbackMembers: buildAvailableEmptyFallbackMembers,
+            getOrderedAvailableGroupMembers: buildOrderedAvailableGroupMembers,
+            getOrderedGroupUseProviders: buildOrderedGroupUseProviders,
+            pruneInvalidGroupProxyMembers: pruneInvalidGroupProxyMembersState,
+            pruneInvalidGroupUseMembers: pruneInvalidGroupUseMembersState,
+            groupIncludesAllProxies,
+            groupIncludesAllProviders
+        } = providerGroupModel;
         const scrollProviderCardIntoView = (selector) => {
             window.requestAnimationFrame(() => {
                 window.requestAnimationFrame(() => {
@@ -281,41 +295,10 @@
             g.proxies.splice(idx, 1);
         };
 
-        const BUILTIN_PROXY_TARGETS = Object.freeze(['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'PASS-RULE', 'COMPATIBLE']);
-
-        const getManualProxyNames = () => (config.value.proxies || [])
-            .map((p) => String(p?.name || '').trim())
-            .filter(Boolean);
-
-        const getProxyGroupNames = (currentGroupName = '') => (config.value['proxy-groups'] || [])
-            .map((group) => String(group?.name || '').trim())
-            .filter((name) => name && name !== currentGroupName);
-
-        const getValidStaticGroupMemberNames = (currentGroupName = '') => {
-            const names = new Set(BUILTIN_PROXY_TARGETS);
-
-            getManualProxyNames().forEach((name) => names.add(name));
-            getProxyGroupNames(currentGroupName).forEach((name) => names.add(name));
-
-            return names;
-        };
-
         const pruneInvalidGroupProxyMembers = () => {
-            const groups = config.value['proxy-groups'];
-            if (!Array.isArray(groups)) return;
-
-            groups.forEach((g) => {
-                if (!Array.isArray(g.proxies)) {
-                    g.proxies = [];
-                    return;
-                }
-
-                const validNames = getValidStaticGroupMemberNames(g.name);
-                const next = g.proxies.filter((name) => validNames.has(String(name || '').trim()));
-
-                if (next.length !== g.proxies.length) {
-                    g.proxies = next;
-                }
+            pruneInvalidGroupProxyMembersState({
+                proxies: config.value.proxies,
+                groups: config.value['proxy-groups']
             });
         };
 
@@ -333,34 +316,24 @@
         );
 
         const getAvailableGroupMembers = (currentGroupName) => {
-            return [...BUILTIN_PROXY_TARGETS, ...getProxyGroupNames(currentGroupName), ...getManualProxyNames()];
+            return buildAvailableGroupMembers({
+                proxies: config.value.proxies,
+                groups: config.value['proxy-groups'],
+                currentGroupName
+            });
         };
 
         const getAvailableEmptyFallbackMembers = () => {
-            return [...BUILTIN_PROXY_TARGETS, ...getManualProxyNames()];
+            return buildAvailableEmptyFallbackMembers(config.value.proxies);
         };
 
         const getOrderedAvailableGroupMembers = (g) => {
-            const available = getAvailableGroupMembers(g && g.name);
-            if (!g || !Array.isArray(g.proxies) || g.proxies.length === 0) return available;
-
-            const availableMap = new Map(available.map((name) => [String(name || '').trim(), name]));
-            const selected = [];
-            const selectedSet = new Set();
-
-            g.proxies.forEach((name) => {
-                const key = String(name || '').trim();
-                if (!key || selectedSet.has(key) || !availableMap.has(key)) return;
-                selectedSet.add(key);
-                selected.push(availableMap.get(key));
+            return buildOrderedAvailableGroupMembers({
+                group: g,
+                proxies: config.value.proxies,
+                groups: config.value['proxy-groups']
             });
-
-            const rest = available.filter((name) => !selectedSet.has(String(name || '').trim()));
-            return [...selected, ...rest];
         };
-
-        const groupIncludesAllProxies = (g) => !!(g && (g['include-all'] || g['include-all-proxies']));
-        const groupIncludesAllProviders = (g) => !!(g && (g['include-all'] || g['include-all-providers']));
 
         const onInlineGroupMemberDragStart = (g, name, e) => {
             if (!g || groupIncludesAllProxies(g) || !Array.isArray(g.proxies)) return;
@@ -546,44 +519,16 @@
         };
 
         const getOrderedGroupUseProviders = (g) => {
-            const available = (providersList.value || []).map((p) => p && p.name).filter(Boolean);
-            if (!g || !Array.isArray(g.use) || g.use.length === 0) return available;
-
-            const availableMap = new Map(available.map((name) => [String(name || '').trim(), name]));
-            const selected = [];
-            const selectedSet = new Set();
-
-            g.use.forEach((name) => {
-                const key = String(name || '').trim();
-                if (!key || selectedSet.has(key) || !availableMap.has(key)) return;
-                selectedSet.add(key);
-                selected.push(availableMap.get(key));
+            return buildOrderedGroupUseProviders({
+                group: g,
+                providers: providersList.value
             });
-
-            const rest = available.filter((name) => !selectedSet.has(String(name || '').trim()));
-            return [...selected, ...rest];
         };
 
         const pruneInvalidGroupUseMembers = () => {
-            const groups = config.value['proxy-groups'];
-            if (!Array.isArray(groups)) return;
-
-            const validProviders = new Set(
-                (providersList.value || [])
-                    .map((p) => String((p && p.name) || '').trim())
-                    .filter(Boolean)
-            );
-
-            groups.forEach((g) => {
-                if (!Array.isArray(g.use)) {
-                    g.use = [];
-                    return;
-                }
-
-                const next = g.use.filter((name) => validProviders.has(String(name || '').trim()));
-                if (next.length !== g.use.length) {
-                    g.use = next;
-                }
+            pruneInvalidGroupUseMembersState({
+                groups: config.value['proxy-groups'],
+                providers: providersList.value
             });
         };
 

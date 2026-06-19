@@ -80,6 +80,7 @@ node scripts/verify.mjs --skip-offline-build
 - The app is implemented as a static frontend using HTML, CSS, and plain JavaScript modules.
 - Frontend dependencies are loaded from CDN references declared in `mihomo.html`.
 - Local browser script load order is declared in `core/script-manifest.js`.
+- Proxy group candidate and pruning helpers live in `core/provider-group-model.js`.
 - Most feature logic is organized under `core/` and `modules/` to keep the entry file thin.
 - Import normalization helpers live in `core/import-model.js`; `core/import-export.js` applies imports to UI state and handles file operations.
 - Proxy node parsing, validation, and YAML export helpers are split from proxy UI orchestration in `modules/proxy-node-utils.js`, `modules/proxy-node-model.js`, `modules/proxy-node-validation.js`, and `modules/proxy-node-yaml.js`.

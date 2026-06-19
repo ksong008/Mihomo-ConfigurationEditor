@@ -32,6 +32,7 @@
         !window.MihomoCore.createStateModule ||
         !window.MihomoCore.createUiRuntimeModule ||
         !window.MihomoCore.ProviderModel ||
+        !window.MihomoCore.ProviderGroupModel ||
         !window.MihomoCore.createProvidersModule ||
         !window.MihomoCore.ImportModel ||
         !window.MihomoCore.createImportExportModule ||
@@ -52,7 +53,7 @@
         !window.MihomoFeatureModules.YamlBuilders ||
         !window.MihomoFeatureModules.createYamlModule
     ) {
-        throw new Error('功能模块未加载，请确认先引入 ./core/state.js ./core/ui-runtime.js ./core/provider-model.js ./core/providers.js ./core/import-model.js ./core/import-export.js ./core/persistence.js ./modules/proxy-schema.js ./modules/proxy-node-utils.js ./modules/proxy-node-model.js ./modules/proxy-node-validation.js ./modules/proxy-node-yaml.js ./modules/proxies.js ./modules/validation-helpers.js ./modules/validation-dns.js ./modules/validation.js ./modules/dns.js ./modules/tproxy.js ./modules/rule-parser.js ./modules/rules.js ./modules/yaml-builders.js ./modules/yaml.js');
+        throw new Error('功能模块未加载，请确认先引入 ./core/state.js ./core/ui-runtime.js ./core/provider-model.js ./core/provider-group-model.js ./core/providers.js ./core/import-model.js ./core/import-export.js ./core/persistence.js ./modules/proxy-schema.js ./modules/proxy-node-utils.js ./modules/proxy-node-model.js ./modules/proxy-node-validation.js ./modules/proxy-node-yaml.js ./modules/proxies.js ./modules/validation-helpers.js ./modules/validation-dns.js ./modules/validation.js ./modules/dns.js ./modules/tproxy.js ./modules/rule-parser.js ./modules/rules.js ./modules/yaml-builders.js ./modules/yaml.js');
     }
 
     const STORAGE_VERSION = 20;
