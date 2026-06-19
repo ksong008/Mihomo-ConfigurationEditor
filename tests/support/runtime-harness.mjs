@@ -13,6 +13,7 @@ const defaultRuntimeScripts = [
     'modules/proxy-node-utils.js',
     'modules/proxy-node-model.js',
     'modules/proxy-node-validation.js',
+    'modules/proxy-node-yaml.js',
     'modules/proxies.js',
     'modules/tproxy.js',
     'modules/yaml-builders.js',

@@ -63,6 +63,7 @@ const runtimePromise = createRuntime({
         'modules/proxy-node-utils.js',
         'modules/proxy-node-model.js',
         'modules/proxy-node-validation.js',
+        'modules/proxy-node-yaml.js',
         'modules/proxies.js',
         'modules/rule-parser.js',
         'modules/rules.js',
