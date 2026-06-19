@@ -12,6 +12,7 @@ const defaultRuntimeScripts = [
     'modules/proxy-schema.js',
     'modules/proxies.js',
     'modules/tproxy.js',
+    'modules/yaml-builders.js',
     'modules/yaml.js'
 ];
 
