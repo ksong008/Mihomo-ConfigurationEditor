@@ -9,6 +9,7 @@ const ROOT = path.resolve(__dirname, '../..');
 const defaultRuntimeScripts = [
     'mihomo.helpers.js',
     'core/state.js',
+    'modules/proxy-schema.js',
     'modules/proxies.js',
     'modules/tproxy.js',
     'modules/yaml.js'

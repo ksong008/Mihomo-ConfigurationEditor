@@ -59,6 +59,7 @@ const runtimePromise = createRuntime({
     scripts: [
         'mihomo.helpers.js',
         'core/state.js',
+        'modules/proxy-schema.js',
         'modules/proxies.js',
         'modules/rules.js',
         'core/import-export.js'

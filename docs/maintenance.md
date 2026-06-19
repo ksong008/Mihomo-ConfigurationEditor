@@ -8,6 +8,7 @@ This project is a static Vue application. Keep changes small, testable, and comp
 - `mihomo.styles.css` owns local styles loaded by the source page and inlined into offline builds.
 - `mihomo.helpers.js` contains shared browser helpers used by `core/` and `modules/`.
 - `core/` contains state, bootstrap, persistence, import/export, provider, and UI runtime modules.
+- `modules/proxy-schema.js` contains proxy capability matrices and static protocol option sets.
 - `modules/` contains feature modules for proxies, validation, DNS, rules, TProxy, and YAML generation.
 - `scripts/build-offline-html.mjs` builds `dist/mihomo.offline.html` by reading the script order from `mihomo.html`.
 - `tests/support/runtime-harness.mjs` provides the browser-like VM runtime used by Node tests.
