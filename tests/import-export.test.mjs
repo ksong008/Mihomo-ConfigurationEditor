@@ -61,6 +61,7 @@ const runtimePromise = createRuntime({
         'core/state.js',
         'modules/proxy-schema.js',
         'modules/proxies.js',
+        'modules/rule-parser.js',
         'modules/rules.js',
         'core/import-export.js'
     ]
