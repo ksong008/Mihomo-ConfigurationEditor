@@ -60,17 +60,25 @@ function normalizeLocalScriptPath(rawPath) {
     return relativePath;
 }
 
-function extractLocalScriptsFromHtml(source) {
-    const startMarker = 'const scripts = [';
+function extractLocalScriptManifestPathFromHtml(source) {
+    const match = source.match(/const\s+MANIFEST_SCRIPT\s*=\s*['"]([^'"]+)['"]/);
+    if (!match) {
+        throw new Error('Failed to locate local script manifest path');
+    }
+    return normalizeLocalScriptPath(match[1]);
+}
+
+function extractLocalScriptsFromManifest(source) {
+    const startMarker = 'SCRIPT_MANIFEST = Object.freeze([';
     const start = source.lastIndexOf(startMarker);
     if (start === -1) {
-        throw new Error('Failed to locate local script loader list');
+        throw new Error('Failed to locate local script manifest list');
     }
 
     const rest = source.slice(start + startMarker.length);
-    const end = rest.indexOf('];');
+    const end = rest.indexOf(']);');
     if (end === -1) {
-        throw new Error('Failed to locate end of local script loader list');
+        throw new Error('Failed to locate end of local script manifest list');
     }
 
     const scriptBlock = rest.slice(0, end);
@@ -81,14 +89,14 @@ function extractLocalScriptsFromHtml(source) {
     for (const match of scriptBlock.matchAll(literalPattern)) {
         const relativePath = normalizeLocalScriptPath(match[1]);
         if (seen.has(relativePath)) {
-            throw new Error(`Duplicate local script in loader list: ${relativePath}`);
+            throw new Error(`Duplicate local script in manifest: ${relativePath}`);
         }
         seen.add(relativePath);
         scripts.push(relativePath);
     }
 
     if (scripts.length === 0) {
-        throw new Error('Local script loader list is empty');
+        throw new Error('Local script manifest is empty');
     }
 
     return scripts;
@@ -284,7 +292,9 @@ function getGitRevision() {
 async function buildOfflineHtml(outputPath) {
     let sourceHtml = await readFile(sourceHtmlPath, 'utf8');
     const localCss = await readFile(localCssPath, 'utf8');
-    const localScripts = extractLocalScriptsFromHtml(sourceHtml);
+    const localScriptManifest = extractLocalScriptManifestPathFromHtml(sourceHtml);
+    const localScriptManifestSource = await readFile(path.join(repoRoot, localScriptManifest), 'utf8');
+    const localScripts = [localScriptManifest, ...extractLocalScriptsFromManifest(localScriptManifestSource)];
     const bundledAt = new Date().toISOString();
     const revision = getGitRevision();
 
@@ -380,7 +390,8 @@ export {
     assertOfflineBundle,
     buildOfflineHtml,
     defaultOutputPath,
-    extractLocalScriptsFromHtml,
+    extractLocalScriptManifestPathFromHtml,
+    extractLocalScriptsFromManifest,
     normalizeLocalScriptPath,
     parseArgs
 };

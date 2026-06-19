@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import {
     assertOfflineBundle,
     defaultOutputPath,
-    extractLocalScriptsFromHtml,
+    extractLocalScriptManifestPathFromHtml,
+    extractLocalScriptsFromManifest,
     normalizeLocalScriptPath,
     parseArgs
 } from '../scripts/build-offline-html.mjs';
@@ -14,10 +15,13 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 
-test('offline builder reads local script order from mihomo.html', async () => {
+test('offline builder reads local script order from script manifest', async () => {
     const sourceHtml = await readFile(path.join(ROOT, 'mihomo.html'), 'utf8');
-    const scripts = extractLocalScriptsFromHtml(sourceHtml);
+    const manifestPath = extractLocalScriptManifestPathFromHtml(sourceHtml);
+    const manifestSource = await readFile(path.join(ROOT, manifestPath), 'utf8');
+    const scripts = extractLocalScriptsFromManifest(manifestSource);
 
+    assert.equal(manifestPath, 'core/script-manifest.js');
     assert.equal(scripts[0], 'mihomo.helpers.js');
     assert.equal(scripts.at(-1), 'mihomo.app.js');
     assert.equal(new Set(scripts).size, scripts.length);
@@ -34,12 +38,16 @@ test('offline builder rejects unsafe or duplicate local script paths', () => {
     assert.throws(() => normalizeLocalScriptPath('https://example.com/app.js'), /relative \.\/ path/);
 
     assert.throws(
-        () => extractLocalScriptsFromHtml('<script>const scripts = [\'./a.js\', \'./a.js\'];</script>'),
-        /Duplicate local script/
+        () => extractLocalScriptsFromManifest('window.MihomoCore.SCRIPT_MANIFEST = Object.freeze([\'./a.js\', \'./a.js\']);'),
+        /Duplicate local script in manifest/
     );
     assert.throws(
-        () => extractLocalScriptsFromHtml('<script>const scripts = [];</script>'),
+        () => extractLocalScriptsFromManifest('window.MihomoCore.SCRIPT_MANIFEST = Object.freeze([]);'),
         /empty/
+    );
+    assert.throws(
+        () => extractLocalScriptManifestPathFromHtml('<script>const scripts = [];</script>'),
+        /manifest path/
     );
 });
 

@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { access, readFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { extractLocalScriptsFromHtml } from '../scripts/build-offline-html.mjs';
+import {
+    extractLocalScriptManifestPathFromHtml,
+    extractLocalScriptsFromManifest
+} from '../scripts/build-offline-html.mjs';
 import { ROOT } from './support/runtime-harness.mjs';
 
 async function readSourceHtml() {
@@ -31,8 +34,11 @@ test('asset version fallbacks stay in sync across source html loaders', async ()
 
 test('source html local script loader references existing files in safe order', async () => {
     const html = await readSourceHtml();
-    const scripts = extractLocalScriptsFromHtml(html);
+    const manifestPath = extractLocalScriptManifestPathFromHtml(html);
+    const manifestSource = await readFile(path.join(ROOT, manifestPath), 'utf8');
+    const scripts = extractLocalScriptsFromManifest(manifestSource);
 
+    assert.equal(manifestPath, 'core/script-manifest.js');
     assert.equal(scripts[0], 'mihomo.helpers.js');
     assert.equal(scripts.at(-1), 'mihomo.app.js');
     assert.ok(scripts.indexOf('core/state.js') < scripts.indexOf('core/bootstrap.js'));
@@ -44,6 +50,7 @@ test('source html local script loader references existing files in safe order', 
     assert.ok(scripts.indexOf('modules/yaml-builders.js') < scripts.indexOf('modules/yaml.js'));
     assert.ok(scripts.indexOf('modules/yaml.js') < scripts.indexOf('mihomo.app.js'));
 
+    await access(path.join(ROOT, manifestPath), constants.R_OK);
     for (const script of scripts) {
         await access(path.join(ROOT, script), constants.R_OK);
     }

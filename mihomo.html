@@ -2271,26 +2271,7 @@ work:
         (function () {
             const ASSET_VERSION = window.__MIHOMO_ASSET_VERSION__ || '35';
             const ASSET_QUERY = window.__MIHOMO_ASSET_QUERY__ || `v=${encodeURIComponent(ASSET_VERSION)}`;
-            const scripts = [
-                './mihomo.helpers.js',
-                './core/state.js',
-                './core/ui-runtime.js',
-                './core/provider-model.js',
-                './core/providers.js',
-                './core/import-export.js',
-                './core/persistence.js',
-                './core/bootstrap.js',
-                './modules/proxy-schema.js',
-                './modules/proxies.js',
-                './modules/validation.js',
-                './modules/dns.js',
-                './modules/tproxy.js',
-                './modules/rule-parser.js',
-                './modules/rules.js',
-                './modules/yaml-builders.js',
-                './modules/yaml.js',
-                './mihomo.app.js'
-            ];
+            const MANIFEST_SCRIPT = './core/script-manifest.js';
 
             window.__MIHOMO_ASSET_VERSION__ = ASSET_VERSION;
             window.__MIHOMO_ASSET_QUERY__ = ASSET_QUERY;
@@ -2304,6 +2285,11 @@ work:
             });
 
             (async () => {
+                await loadScript(MANIFEST_SCRIPT);
+                const scripts = window.MihomoCore && window.MihomoCore.SCRIPT_MANIFEST;
+                if (!Array.isArray(scripts) || scripts.length === 0) {
+                    throw new Error('脚本清单加载失败: ./core/script-manifest.js');
+                }
                 for (const src of scripts) {
                     await loadScript(src);
                 }

@@ -79,6 +79,7 @@ node scripts/verify.mjs --skip-offline-build
 
 - The app is implemented as a static frontend using HTML, CSS, and plain JavaScript modules.
 - Frontend dependencies are loaded from CDN references declared in `mihomo.html`.
+- Local browser script load order is declared in `core/script-manifest.js`.
 - Most feature logic is organized under `core/` and `modules/` to keep the entry file thin.
 - `scripts/build-offline-html.mjs` converts the modular source page into a standalone offline `html` bundle for release publishing.
 - Maintenance workflow details are documented in `docs/maintenance.md`.

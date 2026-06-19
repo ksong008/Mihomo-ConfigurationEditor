@@ -7,13 +7,14 @@ This project is a static Vue application. Keep changes small, testable, and comp
 - `mihomo.html` owns the page shell and Vue template.
 - `mihomo.styles.css` owns local styles loaded by the source page and inlined into offline builds.
 - `mihomo.helpers.js` contains shared browser helpers used by `core/` and `modules/`.
+- `core/script-manifest.js` is the single source of truth for browser script load order.
 - `core/provider-model.js` contains provider and rule-provider state constructors plus provider URL helpers.
 - `core/` contains state, bootstrap, persistence, import/export, provider, and UI runtime modules.
 - `modules/proxy-schema.js` contains proxy capability matrices and static protocol option sets.
 - `modules/rule-parser.js` contains rule string parsing and rule condition display helpers.
 - `modules/yaml-builders.js` contains shared YAML build helpers and listener sanitizers.
 - `modules/` contains feature modules for proxies, validation, DNS, rules, TProxy, and YAML generation.
-- `scripts/build-offline-html.mjs` builds `dist/mihomo.offline.html` by reading the script order from `mihomo.html`.
+- `scripts/build-offline-html.mjs` builds `dist/mihomo.offline.html` by reading the script order from `core/script-manifest.js`.
 - `tests/support/runtime-harness.mjs` provides the browser-like VM runtime used by Node tests.
 
 ## Local Verification
