@@ -16,6 +16,7 @@ This project is a static Vue application. Keep changes small, testable, and comp
 - `modules/proxy-node-validation.js` contains proxy node validation issue generation.
 - `modules/proxy-node-yaml.js` contains proxy node YAML export sanitization.
 - `modules/validation-helpers.js` contains shared validation utility functions.
+- `modules/validation-dns.js` contains DNS server, DNS policy, and fake-ip filter validation helpers.
 - `modules/rule-parser.js` contains rule string parsing and rule condition display helpers.
 - `modules/yaml-builders.js` contains shared YAML build helpers and listener sanitizers.
 - `modules/` contains feature modules for proxies, validation, DNS, rules, TProxy, and YAML generation.
