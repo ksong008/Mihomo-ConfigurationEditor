@@ -9,6 +9,7 @@ This project is a static Vue application. Keep changes small, testable, and comp
 - `mihomo.helpers.js` contains shared browser helpers used by `core/` and `modules/`.
 - `core/script-manifest.js` is the single source of truth for browser script load order.
 - `core/provider-model.js` contains provider and rule-provider state constructors plus provider URL helpers.
+- `core/import-model.js` contains import normalization helpers used by import/export workflows.
 - `core/` contains state, bootstrap, persistence, import/export, provider, and UI runtime modules.
 - `modules/proxy-schema.js` contains proxy capability matrices and static protocol option sets.
 - `modules/proxy-node-utils.js` contains proxy node text parsing, normalization, and YAML compaction helpers.

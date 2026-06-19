@@ -43,6 +43,7 @@ test('source html local script loader references existing files in safe order', 
     assert.equal(scripts.at(-1), 'mihomo.app.js');
     assert.ok(scripts.indexOf('core/state.js') < scripts.indexOf('core/bootstrap.js'));
     assert.ok(scripts.indexOf('core/provider-model.js') < scripts.indexOf('core/providers.js'));
+    assert.ok(scripts.indexOf('core/import-model.js') < scripts.indexOf('core/import-export.js'));
     assert.ok(scripts.indexOf('core/bootstrap.js') < scripts.indexOf('mihomo.app.js'));
     assert.ok(scripts.indexOf('modules/proxy-schema.js') < scripts.indexOf('modules/proxies.js'));
     assert.ok(scripts.indexOf('modules/proxy-schema.js') < scripts.indexOf('modules/proxy-node-utils.js'));

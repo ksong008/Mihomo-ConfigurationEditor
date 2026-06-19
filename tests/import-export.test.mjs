@@ -67,6 +67,7 @@ const runtimePromise = createRuntime({
         'modules/proxies.js',
         'modules/rule-parser.js',
         'modules/rules.js',
+        'core/import-model.js',
         'core/import-export.js'
     ]
 });

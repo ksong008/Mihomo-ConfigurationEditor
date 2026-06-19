@@ -8,6 +8,7 @@
         './core/ui-runtime.js',
         './core/provider-model.js',
         './core/providers.js',
+        './core/import-model.js',
         './core/import-export.js',
         './core/persistence.js',
         './core/bootstrap.js',
