@@ -12,6 +12,7 @@ This project is a static Vue application. Keep changes small, testable, and comp
 - `core/` contains state, bootstrap, persistence, import/export, provider, and UI runtime modules.
 - `modules/proxy-schema.js` contains proxy capability matrices and static protocol option sets.
 - `modules/proxy-node-utils.js` contains proxy node text parsing, normalization, and YAML compaction helpers.
+- `modules/proxy-node-model.js` contains proxy node import/default state normalization.
 - `modules/rule-parser.js` contains rule string parsing and rule condition display helpers.
 - `modules/yaml-builders.js` contains shared YAML build helpers and listener sanitizers.
 - `modules/` contains feature modules for proxies, validation, DNS, rules, TProxy, and YAML generation.
