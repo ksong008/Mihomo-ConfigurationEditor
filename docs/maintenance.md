@@ -12,7 +12,12 @@ This project is a static Vue application. Keep changes small, testable, and comp
 - `core/provider-group-model.js` contains proxy group member candidate, ordering, and pruning helpers.
 - `core/provider-fallback-model.js` contains provider payload fallback snapshot and preview helpers.
 - `core/provider-rename-model.js` contains provider, proxy, and group rename propagation helpers.
+- `core/provider-group-editor.js` contains proxy-group editing flows, ordering, collapse state, and region group injection.
+- `core/provider-subscription-editor.js` contains provider list editing, chain sync, fallback preview, and rename propagation wiring.
+- `core/rule-provider-editor.js` contains rule-provider list editing, ordering, and rename propagation.
 - `core/import-model.js` contains import normalization helpers used by import/export workflows.
+- `core/bootstrap-ui.js` contains crash/cache UI state and bilingual label DOM layout wiring.
+- `core/listener-editor.js` contains listener editor state helpers for users, tunnel network, and Shadowsocks password UX.
 - `core/` contains state, bootstrap, persistence, import/export, provider, and UI runtime modules.
 - `modules/proxy-schema.js` contains proxy capability matrices and static protocol option sets.
 - `modules/proxy-node-utils.js` contains proxy node text parsing, normalization, and YAML compaction helpers.
@@ -21,6 +26,9 @@ This project is a static Vue application. Keep changes small, testable, and comp
 - `modules/proxy-node-yaml.js` contains proxy node YAML export sanitization.
 - `modules/validation-helpers.js` contains shared validation utility functions.
 - `modules/validation-dns.js` contains DNS server, DNS policy, and fake-ip filter validation helpers.
+- `modules/validation-listeners.js` contains listener-specific runtime validation.
+- `modules/validation-providers.js` contains provider and rule-provider runtime validation.
+- `modules/validation-groups-rules.js` contains proxy-group and rule runtime validation.
 - `modules/tproxy-builders.js` contains routing, nftables, systemd, and install script generators.
 - `modules/rule-parser.js` contains rule string parsing and rule condition display helpers.
 - `modules/yaml-builders.js` contains shared YAML build helpers and listener sanitizers.
