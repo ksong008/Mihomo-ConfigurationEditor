@@ -395,6 +395,7 @@
             getDnsServerDescriptor,
             isValidDnsEcsValue,
             validateDnsServerExtras,
+            validateExpectedStatus,
             validateDnsServerList,
             validateDnsPolicyMap,
             validateFakeIpRuleLines

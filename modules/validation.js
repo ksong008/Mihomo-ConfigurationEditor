@@ -59,108 +59,62 @@
         if (!validationDns) {
             throw new Error('ValidationDns 未加载，请确认先引入 ./modules/validation-dns.js');
         }
+        if (!window.MihomoFeatureModules.createValidationListeners) {
+            throw new Error('ValidationListeners 未加载，请确认先引入 ./modules/validation-listeners.js');
+        }
+        if (!window.MihomoFeatureModules.createValidationProviders) {
+            throw new Error('ValidationProviders 未加载，请确认先引入 ./modules/validation-providers.js');
+        }
+        if (!window.MihomoFeatureModules.createValidationGroupsRules) {
+            throw new Error('ValidationGroupsRules 未加载，请确认先引入 ./modules/validation-groups-rules.js');
+        }
 
         const BUILTIN_RULE_TARGETS = ['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'PASS-RULE', 'COMPATIBLE'];
-        const URL_TEST_GROUP_TYPES = new Set(['url-test', 'fallback', 'load-balance']);
-        const SUPPORTED_PROXY_GROUP_TYPES = new Set(['select', 'url-test', 'fallback', 'load-balance']);
-        const SUPPORTED_PROXY_PROVIDER_TYPES = new Set(['http', 'file', 'inline']);
-        const SUPPORTED_RULE_PROVIDER_TYPES = new Set(['http', 'file', 'inline']);
-        const SUPPORTED_RULE_PROVIDER_BEHAVIORS = new Set(['domain', 'ipcidr', 'classical']);
-        const SUPPORTED_RULE_PROVIDER_FORMATS = new Set(['mrs', 'yaml', 'text']);
-        const IP_VERSION_OPTIONS = new Set(['ipv4', 'ipv6', 'dual', 'ipv4-prefer', 'ipv6-prefer']);
-        const LOAD_BALANCE_STRATEGY_OPTIONS = new Set(['consistent-hashing', 'round-robin', 'sticky-sessions']);
-        const SUPPORTED_SIMPLE_LISTENER_TYPES = new Set(['mixed', 'http', 'socks', 'redir', 'tproxy', 'shadowsocks', 'tunnel']);
-        const SUPPORTED_LISTENER_CLIENT_AUTH_TYPES = new Set([
-            'request',
-            'skip',
-            'require-any',
-            'verify-if-given',
-            'require-and-verify'
-        ]);
-        const SUPPORTED_LISTENER_SHADOWSOCKS_CIPHERS = new Set(getShadowsocksCipherOptions());
-        const SUPPORTED_TUNNEL_LISTENER_NETWORKS = new Set(['tcp', 'udp']);
-        const RELAY_UDP_HEAD_TAIL_TYPES = new Set(['vmess', 'vless', 'trojan', 'ss', 'ssr', 'tuic']);
         const {
             validateDnsServerList,
             validateDnsPolicyMap,
-            validateFakeIpRuleLines
+            validateFakeIpRuleLines,
+            validateExpectedStatus
         } = validationDns.createValidationDns({
             parseYamlMapText
         });
-        const parseListenerUsersText = (rawText) => {
-            const source = text(rawText);
-            if (!source) return [];
-
-            let sequenceError = null;
-            try {
-                const parsedList = parseYamlSequenceText(source, (item) => item);
-                if (parsedList && parsedList.every((item) => isPlainObject(item))) {
-                    return parsedList;
-                }
-            } catch (err) {
-                sequenceError = err;
-            }
-
-            const parsedObject = parseYamlObjectText(source);
-            if (isPlainObject(parsedObject)) {
-                return [parsedObject];
-            }
-
-            const detail = sequenceError && sequenceError.message ? `；列表解析错误：${sequenceError.message}` : '';
-            throw new Error(`users 请输入 YAML 列表、JSON 数组，或单个 JSON/YAML 对象${detail}`);
-        };
-        const validateListenerUsers = (users, label, pushIssue) => {
-            users.forEach((user, index) => {
-                if (!isPlainObject(user)) {
-                    pushIssue('error', `${label} 的 users 第 ${index + 1} 项必须是对象。`);
-                    return;
-                }
-
-                const username = text(user.username);
-                const password = text(user.password);
-                if (!username && !password) {
-                    return;
-                }
-                if (!username) {
-                    pushIssue('error', `${label} 的 users 第 ${index + 1} 项缺少 username。`);
-                }
-                if (!password) {
-                    pushIssue('error', `${label} 的 users 第 ${index + 1} 项缺少 password。`);
-                }
-            });
-        };
-        const validateProxyNameOverride = (rawText, label, pushIssue) => {
-            const source = text(rawText);
-            if (!source) return;
-
-            try {
-                parseYamlSequenceText(source, (item, index) => {
-                    if (!isPlainObject(item)) {
-                        throw new Error(`第 ${index + 1} 项必须是映射对象`);
-                    }
-
-                    const pattern = text(item.pattern);
-                    const target = text(item.target);
-                    if (!pattern || !target) {
-                        throw new Error(`第 ${index + 1} 项必须同时包含 pattern 和 target`);
-                    }
-
-                    return { pattern, target };
-                });
-            } catch (err) {
-                pushIssue('error', `${label} 的 override.proxy-name 格式无效：${err.message}`);
-            }
-        };
-        const validateYamlHeaders = (rawText, label, pushIssue) => {
-            const source = text(rawText);
-            if (!source) return;
-
-            try {
-                parseYamlMapText(source);
-            } catch (err) {
-                pushIssue('error', `${label} 的 header YAML 无法解析：${err.message}`);
-            }
-        };
+        const listenerValidation = window.MihomoFeatureModules.createValidationListeners({
+            text,
+            hasText,
+            isPlainObject,
+            isValidPortListValue,
+            parseYamlSequenceText,
+            parseYamlObjectText,
+            getShadowsocksCipherOptions,
+            getShadowsocks2022KeyBytes,
+            shadowsocksCipherRequiresPassword,
+            isValidShadowsocksPasswordForCipher,
+            normalizeTunnelListenerNetwork,
+            parsePortSpec,
+            getPortSpecOverlap,
+            formatPortOverlap
+        });
+        const providerValidation = window.MihomoFeatureModules.createValidationProviders({
+            unique,
+            text,
+            hasText,
+            isPlainObject,
+            splitLines,
+            isValidNonNegativeNumberText,
+            isValidPositiveNumber,
+            isValidTriStateBooleanText,
+            isValidRoutingMarkText,
+            isValidAbsoluteUrl,
+            parseYamlMapText,
+            parseYamlSequenceText
+        });
+        const groupRuleValidation = window.MihomoFeatureModules.createValidationGroupsRules({
+            unique,
+            text,
+            hasText,
+            isValidAbsoluteUrl,
+            validateExpectedStatus
+        });
 
         const runtimeValidationIssues = computed(() => {
             const issues = [];
@@ -270,389 +224,35 @@
                 });
             });
 
-            listeners.forEach((listener, index) => {
-                const label = describeListener(listener, index);
-                const type = text(listener && listener.type) || 'mixed';
-                const proxyRef = text(listener && listener.proxy);
-                const ruleRef = text(listener && listener.rule);
-
-                if (!hasText(listener && listener.name)) {
-                    pushIssue('error', `${label} 缺少名称。`);
-                }
-                if (!isValidPortListValue(listener && listener.port)) {
-                    pushIssue('error', `${label} 的 port 不能为空，且必须是有效端口或端口范围。`);
-                }
-                if (proxyRef && !validDialerTargets.has(proxyRef)) {
-                    pushIssue('error', `${label} 的 proxy 引用了不存在的代理/策略组 "${proxyRef}"。`);
-                }
-                if (ruleRef && subRuleParseOk && !subRuleNames.has(ruleRef)) {
-                    pushIssue('error', `${label} 的 rule 引用了不存在的子规则 "${ruleRef}"。`);
-                }
-
-                if (!SUPPORTED_SIMPLE_LISTENER_TYPES.has(type)) {
-                    pushIssue('warning', `${label} 使用了当前编辑器未完整支持的 listener 类型 "${type}"；协议私有字段会按原样保留，但不会参与细项校验。`);
-                    return;
-                }
-
-                if (['mixed', 'http', 'socks'].includes(type)) {
-                    let users = Array.isArray(listener && listener.users) ? listener.users : [];
-                    const usersText = text(listener && listener._usersText);
-                    if (usersText) {
-                        try {
-                            users = parseListenerUsersText(usersText);
-                        } catch (err) {
-                            pushIssue('error', `${label} 的 users 无法解析：${err.message}`);
-                            users = [];
-                        }
-                    }
-
-                    if (users.length > 0) {
-                        validateListenerUsers(users, label, pushIssue);
-                    }
-
-                    const certificate = text(listener && listener.certificate);
-                    const privateKey = text(listener && listener['private-key']);
-                    const clientAuthType = text(listener && listener['client-auth-type']);
-                    const clientAuthCert = text(listener && listener['client-auth-cert']);
-                    const echKey = text(listener && listener['ech-key']);
-                    const echCert = text(listener && listener['ech-cert']);
-                    const hasTlsIdentity = !!certificate || !!privateKey;
-
-                    if (!!certificate !== !!privateKey) {
-                        pushIssue('error', `${label} 的 certificate 和 private-key 必须成对填写。`);
-                    }
-                    if (clientAuthType && !SUPPORTED_LISTENER_CLIENT_AUTH_TYPES.has(clientAuthType)) {
-                        pushIssue('error', `${label} 的 client-auth-type "${clientAuthType}" 不在官方支持列表中。`);
-                    }
-                    if (clientAuthType === 'skip') {
-                        pushIssue('warning', `${label} 使用了 client-auth-type=skip；当前官方文档更常见的写法是 request。`);
-                    }
-                    if ((clientAuthType || clientAuthCert || echKey || echCert) && !hasTlsIdentity) {
-                        pushIssue('error', `${label} 配置 TLS/mTLS/ECH 相关字段时，必须同时填写 certificate 和 private-key。`);
-                    }
-                    if (['verify-if-given', 'require-and-verify'].includes(clientAuthType) && !clientAuthCert) {
-                        pushIssue('error', `${label} 的 client-auth-type=${clientAuthType} 时必须填写 client-auth-cert。`);
-                    }
-                    if (!clientAuthType && clientAuthCert) {
-                        pushIssue('warning', `${label} 填写了 client-auth-cert，但未设置 client-auth-type。`);
-                    }
-                    if (['request', 'skip', 'require-any'].includes(clientAuthType) && clientAuthCert) {
-                        pushIssue('warning', `${label} 的 client-auth-type=${clientAuthType} 通常不会使用 client-auth-cert。`);
-                    }
-                    if (!!echKey !== !!echCert) {
-                        pushIssue('warning', `${label} 的 ech-key 和 ech-cert 建议成对填写。`);
-                    }
-                }
-
-                if (type === 'shadowsocks') {
-                    const cipher = text(listener && listener.cipher);
-                    const password = text(listener && listener.password);
-
-                    if (!cipher) {
-                        pushIssue('error', `${label} 的 shadowsocks listener 缺少 cipher。`);
-                    } else if (!SUPPORTED_LISTENER_SHADOWSOCKS_CIPHERS.has(cipher)) {
-                        pushIssue('error', `${label} 的 shadowsocks listener 使用了当前编辑器未纳入官方列表的 cipher "${cipher}"。`);
-                    }
-
-                    if (cipher && shadowsocksCipherRequiresPassword(cipher) && !password) {
-                        pushIssue('error', `${label} 的 shadowsocks listener 缺少 password。`);
-                    }
-                    if (cipher === 'none' && password) {
-                        pushIssue('warning', `${label} 的 shadowsocks listener 使用 cipher=none 时通常不需要填写 password。`);
-                    }
-                    const expectedKeyBytes = getShadowsocks2022KeyBytes(cipher);
-                    if (expectedKeyBytes && password && !isValidShadowsocksPasswordForCipher(cipher, password)) {
-                        pushIssue('error', `${label} 使用 ${cipher} 时，password 必须是 ${expectedKeyBytes} 字节随机密钥的 Base64 编码。`);
-                    }
-
-                    const shadowTlsText = text(listener && listener._shadowTlsText);
-                    const kcpTunText = text(listener && listener._kcpTunText);
-
-                    if (shadowTlsText) {
-                        try {
-                            const parsed = parseYamlObjectText(shadowTlsText);
-                            if (!isPlainObject(parsed)) {
-                                pushIssue('error', `${label} 的 shadow-tls 必须是 YAML/JSON 对象。`);
-                            }
-                        } catch (err) {
-                            pushIssue('error', `${label} 的 shadow-tls 无法解析：${err.message}`);
-                        }
-                    }
-
-                    if (kcpTunText) {
-                        try {
-                            const parsed = parseYamlObjectText(kcpTunText);
-                            if (!isPlainObject(parsed)) {
-                                pushIssue('error', `${label} 的 kcp-tun 必须是 YAML/JSON 对象。`);
-                            }
-                        } catch (err) {
-                            pushIssue('error', `${label} 的 kcp-tun 无法解析：${err.message}`);
-                        }
-                    }
-                }
-
-                if (type === 'tunnel') {
-                    const rawTunnelNetworks = Array.isArray(listener && listener.network)
-                        ? listener.network
-                        : String(listener?.network ?? '')
-                            .split(/[\/,\s]+/)
-                            .map((item) => item.trim())
-                            .filter(Boolean);
-                    const tunnelNetworks = normalizeTunnelListenerNetwork(listener && listener.network);
-
-                    if (rawTunnelNetworks.length === 0 || tunnelNetworks.length === 0) {
-                        pushIssue('error', `${label} 的 tunnel listener 至少需要选择一个 network。`);
-                    }
-                    rawTunnelNetworks.forEach((network) => {
-                        if (!SUPPORTED_TUNNEL_LISTENER_NETWORKS.has(String(network || '').trim().toLowerCase())) {
-                            pushIssue('error', `${label} 的 tunnel listener 使用了不支持的 network "${network}"。`);
-                        }
-                    });
-                    if (!hasText(listener && listener.target)) {
-                        pushIssue('error', `${label} 的 tunnel listener 缺少 target。`);
-                    }
-                }
+            listenerValidation.validateListeners({
+                listeners,
+                validDialerTargets,
+                subRuleNames,
+                subRuleParseOk,
+                describeListener,
+                pushIssue
+            });
+            listenerValidation.validateListenerPortConflicts({
+                config,
+                uiState,
+                listeners,
+                describeListener,
+                pushIssue
             });
 
-            const portEntries = [];
-            const addPortEntry = (label, value) => {
-                const parsed = parsePortSpec(value);
-                if (!parsed) return;
-                portEntries.push({
-                    label,
-                    value: text(value),
-                    ranges: parsed
-                });
-            };
-
-            addPortEntry('基础混合端口 mixed-port', config.value && config.value['mixed-port']);
-            addPortEntry('基础 HTTP 端口 port', config.value && config.value.port);
-            addPortEntry('基础 SOCKS 端口 socks-port', config.value && config.value['socks-port']);
-            addPortEntry('基础 Redir 端口 redir-port', config.value && config.value['redir-port']);
-            const hasExplicitTproxyListener = listeners.some((listener) => text(listener && listener.type) === 'tproxy');
-            if (uiState.value && uiState.value.tproxyEnable && !hasExplicitTproxyListener) {
-                addPortEntry('基础 TProxy 端口 tproxy-port', config.value && config.value['tproxy-port']);
-            }
-            listeners.forEach((listener, index) => {
-                const effectivePort = (uiState.value && uiState.value.tproxyEnable && text(listener && listener.type) === 'tproxy')
-                    ? (config.value && config.value['tproxy-port'])
-                    : (listener && listener.port);
-                addPortEntry(describeListener(listener, index), effectivePort);
+            providerValidation.validateProviders({
+                providers,
+                proxyNameSet,
+                validDialerTargets,
+                describeProvider,
+                pushIssue
             });
-
-            for (let i = 0; i < portEntries.length; i += 1) {
-                for (let j = i + 1; j < portEntries.length; j += 1) {
-                    const first = portEntries[i];
-                    const second = portEntries[j];
-                    const overlap = getPortSpecOverlap(first.ranges, second.ranges);
-                    if (!overlap) continue;
-                    pushIssue('error', `${first.label} 与 ${second.label} 端口冲突：${formatPortOverlap(overlap)}。`);
-                }
-            }
-
-            const subscriptionSources = new Map();
-            providers.forEach((provider) => {
-                if (!provider || provider._chainMode) return;
-                const name = text(provider.name);
-                if (!name || subscriptionSources.has(name)) return;
-                subscriptionSources.set(name, provider);
-            });
-
-            providers.forEach((provider, index) => {
-                const label = describeProvider(provider, index);
-                const name = text(provider && provider.name);
-                const type = text(provider && provider.type) || 'http';
-                const chainMode = text(provider && provider._chainMode);
-                const sourceProviderName = text(provider && provider._sourceProviderName);
-                const downloadProxy = text((provider && provider.proxy) || (provider && provider.downloadProxy));
-                const ageSecretKey = text(provider && provider.ageSecretKey);
-                const overrideDialerProxy = text(provider && provider.overrideDialerProxy);
-                const overrideUdp = text(provider && provider.overrideUdp).toLowerCase();
-                const overrideUdpOverTcp = text(provider && provider.overrideUdpOverTcp).toLowerCase();
-                const overrideTfo = text(provider && provider.overrideTfo).toLowerCase();
-                const overrideMptcp = text(provider && provider.overrideMptcp).toLowerCase();
-                const overrideSkipCertVerify = text(provider && provider.overrideSkipCertVerify).toLowerCase();
-                const overrideUp = text(provider && provider.overrideUp);
-                const overrideDown = text(provider && provider.overrideDown);
-                const overrideInterfaceName = text(provider && provider.overrideInterfaceName);
-                const overrideRoutingMark = text(provider && provider.overrideRoutingMark);
-                const overrideIpVersion = text(provider && provider.overrideIpVersion);
-                const inlineProxies = Array.isArray(provider && provider.inlineProxies)
-                    ? provider.inlineProxies.map((item) => text(item)).filter(Boolean)
-                    : [];
-                const fallbackPayloadProxies = Array.isArray(provider && provider._fallbackPayloadProxyNames)
-                    ? provider._fallbackPayloadProxyNames.map((item) => text(item)).filter(Boolean)
-                    : [];
-                const detachedFallbackPayloadProxies = unique(
-                    fallbackPayloadProxies.filter((proxyName) => !proxyNameSet.has(proxyName))
-                );
-                const unsupportedOverrideKeys = Array.isArray(provider && provider._unsupportedOverrideKeys)
-                    ? provider._unsupportedOverrideKeys.map((item) => text(item)).filter(Boolean)
-                    : [];
-
-                if (!name) {
-                    pushIssue('error', `${label} 缺少名称。`);
-                }
-                if (!SUPPORTED_PROXY_PROVIDER_TYPES.has(type)) {
-                    pushIssue('error', `${label} 使用了当前编辑器未完整支持的 provider 类型 "${type}"。`);
-                }
-                if (downloadProxy && !validDialerTargets.has(downloadProxy)) {
-                    pushIssue('error', `${label} 的 proxy 引用了不存在的代理/策略组 "${downloadProxy}"。`);
-                }
-                if (overrideDialerProxy && !validDialerTargets.has(overrideDialerProxy)) {
-                    pushIssue('error', `${label} 的 override.dialer-proxy 引用了不存在的代理/策略组 "${overrideDialerProxy}"。`);
-                }
-                if (type === 'http' && hasText(provider && provider.url) && !isValidAbsoluteUrl(provider && provider.url)) {
-                    pushIssue('error', `${label} 的 url 不是有效的绝对 URL。`);
-                }
-                if (text(provider && provider.sizeLimit) && !isValidNonNegativeNumberText(provider && provider.sizeLimit)) {
-                    pushIssue('error', `${label} 的 size-limit 必须是大于等于 0 的数字。`);
-                }
-                if (ageSecretKey && !ageSecretKey.startsWith('AGE-SECRET-KEY-')) {
-                    pushIssue('warning', `${label} 的 age-secret-key 通常应以 AGE-SECRET-KEY- 开头。`);
-                }
-                validateYamlHeaders(provider && provider.headers, label, pushIssue);
-                validateProxyNameOverride(provider && provider.overrideProxyName, label, pushIssue);
-                if (!isValidTriStateBooleanText(overrideUdp)) {
-                    pushIssue('error', `${label} 的 override.udp 只能是 true / false / 空。`);
-                }
-                if (!isValidTriStateBooleanText(overrideUdpOverTcp)) {
-                    pushIssue('error', `${label} 的 override.udp-over-tcp 只能是 true / false / 空。`);
-                }
-                if (!isValidTriStateBooleanText(overrideTfo)) {
-                    pushIssue('error', `${label} 的 override.tfo 只能是 true / false / 空。`);
-                }
-                if (!isValidTriStateBooleanText(overrideMptcp)) {
-                    pushIssue('error', `${label} 的 override.mptcp 只能是 true / false / 空。`);
-                }
-                if (!isValidTriStateBooleanText(overrideSkipCertVerify)) {
-                    pushIssue('error', `${label} 的 override.skip-cert-verify 只能是 true / false / 空。`);
-                }
-                if (overrideIpVersion && !IP_VERSION_OPTIONS.has(overrideIpVersion)) {
-                    pushIssue('error', `${label} 的 override.ip-version 不在官方支持列表中。`);
-                }
-                if (!isValidRoutingMarkText(overrideRoutingMark)) {
-                    pushIssue('error', `${label} 的 override.routing-mark 必须是十进制或 0x 十六进制整数。`);
-                }
-                if (!!overrideUp !== !!overrideDown) {
-                    pushIssue('warning', `${label} 的 override.up 和 override.down 建议成对填写。`);
-                }
-                if (overrideInterfaceName && /\s/.test(overrideInterfaceName)) {
-                    pushIssue('warning', `${label} 的 override.interface-name 含有空白字符，请确认网卡名拼写。`);
-                }
-
-                if (unsupportedOverrideKeys.length > 0) {
-                    pushIssue('warning', `${label} 含有当前编辑器暂不可直接编辑的 override 字段：${unsupportedOverrideKeys.join(', ')}；导出时会按原样保留。`);
-                }
-                if (detachedFallbackPayloadProxies.length > 0 && ['http', 'file'].includes(type)) {
-                    pushIssue('warning', `${label} 的 payload fallback 包含当前节点列表中不存在的快照节点：${detachedFallbackPayloadProxies.join(', ')}；导出时会按原样保留。`);
-                }
-
-                if (chainMode === 'provider') {
-                    if (!sourceProviderName) {
-                        pushIssue('error', `${label} 处于 provider chain 模式时，必须选择来源提供者。`);
-                    } else if (sourceProviderName === name) {
-                        pushIssue('error', `${label} 的来源提供者不能指向自己。`);
-                    } else {
-                        const sourceProvider = subscriptionSources.get(sourceProviderName);
-                        if (!sourceProvider) {
-                            pushIssue('error', `${label} 的来源提供者 "${sourceProviderName}" 不存在。`);
-                        } else {
-                            const sourceType = text(sourceProvider.type) || 'http';
-                            if (!['http', 'file'].includes(sourceType)) {
-                                pushIssue('error', `${label} 的来源提供者 "${sourceProviderName}" 必须是 http 或 file 类型。`);
-                            }
-                        }
-                    }
-                } else if (type === 'http' && !hasText(provider && provider.url)) {
-                        pushIssue('error', `${label} 使用 http 类型时必须填写 url。`);
-                }
-
-                if (type === 'inline') {
-                    const missingInlineProxies = unique(inlineProxies.filter((proxyName) => !proxyNameSet.has(proxyName)));
-                    if (missingInlineProxies.length > 0) {
-                        pushIssue('error', `${label} 的 inline payload 引用了不存在的节点：${missingInlineProxies.join(', ')}`);
-                    }
-                    if (inlineProxies.length === 0) {
-                        pushIssue('warning', `${label} 的 inline payload 为空。`);
-                    }
-                }
-
-                if (['http', 'file'].includes(type)) {
-                    if (type === 'http' && !isValidPositiveNumber(provider && provider.interval)) {
-                        pushIssue('warning', `${label} 的 interval 无效；导出时会回退到默认值。`);
-                    }
-
-                    if (provider && provider.healthCheckEnable !== false) {
-                        if (!hasText(provider && provider.healthUrl)) {
-                            pushIssue('warning', `${label} 未填写 health-check.url；导出时会回退到默认测速地址。`);
-                        } else if (!isValidAbsoluteUrl(provider && provider.healthUrl)) {
-                            pushIssue('warning', `${label} 的 health-check.url 不是有效的绝对 URL。`);
-                        }
-                        if (!isValidPositiveNumber(provider && provider.healthCheckInterval)) {
-                            pushIssue('warning', `${label} 的 health-check.interval 无效；导出时会回退到默认值。`);
-                        }
-                        if (!isValidPositiveNumber(provider && provider.healthCheckTimeout)) {
-                            pushIssue('warning', `${label} 的 health-check.timeout 无效；导出时会回退到默认值。`);
-                        }
-                    }
-                }
-            });
-
-            ruleProviders.forEach((provider, index) => {
-                const label = describeRuleProvider(provider, index);
-                const name = text(provider && provider.name);
-                const type = text(provider && provider.type) || 'http';
-                const behavior = text(provider && provider.behavior) || 'domain';
-                const format = text(provider && provider.format) || 'mrs';
-                const proxyRef = text(provider && provider.proxy);
-                const pathInBundle = text(provider && provider.pathInBundle);
-
-                if (!name) {
-                    pushIssue('error', `${label} 缺少名称。`);
-                }
-                if (!SUPPORTED_RULE_PROVIDER_TYPES.has(type)) {
-                    pushIssue('error', `${label} 使用了当前编辑器未完整支持的规则集类型 "${type}"。`);
-                }
-                if (!SUPPORTED_RULE_PROVIDER_BEHAVIORS.has(behavior)) {
-                    pushIssue('error', `${label} 的 behavior "${behavior}" 不在官方支持列表中。`);
-                }
-                if (type !== 'inline' && !SUPPORTED_RULE_PROVIDER_FORMATS.has(format)) {
-                    pushIssue('error', `${label} 的 format "${format}" 不在官方支持列表中。`);
-                }
-                if (type !== 'inline' && format === 'mrs' && behavior === 'classical') {
-                    pushIssue('error', `${label} 的 classical 行为不支持 mrs 格式。`);
-                }
-                if (type === 'http') {
-                    const url = text(provider && provider.autoUrl ? getRuleProviderUrl(provider) : provider && provider.customUrl);
-                    if (!url) {
-                        pushIssue('error', `${label} 使用 http 类型时必须填写可解析的 URL。`);
-                    } else if (!isValidAbsoluteUrl(url)) {
-                        pushIssue('error', `${label} 的 URL 不是有效的绝对 URL。`);
-                    }
-                    if (provider && provider.autoUrl && behavior === 'classical') {
-                        pushIssue('error', `${label} 的 classical 行为不能使用自动补全 URL。`);
-                    }
-                    if (!isValidPositiveNumber(provider && provider.interval)) {
-                        pushIssue('warning', `${label} 的 interval 无效；导出时会回退到默认值。`);
-                    }
-                    validateYamlHeaders(provider && provider.headers, label, pushIssue);
-                }
-                if (proxyRef && !validDialerTargets.has(proxyRef)) {
-                    pushIssue('error', `${label} 的 proxy 引用了不存在的代理/策略组 "${proxyRef}"。`);
-                }
-                if (text(provider && provider.sizeLimit) && !isValidNonNegativeNumberText(provider && provider.sizeLimit)) {
-                    pushIssue('error', `${label} 的 size-limit 必须是大于等于 0 的数字。`);
-                }
-                if (type === 'inline' && splitLines(provider && provider.payload).length === 0) {
-                    pushIssue('warning', `${label} 的 inline payload 为空。`);
-                }
-                if (type === 'inline' && pathInBundle) {
-                    pushIssue('warning', `${label} 是 inline 类型，path-in-bundle 不会导出。`);
-                }
-                if (pathInBundle && /^[/\\]/.test(pathInBundle)) {
-                    pushIssue('warning', `${label} 的 path-in-bundle 通常应填写包内相对路径。`);
-                }
+            providerValidation.validateRuleProviders({
+                ruleProviders,
+                validDialerTargets,
+                describeRuleProvider,
+                getRuleProviderUrl,
+                pushIssue
             });
 
             if (dns && dns.enable) {
@@ -763,172 +363,24 @@
                 }
             }
 
-            proxyGroups.forEach((group, index) => {
-                const label = describeGroup(group, index);
-                const name = text(group && group.name);
-                const type = text(group && group.type) || 'select';
-                const proxiesInGroup = Array.isArray(group && group.proxies)
-                    ? group.proxies.map((item) => text(item)).filter(Boolean)
-                    : [];
-                const useProviders = Array.isArray(group && group.use)
-                    ? group.use.map((item) => text(item)).filter(Boolean)
-                    : [];
-                const missingMembers = unique(
-                    proxiesInGroup.filter((memberName) => memberName !== name && !validRuleTargets.has(memberName))
-                );
-                const missingProviders = unique(useProviders.filter((providerName) => !providerNameSet.has(providerName)));
-                const includeAll = !!(group && group['include-all'] && type !== 'relay');
-                const includeAllProxies = !!(group && !includeAll && group['include-all-proxies']);
-                const includeAllProviders = !!(group && !includeAll && group['include-all-providers']);
-                const emptyFallback = text(group && group['empty-fallback']);
-                const reliesOnlyOnProviderMembers = URL_TEST_GROUP_TYPES.has(type)
-                    && !includeAll
-                    && !includeAllProxies
-                    && proxiesInGroup.length === 0
-                    && (includeAllProviders || useProviders.length > 0);
-
-                if (!name) {
-                    pushIssue('error', `${label} 缺少名称。`);
-                }
-                if (!SUPPORTED_PROXY_GROUP_TYPES.has(type)) {
-                    pushIssue('error', `${label} 使用了当前编辑器未完整支持的策略组类型 "${type}"。`);
-                }
-                if (name && proxiesInGroup.includes(name)) {
-                    pushIssue('error', `${label} 不能把自己加入 proxies。`);
-                }
-                if (missingMembers.length > 0) {
-                    pushIssue('error', `${label} 的 proxies 引用了不存在的节点/策略组：${missingMembers.join(', ')}`);
-                }
-                if (missingProviders.length > 0) {
-                    pushIssue('error', `${label} 的 use 引用了不存在的代理提供者：${missingProviders.join(', ')}`);
-                }
-                const validEmptyFallbackTargets = new Set([...BUILTIN_RULE_TARGETS, ...proxyNames]);
-                if (emptyFallback && !validEmptyFallbackTargets.has(emptyFallback)) {
-                    pushIssue('error', `${label} 的 empty-fallback 必须引用内建代理或手动节点，当前目标不存在或不是可用代理："${emptyFallback}"。`);
-                }
-                if (group && group['include-all'] && group['include-all-proxies']) {
-                    pushIssue('warning', `${label} 同时开启了 include-all 和 include-all-proxies；导出时会以 include-all 为准。`);
-                }
-                if (group && group['include-all'] && group['include-all-providers']) {
-                    pushIssue('warning', `${label} 同时开启了 include-all 和 include-all-providers；导出时会以 include-all 为准。`);
-                }
-                if (group && group['include-all-providers'] && useProviders.length > 0) {
-                    pushIssue('warning', `${label} 同时填写了 use 与 include-all-providers；导出时会以 include-all-providers 为准。`);
-                }
-                if (hasText(group && group['exclude-type']) && /[\\^$*+?.()[\]{}]/.test(text(group['exclude-type']))) {
-                    pushIssue('warning', `${label} 的 exclude-type 按官方文档应为以 | 分隔的类型列表，不是正则表达式。`);
-                }
-                if (type === 'relay' && proxiesInGroup.length === 0) {
-                    pushIssue('error', `${label} 是 relay 类型，但 proxies 为空。`);
-                }
-                if (type === 'relay') {
-                    pushIssue('warning', `${label} 使用了 relay；官方文档已标注该组型即将废弃。`);
-                    if (proxiesInGroup.length === 1) {
-                        pushIssue('warning', `${label} 只有一个成员，relay 链路通常至少需要两个节点。`);
-                    }
-                    const relayWireGuardMembers = proxiesInGroup.filter((memberName) => {
-                        const proxy = proxyByName.get(memberName);
-                        return proxy && text(proxy.type) === 'wireguard';
-                    });
-                    if (relayWireGuardMembers.length > 0) {
-                        pushIssue('error', `${label} 的 relay 链路包含 WireGuard 节点，官方文档说明当前不支持。`);
-                    }
-                    if (!group['disable-udp'] && proxiesInGroup.length >= 2) {
-                        const head = proxyByName.get(proxiesInGroup[0]);
-                        const tail = proxyByName.get(proxiesInGroup[proxiesInGroup.length - 1]);
-                        const headType = text(head && head.type);
-                        const tailType = text(tail && tail.type);
-                        if ((head && !RELAY_UDP_HEAD_TAIL_TYPES.has(headType)) || (tail && !RELAY_UDP_HEAD_TAIL_TYPES.has(tailType))) {
-                            pushIssue('warning', `${label} 未关闭 UDP，但 relay 首尾节点并非官方说明中支持 UDP over TCP 的类型，UDP 中继可能不可用。`);
-                        }
-                    }
-                }
-                if (URL_TEST_GROUP_TYPES.has(type) && !hasText(group && group.url)) {
-                    pushIssue('warning', `${label} 未填写 url；导出时会回退到默认测速地址。`);
-                }
-                if (URL_TEST_GROUP_TYPES.has(type) && hasText(group && group.url) && !isValidAbsoluteUrl(group && group.url)) {
-                    pushIssue('error', `${label} 的 url 不是有效的绝对 URL。`);
-                }
-                if (URL_TEST_GROUP_TYPES.has(type) && text(group && group['expected-status']) && !validateExpectedStatus(group && group['expected-status'])) {
-                    pushIssue('error', `${label} 的 expected-status 语法无效，应为 * 或以 / 分隔的状态码/区间。`);
-                }
-                if (URL_TEST_GROUP_TYPES.has(type) && reliesOnlyOnProviderMembers) {
-                    pushIssue('warning', `${label} 仅通过 use / include-all-providers 引入成员；官方文档说明 url-test/fallback/load-balance 的 url 只会检查 proxies 字段中的节点。`);
-                }
-                if (URL_TEST_GROUP_TYPES.has(type) && hasText(group && group['max-failed-times']) && Number(group['max-failed-times']) < 0) {
-                    pushIssue('error', `${label} 的 max-failed-times 不能小于 0。`);
-                }
-                if (type === 'load-balance' && hasText(group && group.strategy) && !LOAD_BALANCE_STRATEGY_OPTIONS.has(text(group && group.strategy))) {
-                    pushIssue('error', `${label} 的 strategy "${text(group && group.strategy)}" 不在官方支持列表中。`);
-                }
-                if (hasText(group && group['interface-name'])) {
-                    pushIssue('warning', `${label} 使用了官方已标注 deprecated 的 interface-name。`);
-                }
-                if (hasText(group && group['routing-mark'])) {
-                    pushIssue('warning', `${label} 使用了官方已标注 deprecated 的 routing-mark。`);
-                }
+            groupRuleValidation.validateGroups({
+                proxyGroups,
+                proxyNames,
+                proxyByName,
+                providerNameSet,
+                validRuleTargets,
+                builtInRuleTargets: BUILTIN_RULE_TARGETS,
+                describeGroup,
+                pushIssue
             });
-
-            rules.forEach((rule, index) => {
-                const label = describeRule(rule, index);
-
-                if (rule && rule.logic) {
-                    const target = text(rule.target);
-                    const conditions = Array.isArray(rule.conditions) ? rule.conditions : [];
-
-                    if (!target) {
-                        pushIssue('error', `${label} 缺少 target。`);
-                    } else if (!validRuleTargets.has(target)) {
-                        pushIssue('error', `${label} 的 target 指向了不存在的节点/策略组 "${target}"。`);
-                    }
-                    if (conditions.length === 0) {
-                        pushIssue('error', `${label} 至少需要一个子条件。`);
-                    }
-
-                    conditions.forEach((condition, conditionIndex) => {
-                        if (!condition || text(condition.type) !== 'RULE-SET') return;
-
-                        const ref = text(condition.value);
-                        if (!ref) {
-                            pushIssue('error', `${label} 的第 ${conditionIndex + 1} 个条件缺少 RULE-SET 引用名称。`);
-                        } else if (!ruleProviderNameSet.has(ref)) {
-                            pushIssue('error', `${label} 的第 ${conditionIndex + 1} 个条件引用了不存在的规则集 "${ref}"。`);
-                        }
-                    });
-                    return;
-                }
-
-                const type = text(rule && rule.type);
-                const target = text(rule && rule.target);
-
-                if (!type) {
-                    pushIssue('error', `${label} 缺少类型。`);
-                    return;
-                }
-
-                if (type === 'SUB-RULE') {
-                    if (!target) {
-                        pushIssue('error', `${label} 缺少子规则名称。`);
-                    } else if (subRuleParseOk && !subRuleNames.has(target)) {
-                        pushIssue('error', `${label} 引用了不存在的子规则 "${target}"。`);
-                    }
-                    return;
-                }
-
-                if (!target) {
-                    pushIssue('error', `${label} 缺少 target。`);
-                } else if (!validRuleTargets.has(target)) {
-                    pushIssue('error', `${label} 的 target 指向了不存在的节点/策略组 "${target}"。`);
-                }
-
-                if (type === 'RULE-SET') {
-                    const ref = text(rule && rule.value);
-                    if (!ref) {
-                        pushIssue('error', `${label} 缺少 RULE-SET 引用名称。`);
-                    } else if (!ruleProviderNameSet.has(ref)) {
-                        pushIssue('error', `${label} 引用了不存在的规则集 "${ref}"。`);
-                    }
-                }
+            groupRuleValidation.validateRules({
+                rules,
+                subRuleParseOk,
+                subRuleNames,
+                ruleProviderNameSet,
+                validRuleTargets,
+                describeRule,
+                pushIssue
             });
 
             return issues;

@@ -35,10 +35,15 @@
         !window.MihomoCore.ProviderGroupModel ||
         !window.MihomoCore.ProviderFallbackModel ||
         !window.MihomoCore.ProviderRenameModel ||
+        !window.MihomoCore.createProviderGroupEditor ||
+        !window.MihomoCore.createProviderSubscriptionEditor ||
+        !window.MihomoCore.createRuleProviderEditor ||
         !window.MihomoCore.createProvidersModule ||
         !window.MihomoCore.ImportModel ||
         !window.MihomoCore.createImportExportModule ||
         !window.MihomoCore.createPersistenceModule ||
+        !window.MihomoCore.createBootstrapUiModule ||
+        !window.MihomoCore.createListenerEditor ||
         !window.MihomoFeatureModules ||
         !window.MihomoFeatureModules.ProxyNodeUtils ||
         !window.MihomoFeatureModules.ProxyNodeModel ||
@@ -56,7 +61,7 @@
         !window.MihomoFeatureModules.YamlBuilders ||
         !window.MihomoFeatureModules.createYamlModule
     ) {
-        throw new Error('功能模块未加载，请确认先引入 ./core/state.js ./core/ui-runtime.js ./core/provider-model.js ./core/provider-group-model.js ./core/provider-fallback-model.js ./core/provider-rename-model.js ./core/providers.js ./core/import-model.js ./core/import-export.js ./core/persistence.js ./modules/proxy-schema.js ./modules/proxy-node-utils.js ./modules/proxy-node-model.js ./modules/proxy-node-validation.js ./modules/proxy-node-yaml.js ./modules/proxies.js ./modules/validation-helpers.js ./modules/validation-dns.js ./modules/validation.js ./modules/dns.js ./modules/tproxy-builders.js ./modules/tproxy.js ./modules/rule-parser.js ./modules/rules.js ./modules/yaml-builders.js ./modules/yaml.js');
+        throw new Error('功能模块未加载，请确认先引入 ./core/state.js ./core/ui-runtime.js ./core/provider-model.js ./core/provider-group-model.js ./core/provider-fallback-model.js ./core/provider-rename-model.js ./core/provider-group-editor.js ./core/provider-subscription-editor.js ./core/rule-provider-editor.js ./core/providers.js ./core/import-model.js ./core/import-export.js ./core/persistence.js ./core/bootstrap-ui.js ./core/listener-editor.js ./modules/proxy-schema.js ./modules/proxy-node-utils.js ./modules/proxy-node-model.js ./modules/proxy-node-validation.js ./modules/proxy-node-yaml.js ./modules/proxies.js ./modules/validation-helpers.js ./modules/validation-dns.js ./modules/validation-listeners.js ./modules/validation-providers.js ./modules/validation-groups-rules.js ./modules/validation.js ./modules/dns.js ./modules/tproxy-builders.js ./modules/tproxy.js ./modules/rule-parser.js ./modules/rules.js ./modules/yaml-builders.js ./modules/yaml.js');
     }
 
     const STORAGE_VERSION = 20;
@@ -68,98 +73,22 @@
 
     createApp({
         setup() {
-            const crashError = ref(null);
-            const cacheWarning = ref('');
-            const bilingualLabelPattern = /^(.+?)\s*\(([^()]+)\)$/;
-            const bilingualSkipTags = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'PRE', 'CODE', 'OPTION']);
-            let bilingualLabelObserver = null;
-            let bilingualLabelFrame = 0;
-            const clearPersistedStorage = (includeLegacy = true) => {
-                const keys = [STORAGE_KEY, STORAGE_BACKUP_KEY];
-                if (includeLegacy) keys.push(...CLEANUP_STORAGE_KEYS);
-
-                keys.forEach((key) => {
-                    try {
-                        localStorage.removeItem(key);
-                    } catch (err) {
-                        console.warn('清理本地缓存失败:', key, err);
-                    }
-                });
-            };
-
-            onErrorCaptured((err, instance, info) => {
-                console.error('UI渲染层捕获到异常，已自动拦截以防止白屏:', err, info);
-                crashError.value = `Error: ${err.message}\nInfo: ${info}\nStack: ${err.stack}`;
-                return false;
+            const bootstrapUiModule = window.MihomoCore.createBootstrapUiModule({
+                ref,
+                onMounted,
+                nextTick,
+                onErrorCaptured,
+                storageKey: STORAGE_KEY,
+                storageBackupKey: STORAGE_BACKUP_KEY,
+                cleanupStorageKeys: CLEANUP_STORAGE_KEYS
             });
-
-            const forceClearCache = () => {
-                clearPersistedStorage();
-                location.reload();
-            };
-            const dismissCacheWarning = () => {
-                cacheWarning.value = '';
-            };
-            const createDualLabelNode = (doc, zh, en) => {
-                const wrapper = doc.createElement('span');
-                wrapper.className = 'dual-label';
-
-                const zhNode = doc.createElement('span');
-                zhNode.className = 'dual-label-zh';
-                zhNode.textContent = zh;
-
-                const enNode = doc.createElement('span');
-                enNode.className = 'dual-label-en';
-                enNode.textContent = en;
-
-                wrapper.appendChild(zhNode);
-                wrapper.appendChild(enNode);
-                return wrapper;
-            };
-            const shouldTransformBilingualText = (textNode) => {
-                if (!textNode || !textNode.parentElement) return false;
-                const parent = textNode.parentElement;
-                if (bilingualSkipTags.has(parent.tagName)) return false;
-                if (parent.closest('pre, code, textarea, option, .dual-label')) return false;
-
-                const text = String(textNode.nodeValue || '');
-                const normalized = text.replace(/\s+/g, ' ').trim();
-                return bilingualLabelPattern.test(normalized);
-            };
-            const applyBilingualLabelLayout = (root = document.getElementById('app')) => {
-                if (!root) return;
-
-                const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-                const candidates = [];
-                let current = walker.nextNode();
-
-                while (current) {
-                    if (shouldTransformBilingualText(current)) candidates.push(current);
-                    current = walker.nextNode();
-                }
-
-                candidates.forEach((textNode) => {
-                    const rawText = String(textNode.nodeValue || '');
-                    const normalized = rawText.replace(/\s+/g, ' ').trim();
-                    const match = normalized.match(bilingualLabelPattern);
-                    if (!match || !textNode.parentNode) return;
-
-                    const [, zh, en] = match;
-                    const fragment = document.createDocumentFragment();
-                    if (/^\s+/.test(rawText)) fragment.appendChild(document.createTextNode(' '));
-                    fragment.appendChild(createDualLabelNode(document, zh.trim(), en.trim()));
-                    if (/\s+$/.test(rawText)) fragment.appendChild(document.createTextNode(' '));
-                    textNode.parentNode.insertBefore(fragment, textNode);
-                    textNode.parentNode.removeChild(textNode);
-                });
-            };
-            const scheduleBilingualLabelLayout = () => {
-                if (bilingualLabelFrame) window.cancelAnimationFrame(bilingualLabelFrame);
-                bilingualLabelFrame = window.requestAnimationFrame(() => {
-                    bilingualLabelFrame = 0;
-                    applyBilingualLabelLayout();
-                });
-            };
+            const {
+                crashError,
+                cacheWarning,
+                clearPersistedStorage,
+                forceClearCache,
+                dismissCacheWarning
+            } = bootstrapUiModule;
 
             const askConfirm = (msg) => {
                 return window.confirm(msg);
@@ -206,22 +135,6 @@
             });
             const defaultConfigSnapshot = JSON.parse(JSON.stringify(config.value));
             const defaultUiStateSnapshot = JSON.parse(JSON.stringify(uiState.value));
-            onMounted(() => {
-                nextTick(() => {
-                    scheduleBilingualLabelLayout();
-                    const root = document.getElementById('app');
-                    if (!root) return;
-
-                    bilingualLabelObserver = new MutationObserver(() => {
-                        scheduleBilingualLabelLayout();
-                    });
-                    bilingualLabelObserver.observe(root, {
-                        subtree: true,
-                        childList: true,
-                        characterData: true
-                    });
-                });
-            });
             watch(() => uiState.value.useMirrorForPanels, (n) => {
                 const p = panels.find(x => x.id === uiState.value.selectedPanel);
                 if (p && p.id !== 'custom') config.value['external-ui-url'] = n ? p.mirrorUrl : p.rawUrl;
@@ -318,141 +231,33 @@
                 installScript,
                 copyInstallScript
             } = tproxyModule;
-
-            const addListener = () => {
-                config.value.listeners.push({
-                    name: `listener-${config.value.listeners.length + 1}`,
-                    type: 'mixed',
-                    port: getSuggestedListenerPort(config.value, uiState.value, 7895),
-                    listen: '::',
-                    udp: true,
-                    cipher: '',
-                    password: '',
-                    network: ['tcp'],
-                    target: '',
-                    rule: '',
-                    proxy: '',
-                    token: '',
-                    certificate: '',
-                    'private-key': '',
-                    'client-auth-type': '',
-                    'client-auth-cert': '',
-                    'ech-key': '',
-                    'ech-cert': '',
-                    users: [],
-                    _usersText: '',
-                    _shadowTlsText: '',
-                    _kcpTunText: ''
-                });
-            };
-            const removeListener = (idx) => {
-                config.value.listeners.splice(idx, 1);
-            };
-            const sanitizeListenerUser = (user) => {
-                if (!user || typeof user !== 'object') return { username: '', password: '' };
-                return {
-                    username: String(user.username || '').trim(),
-                    password: String(user.password || '')
-                };
-            };
-            const parseListenerUsersForEditor = (listener) => {
-                if (!listener || typeof listener !== 'object') return [];
-                if (Array.isArray(listener.users) && listener.users.length > 0) {
-                    return listener.users.map(sanitizeListenerUser);
-                }
-
-                const rawText = String(listener._usersText || '').trim();
-                if (!rawText) return [];
-
-                try {
-                    const parsedList = parseYamlSequenceText(rawText, (item) => item);
-                    if (parsedList && parsedList.every((item) => item && typeof item === 'object' && !Array.isArray(item))) {
-                        return parsedList.map(sanitizeListenerUser);
-                    }
-                } catch (err) {
-                    // ignore parse failures here; validation will surface the exact error
-                }
-
-                try {
-                    const parsedObject = parseYamlObjectText(rawText);
-                    if (parsedObject && typeof parsedObject === 'object' && !Array.isArray(parsedObject)) {
-                        return [sanitizeListenerUser(parsedObject)];
-                    }
-                } catch (err) {
-                    // ignore parse failures here; validation will surface the exact error
-                }
-
-                return [];
-            };
-            const syncListenerUsersText = (listener) => {
-                if (!listener || typeof listener !== 'object') return;
-                const editorUsers = (Array.isArray(listener.users) ? listener.users : [])
-                    .map(sanitizeListenerUser);
-                const exportUsers = editorUsers.filter((user) => user.username || user.password);
-                listener.users = editorUsers;
-                listener._usersText = formatYamlSequenceText(exportUsers);
-            };
-            const ensureListenerUsers = (listener) => {
-                if (!listener || typeof listener !== 'object') return;
-                if (!Array.isArray(listener.users) || listener.users.length === 0) {
-                    listener.users = parseListenerUsersForEditor(listener);
-                } else {
-                    listener.users = listener.users.map(sanitizeListenerUser);
-                }
-                syncListenerUsersText(listener);
-            };
-            const listenerUsesStructuredUsers = (listener) => ['mixed', 'http', 'socks'].includes(String(listener?.type || '').trim());
-            const addListenerUser = (listener) => {
-                if (!listener || typeof listener !== 'object') return;
-                ensureListenerUsers(listener);
-                listener.users.push({ username: '', password: '' });
-                syncListenerUsersText(listener);
-            };
-            const removeListenerUser = (listener, userIndex) => {
-                if (!listener || typeof listener !== 'object' || !Array.isArray(listener.users)) return;
-                listener.users.splice(userIndex, 1);
-                syncListenerUsersText(listener);
-            };
-            const tunnelListenerNetworkOptions = TUNNEL_LISTENER_NETWORK_OPTIONS.slice();
-            const handleListenerTypeChange = (listener) => {
-                if (!listener || typeof listener !== 'object') return;
-                if (String(listener.type || '').trim() === 'tunnel') {
-                    listener.network = normalizeTunnelListenerNetwork(listener.network);
-                    if (!Array.isArray(listener.network) || listener.network.length === 0) {
-                        listener.network = ['tcp'];
-                    }
-                    listener.target = String(listener.target || '').trim();
-                    return;
-                }
-
-                if (listenerUsesStructuredUsers(listener)) {
-                    ensureListenerUsers(listener);
-                }
-
-                if (!Array.isArray(listener.network)) {
-                    listener.network = normalizeTunnelListenerNetwork(listener.network);
-                }
-            };
-            onMounted(() => {
-                if (!Array.isArray(config.value.listeners)) return;
-                config.value.listeners.forEach((listener) => {
-                    if (listenerUsesStructuredUsers(listener)) ensureListenerUsers(listener);
-                });
+            const listenerEditorModule = window.MihomoCore.createListenerEditor({
+                onMounted,
+                config,
+                uiState,
+                parseYamlObjectText,
+                parseYamlSequenceText,
+                formatYamlSequenceText,
+                getSuggestedListenerPort,
+                normalizeTunnelListenerNetwork,
+                tunnelListenerNetworkOptions: TUNNEL_LISTENER_NETWORK_OPTIONS,
+                getShadowsocksCipherOptions,
+                isSupportedShadowsocksCipher,
+                isShadowsocks2022Cipher,
+                generateShadowsocksPassword
             });
-            const shadowsocksCipherOptions = getShadowsocksCipherOptions();
-            const getListenerShadowsocksPasswordPlaceholder = (cipher) => {
-                const normalizedCipher = String(cipher || '').trim();
-                if (!normalizedCipher) return '请先选择加密算法';
-                if (normalizedCipher === 'none') return 'none 模式无需密码';
-                if (isShadowsocks2022Cipher(normalizedCipher)) return '点击右侧生成标准 Base64 密钥';
-                return '请输入密码或点击右侧生成';
-            };
-            const generateListenerShadowsocksPassword = (listener) => {
-                if (!listener || typeof listener !== 'object') return;
-                const cipher = String(listener.cipher || '').trim();
-                if (!cipher || !isSupportedShadowsocksCipher(cipher)) return;
-                listener.password = generateShadowsocksPassword(cipher);
-            };
+            const {
+                addListener,
+                removeListener,
+                addListenerUser,
+                removeListenerUser,
+                syncListenerUsersText,
+                tunnelListenerNetworkOptions,
+                handleListenerTypeChange,
+                shadowsocksCipherOptions,
+                getListenerShadowsocksPasswordPlaceholder,
+                generateListenerShadowsocksPassword
+            } = listenerEditorModule;
 
             const proxiesModule = window.MihomoFeatureModules.createProxiesModule();
             const {
